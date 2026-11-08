@@ -1,0 +1,22 @@
+{
+  "name": "vireo",
+  "version": "0.1.0",
+  "description": "vireo — agente de código CLI ligero, compatible con el formato opencode.json(c)",
+  "type": "module",
+  "license": "MIT",
+  "bin": {
+    "vireo": "./bin/vireo"
+  },
+  "scripts": {
+    "test": "bun test",
+    "vireo": "bun run bin/vireo",
+    "doctor": "bun run bin/vireo doctor"
+  },
+  "engines": {
+    "bun": ">=1.1"
+  },
+  "devDependencies": {
+    "bun-types": "^1.4.4",
+    "typescript": "^7.0.2"
+  }
+}
