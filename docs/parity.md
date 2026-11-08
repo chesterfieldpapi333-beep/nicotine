@@ -9,8 +9,8 @@
 > fácil de aprender y de modificar, compatible con skills/plugins/MCP de otras
 > CLIs (Claude Code, Codex, Gemini CLI, OpenCode, Pi y similares).
 >
-> **Fecha de investigación:** 2026-11-08. **Estado del código:** Fase 1 completada
-> (núcleo + tools + permisos + config con renderer plano; `bun test` → 49/49 verde).
+> **Fecha de investigación:** 2026-11-08. **Estado del código:** Fase 2 (TUI) implementada —
+> motores OpenTUI y ANSI propio, `bun test` → 70/70 verde.
 > Esta tabla es la guía de las fases 2–8.
 
 ## Leyenda
@@ -63,7 +63,7 @@ OpenCode está en transición v1 → v2. Esto afecta nombres; Vireo decide así:
 | Eventos tipados (`text_delta`, `tool_start`, `tool_end`, `turn_end`, `error`, `todos_updated`, `session_saved`) — el núcleo no imprime | hecho | spec; base para serve + TUI + print/json | 1 |
 | Proveedor OpenAI-compatible con streaming (chat/completions) | hecho (SSE manual; `--model` con prefijo `proveedor/` informativo) | `/docs/providers`; baseURL+apiKey+model en config/env | 1 |
 | Adaptador Vercel AI SDK opcional (desactivado por defecto) | falta | `ai` + `@ai-sdk/openai-compatible`; detrás de flag | 1 |
-| Sesión en JSONL (append-only, sin ORM) | parcial — creación/append/list/título listos (`~/.local/share/vireo/sessions`); undo/compct/subagentes fase 3 | spec; una línea por mensaje/evento | 1 (base) / 3 (sesiones) |
+| Sesión en JSONL (append-only, sin ORM) | parcial — creación/append/list/título listos (`~/.local/share/vireo/sessions`); undo/compact/subagentes fase 3 | spec; una línea por mensaje/evento | 1 (base) / 3 (sesiones) |
 | Contexto: instrucciones + skills + tools en el prompt | parcial — system prompt base + agente; context-files y skills fase 4 | spec + `/docs/agents` | 1 |
 | Compactación (auto al llenar buffer; keep.tokens) | falta | `/docs/config#compaction`; dos pasos en fase 8 | 3 / 8 |
 | Undo/redo con Git (revert de cambios de archivos) | falta | `/docs/tui#undo`; requiere repo git | 3 |
@@ -107,7 +107,7 @@ OpenCode está en transición v1 → v2. Esto afecta nombres; Vireo decide así:
 | `external_directory` — en Vireo es **ask** por defecto (spec), configurable; expansión `~` `$HOME` | hecho (desviación deliberada del default v2) | `/docs/permissions#directories`; **pregunta extra en TUI si la regla es ask** | 1 |
 | Regla compuesta (patch multi-archivo vía `permissionResources`; `deny` > `ask` > `allow`) | hecho | `/docs/permissions#matching` | 1 |
 | Saved approvals ("always" guarda patrón en memoria de sesión — para rutas, `carpeta/*`; persistencia proyecto-scoped: fase 3; nunca pisan `deny`) | parcial | `/docs/permissions#approvals` | 3 |
-| Diálogo de aprobación en TUI con diff (once/always/reject + feedback) | falta | `/docs/permissions#approvals`, `keybinds` `permission.prompt.fullscreen` | 2 |
+| Diálogo de aprobación en TUI con diff (once/always/reject + feedback) | hecho (flechas+enter, y/a/n, diff coloreado truncado al alto) | `/docs/permissions#approvals`; `permission.prompt.fullscreen` no soportado (lite) | 2 |
 | Scanner de shell (heurística conservadora; el recurso es el comando completo; análisis por subcomandos: pendiente) | parcial | `/docs/permissions#scanner`; Vireo lite: splitter conservador (`&&`, `||`, `;`, `|`, `$()`, backticks), sin parser completo → **sin verificar cobertura completa** | 1 |
 | `policies` v2 (hard-deny post-reglas) | falta | `/docs/permissions#policies` | 8 |
 | Política aplicada en `before_tool` (dentro de `executeTool`: deny→error, ask→diff+confirmación) | hecho | spec + `/docs/plugins` | 1 |
@@ -140,10 +140,10 @@ OpenCode está en transición v1 → v2. Esto afecta nombres; Vireo decide así:
 
 | Comando | Estado | Ref | Fase |
 |---|---|---|---|
-| `/help`, `/models`, `/new` (`/clear`), `/sessions` (`/resume`,`/continue`), `/compact` (`/summarize`) | falta | `/docs/tui#commands` | 2/3 |
+| `/help`, `/models`, `/new` (`/clear`), `/sessions` (`/resume`,`/continue`), `/compact` (`/summarize`) | parcial — `/help`,`/models`,`/new`,`/sessions` en TUI; `/compact` fase 3 | `/docs/tui#commands` | 2/3 |
 | `/undo`, `/redo` (git-backed, requiere repo) | falta | `/docs/tui#undo` | 3 |
 | `/init` (crea/actualiza `AGENTS.md` guiado) | falta | `/docs/tui#init`, `/docs/rules` | 3 |
-| `/themes`, `/thinking`, `/export`, `/editor`, `/connect` (API keys), `/exit` (`/quit`,`/q`) | falta | `/docs/tui#commands` | 2/3 |
+| `/themes`, `/thinking`, `/export`, `/editor`, `/connect` (API keys), `/exit` (`/quit`,`/q`) | parcial — `/themes`,`/thinking`(informativo),`/exit` en TUI; `/export`,`/editor`,`/connect` falta | `/docs/tui#commands` | 2/3 |
 | `/plan` (entrar/salir de agente plan) | falta | spec `plan-enter/plan-exit` | 3 |
 | Comandos de archivo `commands/*.md` (frontmatter: description, model, agent; `$ARGUMENTS`; argumentos `$1..`/`$NAME`? — **sin verificar sintaxis exacta de args en v2**) | falta | `/docs/commands` | 4 |
 | Comandos de MCP prompts `<server>:<prompt>` | falta | `/docs/mcp-servers#names` | 5 |
@@ -153,16 +153,16 @@ OpenCode está en transición v1 → v2. Esto afecta nombres; Vireo decide así:
 
 | Función | Estado | Ref / nota | Fase |
 |---|---|---|---|
-| Motor `ansi` propio y mínimo (respaldo + `--print`-ish flat) | falta | spec; primer entregable de UI | 1 |
-| Motor `opentui` (`@opentui/core`, MIT) detrás de la interfaz de componentes | falta | `/docs/tui` (OpenCode TUI usa OpenTUI); **verificar bindings de teclado y diff rendering al implementar** | 2 |
-| Flujos: stream de mensajes, editor de prompt, autocompletado `@file` (fuzzy), `!comando` shell | falta | `/docs/tui` | 2 |
-| Selector de modelos (`/models`, `ctrl+x m`), lista de sesiones (`ctrl+x l`), ciclo de agentes (`tab`) | falta | `/docs/tui`, `/docs/keybinds` | 2/3 |
-| Diálogo de permisos con diff, selector de agente, selector de tema, help | falta | `/docs/keybinds`, `/docs/tui` | 2 |
-| Vista de diffs (inline, `diff_style: auto\|stacked`) | falta | `/docs/tui#configure` | 2 |
-| Keybinds: leader `ctrl+x`, `tui.json` merge-over-defaults, `"none"` para desactivar | falta | `/docs/keybinds` (tabla completa) | 2 |
-| Temas como JSON de tokens; `themes/` carpeta | falta | `/docs/themes` | 2 |
+| Motor `ansi` propio y mínimo (respaldo + `--print`-ish flat) | hecho (alt screen, SGR pass-through, diff-paint por línea, decodificador propio) | spec; primer entregable de UI | 2 |
+| Motor `opentui` (`@opentui/core`, MIT) detrás de la interfaz de componentes | hecho (0.8.3; un `TextRenderable` por fila + `setCursorPosition`; `keyInput.on("keypress")`; verificado con `createTestRenderer` headless y bajo pty) | `/docs/tui`; fallback automático a ANSI si falla el arranque (`VIREO_UI_ENGINE=ansi` lo fuerza) | 2 |
+| Flujos: stream de mensajes, editor de prompt, autocompletado `@file` (fuzzy), `!comando` shell | parcial — stream, editor multilínea (ctrl+j), `@file` fuzzy con walk propio (skip dirs, tope 6k); `/` comandos; `!comando` shell NO (evita saltarse permisos; el agente ya ejecuta bash con permisos) | `/docs/tui` | 2 |
+| Selector de modelos (`/models`, `ctrl+x m`), lista de sesiones (`ctrl+x l`), ciclo de agentes (`tab`) | hecho para la sesión en curso (fetch `GET {baseURL}/models`; sesión nueva en memoria); persistencia permanente = editar `opencode.json`; ciclo tab entre build/plan reconstruye permisos+system prompt | `/docs/tui`, `/docs/keybinds` | 2 |
+| Diálogo de permisos con diff, selector de agente, selector de tema, help | hecho (selector de agente = tab cicla; `/help` lista atajos) | `/docs/keybinds`, `/docs/tui` | 2 |
+| Vista de diffs (inline, `diff_style: auto\|stacked`) | parcial — color ✓/✗/+/−/@@ en tarjetas de tool y diálogo de permiso; `diff_style` se lee del tui.json pero aún no cambia el layout | `/docs/tui#configure` | 2 |
+| Keybinds: leader `ctrl+x`, `tui.json` merge-over-defaults, `"none"` para desactivar | hecho (subset v1: leader, session/model/theme/agent lists, exit, submit, newline, paginado, ciclo agente; `<leader>x` notación; unión por comas) | `/docs/keybinds` (tabla completa) | 2 |
+| Temas como JSON de tokens; `themes/` carpeta | hecho (vireo-dark/vireo-light built-in; merge por tokens parciales; `themes/`, `.opencode/themes/`, `.vireo/themes/` de raíz→cwd + `~/.config/opencode|vireo/themes`) | `/docs/themes` | 2 |
 | Extensibilidad: `on(evento)`, `registerTool`, `registerCommand`, `registerShortcut`, `ui.setSlot` (header/messages/widgets/editor/footer), `ui.addWidget`, `ui.setRenderer`, `ui.setTheme` | falta | spec (API propia, no hay fuente OpenCode pública 1:1 → **diseño propio**) | 6 |
-| Componente `{ render(width): string[]; onKey?(key): boolean }` envuelto en try/catch | falta | spec | 2/6 |
+| Componente `{ render(width): string[]; onKey?(key): boolean }` envuelto en try/catch | hecho (`src/ui/component.ts`, `safeRender`/`safeOnKey`); la TUI actual pinta directo ANSI; migrarla a componentes registrados llega con la API de extensiones | spec | 2/6 |
 
 ### H. Sesiones / historial (`src/core/session.ts`)
 
@@ -236,14 +236,14 @@ OpenCode está en transición v1 → v2. Esto afecta nombres; Vireo decide así:
 
 | Comando / modo | Estado | Ref | Fase |
 |---|---|---|---|
-| `vireo` (TUI por defecto) | parcial — REPL interino; TUI OpenTUI fase 2 | `/docs/cli` | 2 |
+| `vireo` (TUI por defecto) | hecho — bare TUI en TTY (ANSI/OpenTUI); sin TTY cae al REPL plano | `/docs/cli` | 2 |
 | `--print` / `-p` (un turno; stdout limpio, chatter en stderr) | hecho | `/docs/cli` run; Pi `-p` | 1 |
 | `--json` (eventos JSONL a stdout) | hecho | spec | 1 |
 | `serve` (HTTP opcional, **apagado por defecto**, expone el mismo flujo de eventos; basic auth por env `VIREO_SERVER_PASSWORD` análogo a `OPENCODE_SERVER_PASSWORD`) | falta | `/docs/server`; Pi `--mode json/rpc` | 3+ |
 | `doctor` (fase 1: capas, reglas allow/ask/deny, modelo, tools, rg, websearch) — reporte completo de orígenes fase 7 | parcial | spec | 1 (esqueleto) / 7 (completo) |
 | `--model provider/model`, `--agent`, `--continue/-c`, `--session/-s`, `--fork`, `--port/--hostname/--mdns` | falta | `/docs/cli` | 2/3 |
-| `--auto` (auto-aprueba lo no denegado) | falta | `/docs/cli` | 2 |
-| `--version`, `--help` | falta | convención | 1 |
+| `--auto` (auto-aprueba lo no denegado) | hecho (también salta el diálogo TUI; deny sigue denegado) | `/docs/cli` | 2 |
+| `--version`, `--help` | hecho | convención | 1 |
 
 ### N. No-objetivos de v1 (lite)
 
@@ -266,7 +266,7 @@ OpenCode está en transición v1 → v2. Esto afecta nombres; Vireo decide así:
 6. **Formato de commands de extensiones Gemini** (TOML vs MD) — verificar `docs/extensions`. (Fase 7)
 7. **Cobertura del scanner de shell**: Vireo lite usa splitter conservador; no sustituye al scanner de OpenCode (bach/zsh/sh/powershell completos). (Fase 1)
 8. **`python -m pytest` vs harness de tests**: se usará `bun test`.
-9. **Diff rendering OpenTUI**: API exacta de `@opentui/core` para el motor (TextRenderable vs buffer propio) — verificar al implementar Fase 2.
+9. ~~Diff rendering OpenTUI~~ **resuelto (Fase 2)**: `StyledText` + `TextRenderable.content`; verificado con `createTestRenderer` y bajo pty. Ancho de celdas ignora dobles-anchos unicode (CJK/emoji) — mejora menor pendiente.
 10. **OpenCode v1 `plan_enter`/`plan_exit`** como nombres de tool: existieron en v1; en v2 no aparecen como tools. Se mantienen por spec del producto. (Fase 3)
 
 ## Mapa fase → secciones
@@ -275,7 +275,7 @@ OpenCode está en transición v1 → v2. Esto afecta nombres; Vireo decide así:
 |---|---|
 | 0 | Este documento ✔ |
 | 1 | Núcleo + tools + permisos + config con renderer plano: `vireo --print "hola"` responde; `bun test` verde |
-| 2 | TUI con paridad (opentui): mismos flujos que `/docs/tui` |
+| 2 | ✔ TUI: stream, editor multilínea, `@file` fuzzy, `/`+paleta, selector modelos/sesiones (en sesión), permisos con diff, temas, leader ctrl+x, motores opentui+ansi con fallback |
 | 3 | Sesiones JSONL, undo/redo git, compactación, subagentes, `/init` |
 | 4 | Skills + context files de todas las CLIs; `doctor` los lista |
 | 5 | MCP stdio/HTTP con probe `server/discover` + fallback legacy |

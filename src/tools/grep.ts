@@ -44,7 +44,8 @@ export const grepTool: AgentTool = {
 
 async function ripgrep(pattern: string, base: string, args: Record<string, unknown>, limit: number, cwd: string) {
   const absBase = isAbsolute(base) ? base : resolve(cwd, base);
-  const rgArgs = ["--no-heading", "--line-number", "--color", "never", "--max-count", String(limit)];
+  // --no-require-git: honrar .gitignore aunque el meta proyecto no sea un repo git (fixtures, árboles sueltos)
+  const rgArgs = ["--no-heading", "--line-number", "--color", "never", "--no-require-git", "--max-count", String(limit)];
   if (args.literal) rgArgs.push("--fixed-strings");
   if (!args.caseSensitive) rgArgs.push("--ignore-case");
   if (args.include) rgArgs.push("-g", String(args.include));

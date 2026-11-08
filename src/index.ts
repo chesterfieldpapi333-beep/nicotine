@@ -4,6 +4,7 @@ import { stdin, stdout, stderr } from "node:process";
 import { runPrint } from "./modes/print.js";
 import { runJson } from "./modes/json.js";
 import { runRepl } from "./modes/repl.js";
+import { runTui } from "./modes/tui.js";
 import { runDoctor } from "./modes/doctor.js";
 
 const VERSION = "0.1.0";
@@ -11,7 +12,7 @@ const VERSION = "0.1.0";
 const HELP = `vireo — agente de código CLI ligero (lite)
 
 Uso:
-  vireo [opciones] [prompt...]     modo TUI/REPL (REPL interino hasta la fase 2)
+  vireo [opciones] [prompt...]     TUI en terminal (ANSI/OpenTUI); REPL plano sin TTY
   vireo --print [opciones] [prompt]  un turno; respuesta a stdout
   vireo --json  [opciones] [prompt]  eventos JSONL a stdout
   vireo doctor [opciones]            diagnóstico
@@ -27,6 +28,11 @@ Opciones:
       --config-dir <dir>  capa extra de configuración (menor precedencia que el proyecto)
   -h, --help         ayuda
       --version      versión
+
+Entorno:
+  VIREO_UI_ENGINE    motor de TUI: opentui (defecto) | ansi (fallback propio)
+  VIREO_TUI_CONFIG   ruta alternativa a tui.json(c)
+  VIREO_MODEL        modelo por defecto
 
 Si stdin no es un TTY, su contenido se añade al prompt entre <stdin>…</stdin>.
 Config: opencode.json(c) — capas: /etc/opencode < ~/.config/opencode < proyecto
@@ -128,6 +134,7 @@ async function main(): Promise<number> {
       return await runPrint({ ...base, prompt });
     }
     if (prompt) return await runPrint({ ...base, prompt }); // prompt directo = un turno
+    if (stdout.isTTY && stdin.isTTY) return await runTui({ ...base }); // TUI interactiva
     return await runRepl(base);
   } catch (err) {
     stderr.write(`vireo: ${(err as Error).message}\n`);
