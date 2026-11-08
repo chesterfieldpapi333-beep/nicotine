@@ -4,11 +4,12 @@
 import { createInterface } from "node:readline/promises";
 import { stdin, stdout, stderr } from "node:process";
 import { runAgentLoop } from "../core/loop.js";
-import { buildRuntime, persistNewMessages, prepareContext, type RuntimeOptions } from "./common.js";
+import { buildRuntime, persistNewMessages, prepareContext, prepareMcp, type RuntimeOptions } from "./common.js";
 import { Session } from "../core/session.js";
 
 export async function runRepl(opts: RuntimeOptions): Promise<number> {
   const rt = buildRuntime(opts);
+  await prepareMcp(rt);
   stderr.write(`vireo — sesión ${rt.session.id} (cwd: ${opts.cwd}). /help para ayuda, /exit para salir.\n`);
   const rl = createInterface({ input: stdin, output: stdout });
   for (;;) {

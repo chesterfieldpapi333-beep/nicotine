@@ -62,7 +62,7 @@ export async function runAgentLoop(opts: LoopOptions): Promise<"stop" | "max_ste
       let output: string;
       let isError = false;
       try {
-        output = await executeTool(tool, args, opts);
+        output = await executeTool(tool, args, opts, name);
       } catch (err) {
         isError = true;
         output = err instanceof PermissionDenied
@@ -95,8 +95,8 @@ function toolMessage(callId: string, content: string): ChatMessage {
 // executeTool aplica el flujo de permisos ANTES de tocar nada:
 //   deny → error sin ejecutar · ask → diff/preview + confirmación de la UI ·
 //   allow → ejecuta. Las tools con `preview` exponen un diff para el diálogo.
-export async function executeTool(tool: AgentTool | undefined, args: Record<string, unknown>, opts: LoopOptions): Promise<string> {
-  if (!tool) throw new Error(`tool desconocida: ${JSON.stringify(args?.name ?? "?")}`);
+export async function executeTool(tool: AgentTool | undefined, args: Record<string, unknown>, opts: LoopOptions, name = "?"): Promise<string> {
+  if (!tool) throw new Error(`tool desconocida: "${name}"`);
   const action = tool.permission.action;
   const resources = tool.permissionResources?.(args) ?? [tool.permission.resource(args)];
   const resource = resources[0];

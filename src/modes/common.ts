@@ -12,6 +12,8 @@ import { compactionFromConfig, maybeCompact, estimateTokens, type CompactionConf
 import { UndoManager } from "../core/undo.js";
 import { loadContextFiles, type ContextFilesResult } from "../compat/context-files.js";
 import { loadSkillIndex, type SkillIndex } from "../compat/skills.js";
+import { connectMcpServers, closeMcpClients, type McpRuntime } from "../compat/mcp/manager.js";
+import type { McpServerStatus } from "../compat/mcp/types.js";
 import type { AgentTool, ChatMessage, ToolContext } from "../core/types.js";
 import { ALL_TOOLS } from "../tools/index.js";
 import { runAgentLoop } from "../core/loop.js";
@@ -57,10 +59,16 @@ export interface Runtime {
   skills: SkillIndex;
   /** Avisos de config y de compat (skills/contexto) — para `doctor`. */
   warnings: string[];
+  /** Nombre de servidor mcp → capa de origen. */
+  mcpOrigins: Record<string, "system" | "global" | "project" | "custom">;
+  /** Estado de los servidores MCP tras `prepareMcp` (vacío hasta entonces). */
+  mcp: { servers: McpServerStatus[] };
+  /** Clientes MCP vivos (para cerrar al final). */
+  mcpClients?: McpRuntime;
 }
 
 export function buildRuntime(opts: RuntimeOptions): Runtime {
-  const { config, rules, layers, warnings: configWarnings } = loadConfig(opts.cwd, { configDir: opts.configDir });
+  const { config, rules, layers, warnings: configWarnings, mcpOrigins } = loadConfig(opts.cwd, { configDir: opts.configDir });
   const contextFiles = loadContextFiles(opts.cwd, config);
   const skillIndex = loadSkillIndex(opts.cwd, config);
   const compatWarnings = [...contextFiles.warnings, ...skillIndex.warnings];
@@ -162,8 +170,39 @@ export function buildRuntime(opts: RuntimeOptions): Runtime {
     contextFiles,
     skills: skillIndex,
     warnings: [...configWarnings, ...compatWarnings],
+    mcpOrigins,
+    mcp: { servers: [] },
   };
   return rt;
+}
+
+/**
+ * Conecta los servidores MCP declarados en la config (await antes del primer
+ * turno). Nunca rompe el arranque: fallos → aviso + servidor ausente.
+ * Las tools MCP se registran en rt.tools y los subagentes NO las heredan.
+ */
+export async function prepareMcp(rt: Runtime): Promise<void> {
+  const mcp = await connectMcpServers({
+    config: rt.config,
+    mcpOrigins: rt.mcpOrigins,
+    ui: rt.ctx.ui,
+    cwd: rt.ctx.cwd,
+  });
+  rt.mcpClients = mcp;
+  rt.mcp = { servers: mcp.servers };
+  rt.tools.push(...mcp.tools);
+  for (const st of mcp.servers) {
+    const detail = st.state === "connected" ? `${st.protocol} · ${st.toolCount} tools`
+      : st.state === "disabled" ? "deshabilitado"
+      : st.state === "untrusted" ? "omitido (no confiado)"
+      : `FALLO — ${st.error ?? "?"}`;
+    rt.ctx.ui.info(`mcp «${st.name}»: ${detail}`);
+  }
+}
+
+/** Cierra los clientes MCP (llamar al final de la sesión / en tests). */
+export async function closeMcp(rt: Runtime): Promise<void> {
+  await closeMcpClients(rt.mcpClients);
 }
 
 /** Compacta los mensajes si toca. Llamar justo antes de runAgentLoop. */

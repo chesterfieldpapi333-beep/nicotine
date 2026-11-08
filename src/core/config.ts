@@ -19,6 +19,8 @@ export interface LoadedConfig {
   layers: string[];
   /** Avisos no fatales (claves desconocidas, etc.); nunca errores. */
   warnings: string[];
+  /** Nombre de servidor mcp → capa de origen (para la compuerta de confianza). */
+  mcpOrigins: Record<string, "system" | "global" | "project" | "custom">;
 }
 
 // Claves de primer nivel conocidas (las que usa o irá usando Vireo). Una clave
@@ -93,21 +95,23 @@ function deepMerge(base: Record<string, unknown>, over: Record<string, unknown>)
   return out;
 }
 
+type LayerKind = "system" | "global" | "project" | "custom";
+
 export function loadConfig(cwd: string, opts: { configDir?: string } = {}): LoadedConfig {
-  const layers: { path: string; data: Record<string, unknown> }[] = [];
+  const layers: { path: string; data: Record<string, unknown>; kind: LayerKind }[] = [];
   const sys = readLayer(SYSTEM_DIR);
-  if (sys) layers.push(sys);
+  if (sys) layers.push({ ...sys, kind: "system" });
   const glob = readLayer(GLOBAL_DIR);
-  if (glob) layers.push(glob);
+  if (glob) layers.push({ ...glob, kind: "global" });
   for (const dir of projectDirs(cwd)) {
     const direct = readLayer(dir);      // opencode.json(c) directo
-    if (direct) layers.push(direct);
+    if (direct) layers.push({ ...direct, kind: "project" });
     const dot = readLayer(join(dir, ".opencode")); // .opencode/opencode.json(c) gana al directo
-    if (dot) layers.push(dot);
+    if (dot) layers.push({ ...dot, kind: "project" });
   }
   if (opts.configDir) {
     const custom = readLayer(resolve(cwd, opts.configDir));
-    if (custom) layers.push(custom);
+    if (custom) layers.push({ ...custom, kind: "custom" }); // capa explícita del usuario = confiada
   }
 
   let config: Record<string, unknown> = {};
@@ -123,5 +127,23 @@ export function loadConfig(cwd: string, opts: { configDir?: string } = {}): Load
     if (!KNOWN_TOP_KEYS.has(key)) warnings.push(`clave desconocida (se ignora): "${key}"`);
   }
 
-  return { config, rules, layers: layers.map((l) => l.path), warnings };
+  // Orígenes de servidores mcp: la última capa que declara el nombre gana.
+  const mcpOrigins: Record<string, LayerKind> = {};
+  for (const layer of layers) {
+    const mcp = layer.data["mcp"];
+    if (!mcp || typeof mcp !== "object") continue;
+    const obj = mcp as Record<string, unknown>;
+    const names: string[] = [];
+    for (const k of Object.keys(obj)) if (k !== "servers" && obj[k] && typeof obj[k] === "object") names.push(k);
+    const servers = obj["servers"];
+    if (servers && typeof servers === "object") {
+      for (const k of Object.keys(servers as Record<string, unknown>)) {
+        const v = (servers as Record<string, unknown>)[k];
+        if (v && typeof v === "object") names.push(k);
+      }
+    }
+    for (const n of names) mcpOrigins[n] = layer.kind;
+  }
+
+  return { config, rules, layers: layers.map((l) => l.path), warnings, mcpOrigins };
 }

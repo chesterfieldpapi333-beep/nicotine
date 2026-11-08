@@ -9,8 +9,9 @@
 > fácil de aprender y de modificar, compatible con skills/plugins/MCP de otras
 > CLIs (Claude Code, Codex, Gemini CLI, OpenCode, Pi y similares).
 >
-> **Fecha de investigación:** 2026-11-08. **Estado del código:** Fase 4 implementada —
-> skills + archivos de contexto + `doctor` los lista. `bun test` → 114/114 verde.
+> **Fecha de investigación:** 2026-11-08. **Estado del código:** Fase 5 implementada —
+> MCP stdio/HTTP (discover 2026-07-28 + fallback legacy), compuerta de confianza por origen.
+> `bun test` → 129/129 verde.
 > Esta tabla es la guía de las fases 2–8.
 
 ## Leyenda
@@ -95,7 +96,7 @@ OpenCode está en transición v1 → v2. Esto afecta nombres; Vireo decide así:
 | `task` (subagente; depth 1; se ejecuta en bloque) | hecho (fase 3) — alias v2 `subagent` sin tool aparte | `/docs/tools#subagent` (v2); clásico `task` | 3 |
 | `lsp` (experimental: diagnostics del servidor LSP si hay uno configurado) | falta | v2 no la lista como acción core; spec fase 1/8 | 8 |
 | `plan-enter` / `plan-exit` (cambiar agente build↔plan dentro de la sesión) | hecho (fase 3) — nombres con guión; plan-exit pide confirmación | v2 los pliega en agente plan | 3 |
-| MCP tools (`<server>_<tool>`, saneado `[^a-zA-Z0-9_-]` → `_`) | falta | `/docs/mcp-servers#names` | 5 |
+| MCP tools (`<server>_<tool>`, saneado `[^a-zA-Z0-9_-]` → `_`) | hecho — ver sección J | `/docs/mcp-servers#names` | 5 |
 | `execute` / Code Mode (v2) | **fuera de alcance lite** | `/docs/tools#execute` | — |
 | `image_generate`, `browser`, worktrees (v2) | **fuera de alcance lite** | `/docs/tools` | — |
 
@@ -148,7 +149,7 @@ OpenCode está en transición v1 → v2. Esto afecta nombres; Vireo decide así:
 | `/themes`, `/thinking`, `/export`, `/editor`, `/connect` (API keys), `/exit` (`/quit`,`/q`) | parcial — `/themes`,`/thinking`(informativo),`/exit` en TUI; `/export`,`/editor`,`/connect` falta | `/docs/tui#commands` | 2/3 |
 | `/plan` (entrar/salir de agente plan) | hecho vía tools `plan-enter`/`plan-exit` (el modelo puede pedir el cambio); tab cicla build/plan manualmente | spec `plan-enter/plan-exit` | 3 |
 | Comandos de archivo `commands/*.md` (frontmatter: description, model, agent; `$ARGUMENTS`; argumentos `$1..`/`$NAME`? — **sin verificar sintaxis exacta de args en v2**) | falta | `/docs/commands` | 4 |
-| Comandos de MCP prompts `<server>:<prompt>` | falta | `/docs/mcp-servers#names` | 5 |
+| Comandos de MCP prompts `<server>:<prompt>` | **fase 6** (comandos dinámicos en TUI) | `/docs/commands` | 5/6 |
 | Comandos custom desde config `commands: {}` | falta | `/docs/config#commands` | 4 |
 
 ### G. TUI (`src/ui/`)
@@ -188,7 +189,7 @@ OpenCode está en transición v1 → v2. Esto afecta nombres; Vireo decide así:
 | `disable-model-invocation` / `metadata.opencode.autoinvoke: false` → oculta del listado, load explícito permitido | hecho (ambos; el tool `skill` sigue cargándolos por id) | `/docs/skills#frontmatter` | 4 |
 | Validación name 1–64 `^[a-z0-9]+(-[a-z0-9]+)*$`, match con directorio — *OpenCode v2 no la enforcea; Vireo avisa, no rechaza* | hecho (aviso; la skill se carga igualmente) | agentskills spec + `/docs/skills#ids` | 4 |
 
-### J. MCP (`src/compat/mcp.ts`)
+### J. MCP (`src/compat/mcp/`)
 
 **Verificado (2026-11-08):**
 - La spec **2026-07-28** existe y hace MCP **stateless**: sin `initialize`, sin `Mcp-Session-Id`; cada request lleva `_meta` con `io.modelcontextprotocol/protocolVersion`, `clientCapabilities`, `clientInfo`; servidores **MUST** implementar `server/discover` (devuelve `supportedVersions`, capabilities, identity); clientes pueden enviar cualquier request y reintentar ante `UnsupportedProtocolVersionError`. Headers requeridos `Mcp-Method`, `Mcp-Name`; `resultType: complete|input_required`. [1](https://cloudsoftsol.com/blog/mcp-2026-spec-changes/) [2](https://dev.to/fabwaseem/stateless-mcp-servers-what-the-2026-07-28-spec-changed-and-how-to-migrate-5ccl) [3](https://tempreon.com/blog/mcp-went-stateless)
@@ -197,18 +198,19 @@ OpenCode está en transición v1 → v2. Esto afecta nombres; Vireo decide así:
 
 | Función | Estado | Ref / nota | Fase |
 |---|---|---|---|
-| stdio servers (command/args/env/cwd) | falta | `/docs/mcp-servers#local`; configs: OpenCode `mcp.servers`, `.mcp.json` (Claude), `[mcp_servers]` TOML (Codex), `mcpServers` (Gemini settings.json) | 5 |
-| Streamable HTTP servers (url/headers) | falta | `/docs/mcp-servers#remote` | 5 |
-| **2026-07-28 stateless vía `@modelcontextprotocol/client@2.4.0`** | falta | verificado arriba | 5 |
-| **Fallback a initialize:** `protocol: auto` → probe `server/discover`; si falla/timeout → reintenta con handshake legacy (anunciando última versión ≤ 2025-11-25); `legacy` = solo initialize; `2026-07-28` = estricto | falta | `/docs/mcp-servers#protocol-version` + spec 2026-07-28 | 5 |
-| `server/discover` sonda barata antes de `tools/list` (cacheable) | falta | spec 2026-07-28 | 5 |
-| Normalización nombres `<server>_<tool>` (sanear a `[a-zA-Z0-9_-]`) | falta | `/docs/mcp-servers#names` | 5 |
-| Config multi-origen: OpenCode `mcp` (v2 `mcp.servers`; legacy top-level `mcp.<name>` — **aceptar ambas**), `.mcp.json` (Claude, `{ "mcpServers": … }`), Codex TOML `[mcp_servers.*]` (`command/args/env/env_vars/cwd/url/bearer_token_env_var/http_headers/startup_timeout_sec/tool_timeout_sec/enabled`), Gemini `mcpServers` (`command/args/env/cwd/url/httpUrl/headers/timeout/trust/includeTools`) | falta | docs de cada CLI (ver Fuentes) | 5/7 |
-| Timeouts (startup/catalog/execution; per-server override) | falta | `/docs/mcp-servers#timeouts` | 5 |
-| Confianza explícita antes de lanzar MCP de proyecto/paquete de terceros (diálogo; `trust` de Gemini **no** se honra en silencio) | falta | spec + modelo Gemini `trust` | 5 |
+| stdio servers (command/args/env/cwd) | hecho — JSON-RPC 2.0 por \n, sin deps; `env` o `environment`; `enabled:false` deshabilita; client hand-rolled | `/docs/mcp-servers#local` | 5 |
+| Streamable HTTP servers (url/headers) | hecho — POST con SSE o JSON directo; `mcp-session-id` capturado/reenviado (legacy con sesión); timeouts por petición | `/docs/mcp-servers#remote` | 5 |
+| **2026-07-28 stateless** | hecho — **desviación:** cliente propio mínimo SIN dependencias (el API de client@2.4.0 no está verificado; filosofía lite); `_meta` con `io.modelcontextprotocol/protocolVersion` + headers `Mcp-Method`/`Mcp-Name`; verificado contra fake HTTP en tests | spec 2026-07-28 | 5 |
+| **Fallback a initialize:** `protocol: auto` → probe `server/discover`; si falla/timeout → reintenta con handshake legacy (anunciando última versión ≤ 2025-11-25); `legacy` = solo initialize; `2026-07-28` = estricto | hecho — stdio default `legacy`, HTTP default `auto`; escalera initialize 2025-11-25→2025-06-18→2025-03-26→2024-11-05 (solo baja si el servidor rechaza la versión); `2026-07-28` estricto falla limpio | `/docs/mcp-servers#protocol-version` + spec 2026-07-28 | 5 |
+| `server/discover` sonda antes de `tools/list` | hecho (probe manual; si anuncia 2026-07-28 → modo stateless, si no → fallback) | spec 2026-07-28 | 5 |
+| Normalización nombres `<server>_<tool>` (sanear a `[a-zA-Z0-9_-]`) | hecho — colisiones: primera gana + aviso; tools de resources con nombre fijo + `server` enum: `opencode_list_mcp_resources` / `opencode_read_mcp_resource` | `/docs/mcp-servers#names` | 5 |
+| Config multi-origen: OpenCode `mcp` (v2 `mcp.servers`; legacy top-level `mcp.<name>` — **aceptar ambas**, v2 pisa clásica), `.mcp.json` (Claude), Codex TOML, Gemini settings.json | parcial — OpenCode hecho (ambos shapes); Claude/Codex/Gemini vía loaders en fase 7 | docs de cada CLI (ver Fuentes) | 5/7 |
+| Timeouts (startup/catalog/execution; per-server override) | hecho — defaults 5s/10s/60s; `timeouts: {startup, catalog, execution}` o `startup_timeout_ms`/`catalog_timeout_ms`/`tool_timeout_ms` (o `timeout`) | `/docs/mcp-servers#timeouts` | 5 |
+| Confianza explícita antes de lanzar MCP de proyecto/paquete de terceros (diálogo; `trust` de Gemini **no** se honra en silencio) | hecho — project-origin → `ui.confirm` (una vez por servidor y sesión) con resumen de comando/URL + NOMBRES de env/headers (valores jamás); `--auto` aprueba con aviso; sin TTY rechaza; system/global/custom no preguntan; `doctor` nunca lanza servidores | spec + modelo Gemini `trust` | 5 |
 | OAuth remoto (PKCE, CIMD/DCR) | **fuera de alcance lite v1** (headers + env vars sí) | `/docs/mcp-servers#oauth` | — |
-| MCP prompts → comandos `<server>:<prompt>`, resources (`opencode_list_mcp_resources`…) | falta | `/docs/mcp-servers#resources`, `#names` | 5 |
-| Confianza/verificación del SDK: **API exacta de client@2 (auto-fallback interno vs probe manual) — sin verificar**; el código hará probe manual para no depender de ello | sin verificar | npm registry (existe, MIT); README no embebido en registry | 5 |
+| MCP prompts → comandos `<server>:<prompt>` | **fase 6** (necesita comandos dinámicos en TUI; no antes) | `/docs/mcp-servers#prompts` | 5/6 |
+| MCP resources (`opencode_list_mcp_resources`…) | hecho — solo si el servidor anuncia capability: tools fijas `opencode_list_mcp_resources` y `opencode_read_mcp_resource` con `server` enum; texto y blob (blob: nota, sin binario) | `/docs/mcp-servers#resources`, `#names` | 5 |
+| Confianza/verificación del SDK: **API exacta de client@2 (auto-fallback interno vs probe manual) — sin verificar** | resuelto por desviación: cliente propio hand-rolled (ver fila stateless); client@2.4.0 existe pero no se usa | npm registry (existe, MIT) | 5 |
 
 ### K. Plugins y hooks por origen (`src/compat/`)
 
@@ -257,11 +259,11 @@ OpenCode está en transición v1 → v2. Esto afecta nombres; Vireo decide así:
 - Bun **1.4.4** instalado en `~/.bun/bin` (npm global sin permisos → install script oficial). Node v20.20.2, git 2.47.3.
 - Registry npm accesible: `@modelcontextprotocol/client@2.4.0`, `@modelcontextprotocol/core@2.4.0`, `@modelcontextprotocol/sdk@1.32.2` (legacy).
 - OpenCode docs v1 (docs.opencode.ai) y v2 (opencode.ai/docs) accesibles; difieren en nombres (ver tabla v1/v2).
-- Líneas: `src/core` 1305, `src/compat` (fase 4, sin loaders) 461 → core+compat = 1766. El objetivo "tiny core" (<1500) ya no se cumple: decisión pendiente en fase 8 (estrechar presupuesto o factorizar undo/compact a util).
+- Líneas: `src/core` 1327, `src/compat` (fases 4-5, sin loaders) 1077 → core+compat = 2404. El objetivo "tiny core" (<1500) quedó muy atrás: decisión pendiente en fase 8 (estrechar presupuesto o factorizar undo/compact a util).
 
 ## Sin verificar / TODOs explícitos
 
-1. **API de `@modelcontextprotocol/client@2.4.0`**: si `auto`-fallback es interno o manual; confirmación de `server/discover` exacto y shape de `_meta`. Se implementará probe manual para no depender. (Fase 5)
+1. ~~API de `@modelcontextprotocol/client@2.4.0`~~ **resuelto por desviación (Fase 5)**: cliente MCP propio sin deps; probe `server/discover` manual + fallback initialize; verificado con fakes stdio/HTTP/SSE.
 2. **Sintaxis de argumentos de file-commands en v2** (`$ARGUMENTS` vs posicionales) — verificar `/docs/commands`. (Comandos personalizados: fase 6+; hoy no hay file-commands en Vireo)
 3. **Ruta de skills de Codex**: `.agents/skills` verificado; ¿`~/.codex/skills` existe? no confirmado → no se esc anea salvo flag. (Fase 4)
 4. ~~Ruta de skills de Gemini CLI~~ **resuelto (Fase 4)**: flag `compat.geminiSkills: true` activa `.gemini/skills` + `~/.gemini/skills`; default false (ruta sin verificar). El repo de Gemini no publica la ruta en lo leído.
@@ -281,7 +283,7 @@ OpenCode está en transición v1 → v2. Esto afecta nombres; Vireo decide así:
 | 2 | ✔ TUI: stream, editor multilínea, `@file` fuzzy, `/`+paleta, selector modelos/sesiones (en sesión), permisos con diff, temas, leader ctrl+x, motores opentui+ansi con fallback |
 | 3 | ✔ Sesiones (fork/rename/delete), undo/redo por turno (sin git, pre/post imagen + backup), compactación un paso, subagentes (`task` general/explore, depth 1, sesión hija), `/init` (prompt canned), tools `plan-enter`/`plan-exit` |
 | 4 | ✔ Skills + context files de todas las CLIs; `doctor` los lista (HTTP catalogs pendientes a hook de init async) |
-| 5 | MCP stdio/HTTP con probe `server/discover` + fallback legacy |
+| 5 | ✔ MCP stdio/HTTP con probe `server/discover` + fallback legacy (prompts→comandos dinámicos pasan a fase 6) |
 | 6 | Ext API + slots TUI + `/fusion` como primera extensión |
 | 7 | Loaders plugins claude/codex/gemini/opencode/pi (+ `agents-dir`) |
 | 8 | Mejoras: edit fail con "fragmento más parecido", compactación 2 pasos, failover/rotación claves, tool-calls-en-texto, memoria por proyecto, architect/editor |

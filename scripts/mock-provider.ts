@@ -21,7 +21,13 @@ Bun.serve({
 
     const scenario = process.env.VIREO_MOCK_SCENARIO ?? "";
     let payload: string[];
-    if (hasTools && !hasToolResult && scenario === "skillload") {
+    if (hasTools && !hasToolResult && scenario === "mcpecho") {
+      payload = [
+        sse({ choices: [{ delta: { content: "Uso la herramienta demo. " } }] }),
+        sse({ choices: [{ delta: { tool_calls: [{ index: 0, id: "call_mock_mcp", type: "function", function: { name: "demo_echo", arguments: '{"text":"vireo"}' } }] } }] }),
+        "data: [DONE]\n\n",
+      ];
+    } else if (hasTools && !hasToolResult && scenario === "skillload") {
       payload = [
         sse({ choices: [{ delta: { content: "Cargo la skill correspondiente. " } }] }),
         sse({ choices: [{ delta: { tool_calls: [{ index: 0, id: "call_mock_skill", type: "function", function: { name: "skill", arguments: '{"id":"revisar-prs"}' } }] } }] }),

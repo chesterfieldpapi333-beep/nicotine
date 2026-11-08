@@ -7,7 +7,7 @@ import { buildSystemPrompt } from "../core/context.js";
 import { Session } from "../core/session.js";
 import type { ChatMessage } from "../core/types.js";
 import type { UiHooks } from "../core/types.js";
-import { buildRuntime, persistNewMessages, prepareContext, compactNow, forkCurrentSession, type RuntimeOptions } from "./common.js";
+import { buildRuntime, persistNewMessages, prepareContext, prepareMcp, compactNow, forkCurrentSession, type RuntimeOptions } from "./common.js";
 import { loadTuiConfig } from "../ui/tui-config.js";
 import { loadThemes, defaultThemes } from "../ui/theme.js";
 import { TuiApp, type SlashCommand } from "../ui/app.js";
@@ -22,6 +22,7 @@ export interface TuiOptions extends RuntimeOptions {
 
 export async function runTui(opts: TuiOptions): Promise<number> {
   const rt = buildRuntime({ ...opts, attachUi: false });
+  await prepareMcp(rt);
   const cwd = rt.ctx.cwd;
   const tuiCfg = loadTuiConfig(cwd);
   const themes = loadThemes(cwd);

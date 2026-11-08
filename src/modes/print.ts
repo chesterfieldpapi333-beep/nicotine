@@ -1,10 +1,11 @@
 // --print: un turno completo, respuesta a stdout, herramientas/ruido a stderr.
 
 import { runAgentLoop } from "../core/loop.js";
-import { buildRuntime, persistNewMessages, prepareContext, type RuntimeOptions } from "./common.js";
+import { buildRuntime, persistNewMessages, prepareContext, prepareMcp, type RuntimeOptions } from "./common.js";
 
 export async function runPrint(opts: RuntimeOptions & { prompt: string }): Promise<number> {
   const rt = buildRuntime(opts);
+  await prepareMcp(rt);
   await prepareContext(rt); // compactar antes de empezar, si toca
   rt.ctx.undo?.beginTurn(opts.prompt.replace(/\s+/g, " ").slice(0, 80));
   const startIndex = rt.messages.length;
