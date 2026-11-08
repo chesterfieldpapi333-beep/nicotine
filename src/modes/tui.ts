@@ -14,6 +14,8 @@ import { TuiApp, type SlashCommand } from "../ui/app.js";
 import { type DisplayMessage } from "../ui/components.js";
 import { createAnsiEngine, type UiEngine } from "../ui/ansi.js";
 import { createOpenTuiEngine } from "../ui/opentui.js";
+import { prepareExtensions } from "../ext/loader.js";
+import type { UiBridge, ExtAppLike } from "../ext/api.js";
 
 export interface TuiOptions extends RuntimeOptions {
   /** Fuerza el motor: "opentui" (defecto) | "ansi". */
@@ -193,6 +195,36 @@ export async function runTui(opts: TuiOptions): Promise<number> {
     else app.error("no se pudo bifurcar la sesión");
   }
 
+  // ————— comandos MCP prompts (<server>:<prompt>) —————
+  const splitArgs = (s: string): string[] => {
+    const out: string[] = [];
+    const re = /"([^"]*)"|'([^']*)'|(\S+)/g;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(s))) out.push(m[1] ?? m[2] ?? m[3]);
+    return out;
+  };
+  const mcpPromptCommands: SlashCommand[] = rt.mcp.prompts.map(({ server, prompt }) => ({
+    name: `${server}:${prompt.name}`.replace(/[^a-zA-Z0-9_:-]/g, "_"),
+    hint: `[MCP ${server}] ${(prompt.description ?? prompt.name).slice(0, 60)}`,
+    run: (_app, rawArgs) => {
+      const argDefs = prompt.arguments ?? [];
+      const values = splitArgs(rawArgs ?? "");
+      const named: Record<string, string> = {};
+      argDefs.forEach((def, i) => { if (values[i] !== undefined) named[def.name] = values[i]; });
+      const missing = argDefs.filter((d) => d.required && named[d.name] === undefined);
+      if (missing.length) { _app.error(`faltan argumentos: ${missing.map((m) => m.name).join(", ")} — uso: /${server}:${prompt.name} ${argDefs.map((d) => d.name).join(" ")}`); return; }
+      void (async () => {
+        try {
+          const client = rt.mcpClients?.clients.get(server);
+          if (!client) { _app.error(`servidor MCP «${server}» no conectado`); return; }
+          const rendered = await client.getPrompt(prompt.name, named);
+          _app.info(`prompt MCP ${server}:${prompt.name} cargado`);
+          submitTurn(rendered);
+        } catch (err) { _app.error(`prompt MCP falló: ${(err as Error).message}`); }
+      })();
+    },
+  }));
+
   // ————— comandos slash / paleta —————
   const commands: SlashCommand[] = [
     { name: "help", hint: "atajos y comandos", run: () => app.openHelp() },
@@ -210,7 +242,24 @@ export async function runTui(opts: TuiOptions): Promise<number> {
     { name: "doctor", hint: "informe de carga", run: () => app.info("doctor: ejecuta `vireo doctor` en otra terminal (informe legible en stdout)") },
     { name: "exit", hint: "salir", run: () => engine.stop() },
   ];
+  commands.push(...mcpPromptCommands);
   app.deps.commands = commands;
+
+  // ————— extensiones (después de comandos builtin, antes del motor) —————
+  const extBridge: UiBridge = {
+    app: app as unknown as ExtAppLike,
+    registerCommand: (cmd) => {
+      if (commands.some((c) => c.name === cmd.name)) { app.info(`extensión: /${cmd.name} ignorado (nombre en uso)`); return; }
+      commands.push(cmd as SlashCommand);
+    },
+    registerShortcut: (spec, handler) => app.registerShortcut(spec, handler),
+    setSlot: (slot, component) => app.setSlot(slot, component),
+    addWidget: (component) => app.addWidget(component),
+    registerTheme: (theme) => { themes.set(theme.name, theme); app.deps.themes = [...themes.keys()].sort(); return true; },
+    applyTheme: (name) => { const t = themes.get(name); if (!t) return false; theme = t; app.deps.theme = t; app.requestRender(); return true; },
+    refresh: () => app.requestRender(),
+  };
+  await prepareExtensions(rt, { bridge: extBridge, ui: tuiUi });
 
   // ————— bus de eventos → widgets —————
   rt.bus.on((ev) => {

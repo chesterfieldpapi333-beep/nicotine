@@ -14,6 +14,8 @@ import { loadContextFiles, type ContextFilesResult } from "../compat/context-fil
 import { loadSkillIndex, type SkillIndex } from "../compat/skills.js";
 import { connectMcpServers, closeMcpClients, type McpRuntime } from "../compat/mcp/manager.js";
 import type { McpServerStatus } from "../compat/mcp/types.js";
+import { loadProjectApprovals, saveProjectApproval } from "../core/approvals.js";
+import type { McpPromptInfo } from "../compat/mcp/client.js";
 import type { AgentTool, ChatMessage, ToolContext } from "../core/types.js";
 import { ALL_TOOLS } from "../tools/index.js";
 import { runAgentLoop } from "../core/loop.js";
@@ -62,13 +64,16 @@ export interface Runtime {
   /** Nombre de servidor mcp → capa de origen. */
   mcpOrigins: Record<string, "system" | "global" | "project" | "custom">;
   /** Estado de los servidores MCP tras `prepareMcp` (vacío hasta entonces). */
-  mcp: { servers: McpServerStatus[] };
+  mcp: { servers: McpServerStatus[]; prompts: { server: string; prompt: McpPromptInfo }[] };
   /** Clientes MCP vivos (para cerrar al final). */
   mcpClients?: McpRuntime;
+  /** Path tal como aparece en `extensions` → capa de origen. */
+  extensionOrigins: Record<string, "system" | "global" | "project" | "custom">;
 }
 
 export function buildRuntime(opts: RuntimeOptions): Runtime {
-  const { config, rules, layers, warnings: configWarnings, mcpOrigins } = loadConfig(opts.cwd, { configDir: opts.configDir });
+  const { config, rules, layers, warnings: configWarnings, mcpOrigins, extensionOrigins } = loadConfig(opts.cwd, { configDir: opts.configDir });
+  const savedApprovals = loadProjectApprovals(opts.cwd).map((a) => ({ action: a.action, resource: a.resource, effect: "allow" as const }));
   const contextFiles = loadContextFiles(opts.cwd, config);
   const skillIndex = loadSkillIndex(opts.cwd, config);
   const compatWarnings = [...contextFiles.warnings, ...skillIndex.warnings];
@@ -104,6 +109,7 @@ export function buildRuntime(opts: RuntimeOptions): Runtime {
     isSubagent: false,
     undo,
     skills: skillIndex,
+    approvals: { save: (action, resource) => saveProjectApproval(opts.cwd, action, resource) },
   };
 
   const promptOpts = { contextBlock: contextFiles.block, skillBlock: skillIndex.block };
@@ -111,6 +117,9 @@ export function buildRuntime(opts: RuntimeOptions): Runtime {
     { role: "system", content: buildSystemPrompt({ cwd: opts.cwd, agent, ...promptOpts }) },
     ...session.messages(),
   ];
+
+  const withSaved = (agentRules: import("../core/permissions.js").Rule[]) =>
+    new PermissionEngine([...rules, ...savedApprovals, ...agentRules]);
 
   let currentAgentId = agent.id;
   const agentCtl = {
@@ -121,7 +130,7 @@ export function buildRuntime(opts: RuntimeOptions): Runtime {
       try { next = findAgent(id); } catch { return false; }
       if (next.mode === "subagent") return false;
       currentAgentId = next.id;
-      rt.permissions = new PermissionEngine([...rules, ...next.permissionRules]);
+      rt.permissions = withSaved(next.permissionRules);
       rt.messages[0] = { role: "system", content: buildSystemPrompt({ cwd: opts.cwd, agent: next, ...promptOpts }) };
       return true;
     },
@@ -151,7 +160,7 @@ export function buildRuntime(opts: RuntimeOptions): Runtime {
       undo, // comparte el gestor: sus ediciones quedan en el mismo undo por turno
       skills: skillIndex,
     };
-    const subPermissions = new PermissionEngine([...rules, ...subAgent.permissionRules]);
+    const subPermissions = withSaved(subAgent.permissionRules);
     const subTools = ALL_TOOLS.filter((t) => !["task", "plan-enter", "plan-exit"].includes(t.name));
     const reason = await runAgentLoop({ provider, permissions: subPermissions, messages: childMessages, tools: subTools, ctx: childCtx, maxSteps: 30, fetchImpl: opts.fetchImpl });
     for (const m of childMessages.slice(1)) child.appendMessage(m);
@@ -162,7 +171,7 @@ export function buildRuntime(opts: RuntimeOptions): Runtime {
   ctx.runSubagent = runSubagent;
 
   const rt = {
-    config, layers, provider, permissions: new PermissionEngine([...rules, ...agent.permissionRules]), session, bus, ui, ctx, messages,
+    config, layers, provider, permissions: withSaved(agent.permissionRules), session, bus, ui, ctx, messages,
     tools: ALL_TOOLS,
     usageTotals: { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
     compaction: compactionFromConfig(config),
@@ -171,7 +180,8 @@ export function buildRuntime(opts: RuntimeOptions): Runtime {
     skills: skillIndex,
     warnings: [...configWarnings, ...compatWarnings],
     mcpOrigins,
-    mcp: { servers: [] },
+    mcp: { servers: [], prompts: [] },
+    extensionOrigins,
   };
   return rt;
 }
@@ -189,7 +199,7 @@ export async function prepareMcp(rt: Runtime): Promise<void> {
     cwd: rt.ctx.cwd,
   });
   rt.mcpClients = mcp;
-  rt.mcp = { servers: mcp.servers };
+  rt.mcp = { servers: mcp.servers, prompts: mcp.prompts };
   rt.tools.push(...mcp.tools);
   for (const st of mcp.servers) {
     const detail = st.state === "connected" ? `${st.protocol} · ${st.toolCount} tools`

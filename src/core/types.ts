@@ -68,6 +68,8 @@ export interface ToolContext {
   undo?: import("./undo.js").UndoManager;
   /** Índice de skills ya cargado (tool `skill`); ausente en contextos sin compat. */
   skills?: import("../compat/skills.js").SkillIndex;
+  /** Persistencia del "always" de permisos, alcance proyecto (XDG data, nunca en el repo). */
+  approvals?: { save(action: string, resource: string): void };
 }
 
 export interface UiHooks {

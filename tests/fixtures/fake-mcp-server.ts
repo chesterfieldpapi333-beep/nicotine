@@ -59,6 +59,10 @@ function handle(msg: RpcMsg) {
       if (name === "fail") return resultReply(id, { content: [{ type: "text", text: "boom" }], isError: true });
       return errorReply(id, -32602, `unknown tool ${name}`);
     }
+    case "prompts/list":
+      return resultReply(id, { prompts: [{ name: "review", description: "revisa el diff con rigor", arguments: [{ name: "focus", description: "qué mirar", required: false }] }] });
+    case "prompts/get":
+      return resultReply(id, { messages: [{ role: "user", content: { type: "text", text: `revisa con foco: ${params?.arguments?.focus ?? "general"}` } }] });
     case "resources/list":
       if (mode === "resources" || mode === "stateless") {
         return resultReply(id, { resources: [{ uri: "fake://doc", name: "doc-falso", description: "recurso de prueba" }] });

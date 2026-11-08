@@ -5,6 +5,7 @@
 // Escenarios extra vía VIREO_MOCK_SCENARIO:
 //   fileedit  → pide la tool `write` con demo-output.txt (para probar /undo)
 //   skillload → pide la tool `skill` con la skill `revisar-prs` (para probar skills)
+//   extshout → pide la tool `ext_shout` de la extensión de referencia
 
 const port = Number(process.env.MOCK_PORT ?? 8799);
 const sse = (obj: unknown) => `data: ${JSON.stringify(obj)}\n\n`;
@@ -21,7 +22,13 @@ Bun.serve({
 
     const scenario = process.env.VIREO_MOCK_SCENARIO ?? "";
     let payload: string[];
-    if (hasTools && !hasToolResult && scenario === "mcpecho") {
+    if (hasTools && !hasToolResult && scenario === "extshout") {
+      payload = [
+        sse({ choices: [{ delta: { content: "Uso la extensión. " } }] }),
+        sse({ choices: [{ delta: { tool_calls: [{ index: 0, id: "call_mock_ext", type: "function", function: { name: "ext_shout", arguments: '{"text":"vireo"}' } }] } }] }),
+        "data: [DONE]\n\n",
+      ];
+    } else if (hasTools && !hasToolResult && scenario === "mcpecho") {
       payload = [
         sse({ choices: [{ delta: { content: "Uso la herramienta demo. " } }] }),
         sse({ choices: [{ delta: { tool_calls: [{ index: 0, id: "call_mock_mcp", type: "function", function: { name: "demo_echo", arguments: '{"text":"vireo"}' } }] } }] }),

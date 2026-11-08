@@ -29,6 +29,12 @@ export interface McpToolInfo {
   inputSchema: ToolParameters;
 }
 
+export interface McpPromptInfo {
+  name: string;
+  description?: string;
+  arguments?: { name: string; description?: string; required?: boolean }[];
+}
+
 const CLIENT_INFO = { name: "vireo", version: "0.1.0" };
 const PROTOCOL_2026 = "2026-07-28";
 const LEGACY_LADDER = ["2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05"];
@@ -261,6 +267,27 @@ export class McpClient {
     const result = (await this.send("resources/read", { uri }, this.def.executionTimeoutMs)) as { contents?: { text?: string; blob?: string; uri?: string }[] } | undefined;
     const parts = result?.contents ?? [];
     return parts.map((c) => c.text ?? (c.blob ? `[blob ${c.blob.length} chars base64 — no soportado; pide texto]` : `[${c.uri ?? uri}]`)).join("\n") || "(recurso vacío)";
+  }
+
+  /** null = el servidor no anuncia prompts/list (o falló). */
+  async listPrompts(): Promise<McpPromptInfo[] | null> {
+    try {
+      const result = (await this.send("prompts/list", {}, this.def.catalogTimeoutMs)) as { prompts?: { name?: string; description?: string; arguments?: { name: string; description?: string; required?: boolean }[] }[] } | undefined;
+      return (result?.prompts ?? []).filter((t): t is Required<Pick<typeof t, "name">> & typeof t => typeof t?.name === "string" && !!t.name);
+    } catch { return null; }
+  }
+
+  /** Renderiza un prompt MCP a texto (roles preservados). */
+  async getPrompt(name: string, args: Record<string, string>): Promise<string> {
+    const result = (await this.send("prompts/get", { name, arguments: args }, this.def.executionTimeoutMs)) as {
+      messages?: { role?: string; content?: { type?: string; text?: string } | string }[];
+    } | undefined;
+    const msgs = result?.messages ?? [];
+    return msgs.map((m) => {
+      const c = m.content;
+      const text = typeof c === "string" ? c : (c?.text ?? `[${c?.type ?? "contenido"} no textual]`);
+      return `${m.role ?? "user"}: ${text}`;
+    }).join("\n\n") || "(prompt vacío)";
   }
 
   async callTool(name: string, args: unknown): Promise<{ text: string; isError: boolean }> {

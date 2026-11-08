@@ -10,9 +10,14 @@ import type { ChatMessage } from "./types.js";
 export interface SessionMeta { id: string; created: string; cwd: string; model: string; title: string }
 export interface SessionLine { type: "meta" | "message"; [k: string]: unknown }
 
-export function sessionsDir(): string {
+/** Raíz de datos de vireo ($XDG_DATA_HOME/vireo). */
+export function dataHome(): string {
   const base = process.env.XDG_DATA_HOME ?? join(homedir(), ".local", "share");
-  return join(base, "vireo", "sessions");
+  return join(base, "vireo");
+}
+
+export function sessionsDir(): string {
+  return join(dataHome(), "sessions");
 }
 
 export class Session {

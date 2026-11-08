@@ -245,3 +245,17 @@ describe("connectMcpServers — HTTP (streamable)", () => {
     } finally { server.stop(true); }
   });
 });
+
+describe("MCP prompts — <server>:<prompt>", () => {
+  test("prompts/list se expone en rt.prompts y prompts/get renderiza texto", async () => {
+    const u = ui("once");
+    const rt = await connect(stdioConf("prompter", "legacy"), { prompter: "global" }, u);
+    expect(rt.servers[0].state).toBe("connected");
+    expect(rt.prompts.map((p) => `${p.server}:${p.prompt.name}`)).toContain("prompter:review");
+    const review = rt.prompts.find((p) => p.prompt.name === "review")!;
+    expect(review.prompt.arguments?.[0]?.name).toBe("focus");
+    const rendered = await rt.clients.get("prompter")!.getPrompt("review", { focus: "seguridad" });
+    expect(rendered).toContain("seguridad");
+    await closeMcpClients(rt);
+  });
+});

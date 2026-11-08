@@ -113,7 +113,11 @@ export async function executeTool(tool: AgentTool | undefined, args: Record<stri
     const verdict = await opts.ctx.ui.confirm({ action, resource: resources.join(", "), diff });
     if (verdict === "reject") throw new PermissionDenied(action, resource);
     if (verdict === "always") {
-      for (const r of resources) opts.permissions.addSavedAllow({ action, resource: proposeAlwaysPattern(action, r), effect: "allow" });
+      for (const r of resources) {
+        const pattern = proposeAlwaysPattern(action, r);
+        opts.permissions.addSavedAllow({ action, resource: pattern, effect: "allow" });
+        opts.ctx.approvals?.save(action, pattern); // proyecto-scoped (XDG), nunca pisa deny (el motor re-evalúa deny)
+      }
     }
     decision = { effect: "allow" };
   }

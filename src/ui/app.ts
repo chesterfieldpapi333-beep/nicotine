@@ -11,11 +11,14 @@ import type { TodoItem } from "../core/events.js";
 import type { PermissionRequest, PermissionDecision, QuestionPrompt } from "../core/types.js";
 import { readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
+import { safeRender, type Component } from "./component.js";
+import type { SlotName } from "../ext/api.js";
 
 export interface SlashCommand {
   name: string;
   hint: string;
-  run: (app: TuiApp) => void;
+  /** `rawArgs` = texto tras el nombre (puede ser ""). Los comandos builtins lo ignoran. */
+  run: (app: TuiApp, rawArgs?: string) => void;
 }
 
 export interface TuiAppDeps {
@@ -57,6 +60,53 @@ interface Autocomplete {
 
 export class TuiApp {
   private editor = new EditorState();
+  // ————— extensión API: slots, widgets y atajos —————
+  private slots: Partial<Record<SlotName, Component | null>> = {};
+  private widgets: Component[] = [];
+  private extShortcuts: { ctrl: boolean; alt: boolean; name: string; handler: () => void }[] = [];
+
+  setSlot(slot: SlotName, component: Component | null): void {
+    this.slots[slot] = component;
+    this.render();
+  }
+
+  addWidget(component: Component): void {
+    this.widgets.push(component);
+    this.render();
+  }
+
+  registerShortcut(spec: { ctrl: boolean; alt: boolean; name: string }, handler: () => void): void {
+    this.extShortcuts.push({ ...spec, handler });
+  }
+
+  /** Atajos de extensión: se evalúan tras los builtins (no pisan ctrl+x/ctrl+p/…). */
+  private handleExtShortcut(key: KeyEventLike): boolean {
+    for (const sc of this.extShortcuts) {
+      if (sc.ctrl !== key.ctrl) continue;
+      if (sc.alt ? !key.meta : false) continue;
+      if (key.name !== sc.name) continue;
+      try { sc.handler(); } catch (err) { this.error(`atajo de extensión falló: ${(err as Error).message}`); }
+      return true;
+    }
+    return false;
+  }
+
+  private slotRows(slot: SlotName, width: number, max: number): string[] {
+    const comp = this.slots[slot];
+    if (!comp) return [];
+    return safeRender(comp, width).slice(0, max).map((l) => fitAnsi(l, width));
+  }
+
+  private widgetRows(width: number, max: number): string[] {
+    const out: string[] = [];
+    for (const w of this.widgets) {
+      for (const line of safeRender(w, width)) {
+        if (out.length >= max) return out;
+        out.push(fitAnsi(line, width));
+      }
+    }
+    return out;
+  }
   private messages: DisplayMessage[] = [];
   private dialog: Dialog = { kind: "none" };
   private autocomplete: Autocomplete | null = null;
@@ -123,6 +173,7 @@ export class TuiApp {
   computeFrame(width: number, height: number): string[] {
     const theme = this.deps.theme;
     const lines: string[] = [];
+    lines.push(...this.slotRows("header", width, 3));
     lines.push(this.headerLine(width));
     const bottomRows = this.bottomRows(width, height);
     const bodyHeight = Math.max(1, height - 1 - bottomRows.length);
@@ -133,6 +184,7 @@ export class TuiApp {
         : body.slice(body.length - bodyHeight);
     for (let i = 0; i < bodyHeight; i++) lines.push(fitAnsi(visible[i] ?? "", width));
     if (this.scrollFromBottom > 0) lines[1] = fgHex(token(theme, "warning")) + fitAnsi(`↑ ${this.scrollFromBottom} líneas — PgDn para bajar`, Math.max(0, width - 1)) + reset;
+    lines.push(...this.slotRows("messages", width, 5));
     const bottomBase = lines.length;
     lines.push(...bottomRows);
     // cursor: el bottomRows() deja this.pendingCursor { visualRow, col } si hay
@@ -169,12 +221,16 @@ export class TuiApp {
     const todo = this.todoStrip(width);
     const editorArea = this.dialog.kind !== "none" ? this.dialogRows(width, Math.max(4, Math.floor(height / 2))) : this.editorRows(width);
     if (todo) rows.push(todo);
+    rows.push(...this.widgetRows(width, 2));
+    rows.push(...this.slotRows("widgets", width, 2));
     rows.push(dimmed + "─".repeat(width) + reset);
     if (this.autocomplete) rows.push(...this.autocompleteRows(width));
+    rows.push(...this.slotRows("editor", width, 3));
     const editorOffset = rows.length; // cursor relativo al área de editor/diálogo
     rows.push(...editorArea);
     if (this.pendingCursor) this.pendingCursor = { visualRow: this.pendingCursor.visualRow + editorOffset, col: this.pendingCursor.col };
     rows.push(this.footerLine(width));
+    rows.push(...this.slotRows("footer", width, 2));
     return rows;
   }
 
@@ -337,7 +393,10 @@ export class TuiApp {
         case "w": this.editor.deleteWordBackward(); break;
         case "b": this.editor.wordBackward(); break;
         case "f": this.editor.wordForward(); break;
-        default: return;
+        default:
+          // las extensiones pueden usar ctrl+<tecla> libre (builtins ganan)
+          if (this.handleExtShortcut(key)) { this.render(); return; }
+          return;
       }
       this.refreshAutocomplete(); this.render(); return;
     }
@@ -349,6 +408,7 @@ export class TuiApp {
     if (key.name === "down") { if (this.editor.lines.length > 1) this.editor.moveDown(); else this.scrollFromBottom = Math.max(0, this.scrollFromBottom - 1); this.render(); return; }
     if (key.name === "home") { this.editor.moveHome(); this.render(); return; }
     if (key.name === "end") { this.editor.moveEnd(); this.render(); return; }
+    if (this.handleExtShortcut(key)) { this.render(); return; }
     if (key.sequence && !key.meta) { this.editor.insert(key.sequence); this.refreshAutocomplete(); this.render(); }
   }
 
@@ -437,7 +497,7 @@ export class TuiApp {
     if (text.startsWith("/")) {
       const [cmd, ...rest] = text.slice(1).split(/\s+/);
       const command = this.deps.commands.find((c) => c.name === cmd);
-      if (command) { command.run(this); return; }
+      if (command) { command.run(this, rest.join(" ")); return; }
       this.messages.push({ role: "error", text: `comando desconocido: /${cmd} (ctrl+p lista los comandos)` });
       this.render();
       return;
@@ -542,7 +602,7 @@ export class TuiApp {
   // ————— autocompletado —————
   private refreshAutocomplete(): void {
     const line = this.editor.logicalLines()[this.editor.row]?.slice(0, this.editor.col) ?? "";
-    const slash = /^\/([\w-]*)$/.exec(line);
+    const slash = /^\/([\w:-]*)$/.exec(line);
     if (slash) {
       const q = slash[1].toLowerCase();
       const items = this.deps.commands.map((c) => c.name).filter((n) => n.startsWith(q)).sort();
@@ -569,7 +629,7 @@ export class TuiApp {
     if (!ac) return;
     if (ac.kind === "slash") {
       const cmd = ac.items[ac.selected];
-      this.replaceCurrentLinePrefix(/^\/[\w-]*/, `/${cmd}`);
+      this.replaceCurrentLinePrefix(/^\/[\w:-]*/, `/${cmd}`);
     } else {
       const file = ac.items[ac.selected];
       this.replaceCurrentLinePrefix(/@[\w./-]*$/, `@${file}`);

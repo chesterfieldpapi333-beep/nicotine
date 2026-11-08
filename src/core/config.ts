@@ -21,6 +21,8 @@ export interface LoadedConfig {
   warnings: string[];
   /** Nombre de servidor mcp → capa de origen (para la compuerta de confianza). */
   mcpOrigins: Record<string, "system" | "global" | "project" | "custom">;
+  /** Path tal como aparece en config.extensions → capa de origen (compuerta de confianza). */
+  extensionOrigins: Record<string, "system" | "global" | "project" | "custom">;
 }
 
 // Claves de primer nivel conocidas (las que usa o irá usando Vireo). Una clave
@@ -29,7 +31,7 @@ const KNOWN_TOP_KEYS = new Set([
   "$schema", "model", "small_model", "default_agent", "permission", "permissions",
   "compaction", "instructions", "skills", "mcp", "snapshots", "tui", "theme",
   "agents", "commands", "themes", "plugins", "policies", "provider", "providers",
-  "mode", "tools", "experimental", "share", "autoupdate", "enabled_providers",
+  "mode", "tools", "experimental", "share", "autoupdate", "enabled_providers", "extensions",
   "disabled_providers", "keybinds", "username", "shell", "compat", "approval_policy",
 ]);
 
@@ -145,5 +147,15 @@ export function loadConfig(cwd: string, opts: { configDir?: string } = {}): Load
     for (const n of names) mcpOrigins[n] = layer.kind;
   }
 
-  return { config, rules, layers: layers.map((l) => l.path), warnings, mcpOrigins };
+  // Orígenes de rutas de extensiones: la última capa que declara el path gana.
+  const extensionOrigins: Record<string, LayerKind> = {};
+  for (const layer of layers) {
+    const raw = layer.data["extensions"];
+    if (!Array.isArray(raw)) continue;
+    for (const item of raw) {
+      if (typeof item === "string" && item.trim()) extensionOrigins[item] = layer.kind;
+    }
+  }
+
+  return { config, rules, layers: layers.map((l) => l.path), warnings, mcpOrigins, extensionOrigins };
 }

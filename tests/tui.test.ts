@@ -304,3 +304,69 @@ describe("TUI — diálogos fase 3", () => {
     expect(renamed).toEqual([["ses00001", "nuevo nombre"]]);
   });
 });
+
+
+describe("TUI — extensión API (fase 6)", () => {
+  test("slots header/footer/widgets/editor/messages renderizan y se limpian", () => {
+    const { app } = makeApp();
+    app.setSlot("header", { render: () => ["header-ext"] });
+    app.setSlot("footer", { render: () => ["footer-ext"] });
+    app.setSlot("widgets", { render: () => ["widgets-ext"] });
+    app.setSlot("editor", { render: () => ["editor-ext"] });
+    app.setSlot("messages", { render: () => ["messages-ext"] });
+    app.pushUser("hola");
+    const t = frameText(app);
+    expect(t).toContain("header-ext");
+    expect(t).toContain("footer-ext");
+    expect(t).toContain("widgets-ext");
+    expect(t).toContain("editor-ext");
+    expect(t).toContain("messages-ext");
+    app.setSlot("header", null);
+    expect(frameText(app)).not.toContain("header-ext");
+  });
+
+  test("addWidget apila widgets sobre el separador", () => {
+    const { app } = makeApp();
+    app.addWidget({ render: () => ["w-uno"] });
+    app.addWidget({ render: () => ["w-dos"] });
+    const t = frameText(app);
+    expect(t).toContain("w-uno");
+    expect(t).toContain("w-dos");
+  });
+
+  test("atajo de extensión con ctrl dispara; tecla simple escribe en el editor", () => {
+    const { app } = makeApp();
+    let fired = 0;
+    app.registerShortcut({ ctrl: true, alt: false, name: "g" }, () => { fired++; });
+    app.handleKey(key("g", "g", { ctrl: true }));
+    expect(fired).toBe(1);
+    app.handleKey(key("g", "g")); // sin modificador → al editor
+    expect(fired).toBe(1);
+    expect((app as unknown as { editor: { buffer(): string } }).editor.buffer()).toContain("g");
+  });
+
+  test("los builtins ganan a los atajos de extensión (ctrl+l no lo dispara)", () => {
+    const { app } = makeApp();
+    let fired = 0;
+    app.registerShortcut({ ctrl: true, alt: false, name: "l" }, () => { fired++; });
+    app.handleKey(key("l", "", { ctrl: true }));
+    expect(fired).toBe(0); // ctrl+l = limpiar vista (builtin)
+  });
+
+  test("comando con ':' recibe rawArgs; builtins no se pisan", () => {
+    const { app } = makeApp();
+    let got = "";
+    app.deps.commands.push({ name: "demo:review", hint: "mcp", run: (_a, raw) => { got = raw ?? ""; } });
+    typeText(app, "/demo:review foco alto");
+    app.handleKey(key("return"));
+    expect(got).toBe("foco alto");
+  });
+
+  test("autocompletado slash acepta ':' (comandos MCP <server>:<prompt>)", () => {
+    const { app } = makeApp();
+    app.deps.commands.push({ name: "demo:review", hint: "mcp", run: () => {} });
+    typeText(app, "/demo");
+    const ac = (app as unknown as { autocomplete: { items: string[] } | null }).autocomplete;
+    expect(ac?.items).toContain("demo:review");
+  });
+});

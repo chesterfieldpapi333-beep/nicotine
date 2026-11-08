@@ -4,6 +4,7 @@ import { loadConfig } from "../core/config.js";
 import { loadContextFiles } from "../compat/context-files.js";
 import { loadSkillIndex } from "../compat/skills.js";
 import { mcpServersFromConfig } from "../compat/mcp/manager.js";
+import { discoverExtensions } from "../ext/loader.js";
 import { PermissionEngine } from "../core/permissions.js";
 import { findAgent, BUILTIN_AGENTS } from "../core/agents.js";
 import { ALL_TOOLS } from "../tools/index.js";
@@ -11,7 +12,7 @@ import { spawnSync } from "node:child_process";
 import { sessionsDir } from "../core/session.js";
 
 export function runDoctor(opts: { cwd: string; configDir?: string; agentId?: string; modelFlag?: string }): number {
-  const { config, rules, layers, warnings: configWarnings, mcpOrigins } = loadConfig(opts.cwd, { configDir: opts.configDir });
+  const { config, rules, layers, warnings: configWarnings, mcpOrigins, extensionOrigins } = loadConfig(opts.cwd, { configDir: opts.configDir });
   const contextFiles = loadContextFiles(opts.cwd, config);
   const skills = loadSkillIndex(opts.cwd, config);
   const engine = new PermissionEngine(rules);
@@ -60,6 +61,13 @@ export function runDoctor(opts: { cwd: string; configDir?: string; agentId?: str
     out.push(`  ${enabled ? "✓" : "✗"} ${name}  [${kind}${trust}]`);
   }
   out.push("");
+  // Extensiones: se LISTAN, nunca se importan desde doctor (importar = ejecutar)
+  const exts = discoverExtensions(opts.cwd, config, extensionOrigins);
+  out.push(`Extensiones (${exts.candidates.length}, sin ejecutar — doctor no las importa):`);
+  if (exts.candidates.length === 0) out.push("  (ninguna)");
+  else for (const e of exts.candidates) out.push(`  ${e.origin === "project" ? "!" : "✓"} ${e.id}  [${e.origin}] ${e.path}${e.origin === "project" ? " — pide confirmación al arrancar" : ""}`);
+  for (const w of exts.warnings) out.push(`  ! ${w}`);
+  out.push("");
   const compatWarnings = [...contextFiles.warnings, ...skills.warnings];
   if (compatWarnings.length) {
     out.push("Avisos de carga (skills/contexto):");
@@ -76,7 +84,7 @@ export function runDoctor(opts: { cwd: string; configDir?: string; agentId?: str
   out.push(`  sesiones: ${sessionsDir()}`);
   out.push("");
   out.push("Avisos de seguridad: la cookie `ndus` de TeraBox u otras credenciales de terceros nunca deben escribirse en la config ni pegarse en el chat.");
-  out.push("Pendiente (fases siguientes): extensiones (6), loaders de plugins (7), memoria/dos-pasos (8).");
+  out.push("Pendiente (fases siguientes): loaders de plugins (7), memoria/dos-pasos (8).");
   process.stdout.write(out.join("\n") + "\n");
   return 0;
 }

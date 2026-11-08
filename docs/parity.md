@@ -9,9 +9,12 @@
 > fácil de aprender y de modificar, compatible con skills/plugins/MCP de otras
 > CLIs (Claude Code, Codex, Gemini CLI, OpenCode, Pi y similares).
 >
-> **Fecha de investigación:** 2026-11-08. **Estado del código:** Fase 5 implementada —
-> MCP stdio/HTTP (discover 2026-07-28 + fallback legacy), compuerta de confianza por origen.
-> `bun test` → 129/129 verde.
+> **Fecha de investigación:** 2026-11-08. **Estado del código:** Fase 6 implementada —
+> Ext API lite (`src/ext/`): on/registerTool/registerCommand/registerShortcut/ui.setSlot/
+> addWidget/setTheme; slots TUI; descubrimiento con compuerta de confianza; extensión de
+> referencia (`examples/extensions/shout.ts`); MCP prompts → comandos dinámicos
+> `/<server>:<prompt>`; aprobaciones «always» persistentes por proyecto.
+> `bun test` → 148/148 verde. `/fusion` diferido (sin spec).
 > Esta tabla es la guía de las fases 2–8.
 
 ## Leyenda
@@ -149,7 +152,7 @@ OpenCode está en transición v1 → v2. Esto afecta nombres; Vireo decide así:
 | `/themes`, `/thinking`, `/export`, `/editor`, `/connect` (API keys), `/exit` (`/quit`,`/q`) | parcial — `/themes`,`/thinking`(informativo),`/exit` en TUI; `/export`,`/editor`,`/connect` falta | `/docs/tui#commands` | 2/3 |
 | `/plan` (entrar/salir de agente plan) | hecho vía tools `plan-enter`/`plan-exit` (el modelo puede pedir el cambio); tab cicla build/plan manualmente | spec `plan-enter/plan-exit` | 3 |
 | Comandos de archivo `commands/*.md` (frontmatter: description, model, agent; `$ARGUMENTS`; argumentos `$1..`/`$NAME`? — **sin verificar sintaxis exacta de args en v2**) | falta | `/docs/commands` | 4 |
-| Comandos de MCP prompts `<server>:<prompt>` | **fase 6** (comandos dinámicos en TUI) | `/docs/commands` | 5/6 |
+| Comandos de MCP prompts `<server>:<prompt>` | hecho — comandos dinámicos en TUI; args posicionales→orden declarado (required ausente → error de uso); el prompt renderizado se envía como turno del usuario | `/docs/commands` | 5/6 |
 | Comandos custom desde config `commands: {}` | falta | `/docs/config#commands` | 4 |
 
 ### G. TUI (`src/ui/`)
@@ -164,8 +167,8 @@ OpenCode está en transición v1 → v2. Esto afecta nombres; Vireo decide así:
 | Vista de diffs (inline, `diff_style: auto\|stacked`) | parcial — color ✓/✗/+/−/@@ en tarjetas de tool y diálogo de permiso; `diff_style` se lee del tui.json pero aún no cambia el layout | `/docs/tui#configure` | 2 |
 | Keybinds: leader `ctrl+x`, `tui.json` merge-over-defaults, `"none"` para desactivar | hecho (subset v1: leader, session/model/theme/agent lists, exit, submit, newline, paginado, ciclo agente; `<leader>x` notación; unión por comas) | `/docs/keybinds` (tabla completa) | 2 |
 | Temas como JSON de tokens; `themes/` carpeta | hecho (vireo-dark/vireo-light built-in; merge por tokens parciales; `themes/`, `.opencode/themes/`, `.vireo/themes/` de raíz→cwd + `~/.config/opencode|vireo/themes`) | `/docs/themes` | 2 |
-| Extensibilidad: `on(evento)`, `registerTool`, `registerCommand`, `registerShortcut`, `ui.setSlot` (header/messages/widgets/editor/footer), `ui.addWidget`, `ui.setRenderer`, `ui.setTheme` | falta | spec (API propia, no hay fuente OpenCode pública 1:1 → **diseño propio**) | 6 |
-| Componente `{ render(width): string[]; onKey?(key): boolean }` envuelto en try/catch | hecho (`src/ui/component.ts`, `safeRender`/`safeOnKey`); la TUI actual pinta directo ANSI; migrarla a componentes registrados llega con la API de extensiones | spec | 2/6 |
+| Extensibilidad: `on(evento)`, `registerTool`, `registerCommand`, `registerShortcut`, `ui.setSlot` (header/messages/widgets/editor/footer), `ui.addWidget`, `ui.setRenderer`, `ui.setTheme` | hecho (`src/ext/`) — API propia lite; `on`/`registerTool` funcionan en todos los modos; comandos/atajos/slots/temas solo TUI (no-op con aviso fuera); descubrimiento global (`~/.config/vireo/extensions`), proyecto (`.vireo/extensions/`, raíz→cwd) y `extensions: []` en config; proyecto = compuerta de confianza ANTES de importar (doctor no importa); `ui.setRenderer` descartado (contradiría al motor); componente = `render(width): string[]` (render-only, sin `onKey` v1); atajos exigen ctrl/alt (`ctrl+g`…`alt+f2`); los builtins ganan en colisiones; referencia en `examples/extensions/shout.ts` | spec (API propia, no hay fuente OpenCode pública 1:1 → **diseño propio**) | 6 |
+| Componente `{ render(width): string[]; onKey?(key): boolean }` envuelto en try/catch | hecho (`src/ui/component.ts`, `safeRender`/`safeOnKey`); la TUI pinta slots/widgets de extensiones vía `safeRender` (errores de componente no tumban el frame) | spec | 2/6 |
 
 ### H. Sesiones / historial (`src/core/session.ts`)
 
@@ -208,7 +211,7 @@ OpenCode está en transición v1 → v2. Esto afecta nombres; Vireo decide así:
 | Timeouts (startup/catalog/execution; per-server override) | hecho — defaults 5s/10s/60s; `timeouts: {startup, catalog, execution}` o `startup_timeout_ms`/`catalog_timeout_ms`/`tool_timeout_ms` (o `timeout`) | `/docs/mcp-servers#timeouts` | 5 |
 | Confianza explícita antes de lanzar MCP de proyecto/paquete de terceros (diálogo; `trust` de Gemini **no** se honra en silencio) | hecho — project-origin → `ui.confirm` (una vez por servidor y sesión) con resumen de comando/URL + NOMBRES de env/headers (valores jamás); `--auto` aprueba con aviso; sin TTY rechaza; system/global/custom no preguntan; `doctor` nunca lanza servidores | spec + modelo Gemini `trust` | 5 |
 | OAuth remoto (PKCE, CIMD/DCR) | **fuera de alcance lite v1** (headers + env vars sí) | `/docs/mcp-servers#oauth` | — |
-| MCP prompts → comandos `<server>:<prompt>` | **fase 6** (necesita comandos dinámicos en TUI; no antes) | `/docs/mcp-servers#prompts` | 5/6 |
+| MCP prompts → comandos `<server>:<prompt>` | hecho — `prompts/list` probe tras `tools/list` (capability-gated); `prompts/get` renderiza `role: text`; nombre saneado a `[a-zA-Z0-9_:-]`; columna de autocompletado y dispatch aceptan `:`; `splitArgs` con comillas | `/docs/mcp-servers#prompts` | 5/6 |
 | MCP resources (`opencode_list_mcp_resources`…) | hecho — solo si el servidor anuncia capability: tools fijas `opencode_list_mcp_resources` y `opencode_read_mcp_resource` con `server` enum; texto y blob (blob: nota, sin binario) | `/docs/mcp-servers#resources`, `#names` | 5 |
 | Confianza/verificación del SDK: **API exacta de client@2 (auto-fallback interno vs probe manual) — sin verificar** | resuelto por desviación: cliente propio hand-rolled (ver fila stateless); client@2.4.0 existe pero no se usa | npm registry (existe, MIT) | 5 |
 
@@ -259,7 +262,9 @@ OpenCode está en transición v1 → v2. Esto afecta nombres; Vireo decide así:
 - Bun **1.4.4** instalado en `~/.bun/bin` (npm global sin permisos → install script oficial). Node v20.20.2, git 2.47.3.
 - Registry npm accesible: `@modelcontextprotocol/client@2.4.0`, `@modelcontextprotocol/core@2.4.0`, `@modelcontextprotocol/sdk@1.32.2` (legacy).
 - OpenCode docs v1 (docs.opencode.ai) y v2 (opencode.ai/docs) accesibles; difieren en nombres (ver tabla v1/v2).
-- Líneas: `src/core` 1327, `src/compat` (fases 4-5, sin loaders) 1077 → core+compat = 2404. El objetivo "tiny core" (<1500) quedó muy atrás: decisión pendiente en fase 8 (estrechar presupuesto o factorizar undo/compact a util).
+- Líneas: `src/core` 1397, `src/compat` 1109 (fase 6) → core+compat = 2506; `src/ext` 267 (API+loader, categoría nueva fuera del binomio core+compat). El objetivo "tiny core" (<1500) quedó muy atrás: decisión pendiente en fase 8 (estrechar presupuesto o factorizar undo/compact a util).
+
+- Fase 6 (2026-11-08): 148/148 tests (`bun test`), `tsc --noEmit` limpio; e2e con mock provider (`VIREO_MOCK_SCENARIO=extshout`): extensión de proyecto auto-aprobada con aviso, tool `ext_shout` ejecutada, `turn_end` log; `doctor` lista extensión sin importarla; MCP `prompts/list|get` verificados contra fake server.
 
 ## Sin verificar / TODOs explícitos
 
@@ -284,6 +289,6 @@ OpenCode está en transición v1 → v2. Esto afecta nombres; Vireo decide así:
 | 3 | ✔ Sesiones (fork/rename/delete), undo/redo por turno (sin git, pre/post imagen + backup), compactación un paso, subagentes (`task` general/explore, depth 1, sesión hija), `/init` (prompt canned), tools `plan-enter`/`plan-exit` |
 | 4 | ✔ Skills + context files de todas las CLIs; `doctor` los lista (HTTP catalogs pendientes a hook de init async) |
 | 5 | ✔ MCP stdio/HTTP con probe `server/discover` + fallback legacy (prompts→comandos dinámicos pasan a fase 6) |
-| 6 | Ext API + slots TUI + `/fusion` como primera extensión |
+| 6 | ✔ Ext API + slots TUI (`src/ext/`, extensión de referencia `examples/extensions/shout.ts`). **`/fusion` diferido explícitamente** (sin spec; no se inventa comportamiento — decisión del usuario 2026-11-08) |
 | 7 | Loaders plugins claude/codex/gemini/opencode/pi (+ `agents-dir`) |
 | 8 | Mejoras: edit fail con "fragmento más parecido", compactación 2 pasos, failover/rotación claves, tool-calls-en-texto, memoria por proyecto, architect/editor |

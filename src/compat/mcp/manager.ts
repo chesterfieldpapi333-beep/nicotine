@@ -14,11 +14,13 @@
 
 import type { AgentTool, ToolContext, UiHooks } from "../../core/types.js";
 import type { McpLayerKind, McpServerDef, McpServerStatus, McpProtocol } from "./types.js";
-import { McpClient } from "./client.js";
+import { McpClient, type McpPromptInfo } from "./client.js";
 
 export interface McpRuntime {
   servers: McpServerStatus[];
   tools: AgentTool[];
+  /** Prompts anunciados por servidores conectados (para comandos <server>:<prompt>). */
+  prompts: { server: string; prompt: McpPromptInfo }[];
   /** Cliente vivo por nombre (para close() al salir). */
   clients: Map<string, McpClient>;
 }
@@ -135,6 +137,7 @@ export async function connectMcpServers(opts: ConnectMcpOptions): Promise<McpRun
   const clients = new Map<string, McpClient>();
   const tools: AgentTool[] = [];
   const resourceCapable: string[] = [];
+  const promptEntries: { server: string; prompt: McpPromptInfo }[] = [];
 
   const results = await Promise.allSettled(defs.map(async (def) => {
     if (!def.enabled) { statuses.set(def.name, { name: def.name, origin: def.origin, state: "disabled", toolCount: 0 }); return; }
@@ -153,6 +156,8 @@ export async function connectMcpServers(opts: ConnectMcpOptions): Promise<McpRun
       const negotiated = await client.connect();
       const toolInfos = await client.listTools();
       const resources = await client.listResources().then((r) => r, () => null); // null = sin capability
+      const prompts = await client.listPrompts();
+      if (prompts?.length) promptEntries.push(...prompts.map((prompt) => ({ server: def.name, prompt })));
       clients.set(def.name, client);
       resourceCapable.push(...(resources !== null ? [def.name] : []));
       for (const info of toolInfos) {
@@ -179,7 +184,7 @@ export async function connectMcpServers(opts: ConnectMcpOptions): Promise<McpRun
     CLIENT_KILL.registered = true;
   }
 
-  return { servers: defs.map((d) => statuses.get(d.name)!).filter(Boolean), tools: dedupeTools(tools, opts.ui), clients };
+  return { servers: defs.map((d) => statuses.get(d.name)!).filter(Boolean), tools: dedupeTools(tools, opts.ui), prompts: promptEntries, clients };
 }
 
 function makeMcpTool(server: string, toolName: string, info: { name: string; description: string; inputSchema: { type: "object"; properties: Record<string, unknown>; required?: string[]; additionalProperties?: boolean } }, client: McpClient): AgentTool {
