@@ -2,9 +2,10 @@
 // pare (o maxSteps / abort). El núcleo no imprime: todo sale por ctx.emit.
 
 import type { AgentTool, ChatMessage, ToolContext, ToolSchema } from "./types.js";
-import { PermissionDenied, type PermissionEngine, type CheckResult } from "./permissions.js";
+import { PermissionDenied, expandHome, type PermissionEngine, type CheckResult } from "./permissions.js";
 import { streamChat, type ProviderConfig } from "./provider.js";
 import type { TokenUsage } from "./events.js";
+import { resolve } from "node:path";
 
 export interface LoopOptions {
   provider: ProviderConfig;
@@ -118,6 +119,32 @@ export async function executeTool(tool: AgentTool | undefined, args: Record<stri
   }
   if (decision.effect === "deny") throw new PermissionDenied(action, resource);
 
-  const result = await tool.run(args, opts.ctx);
-  return result.output;
+  // Snapshots pre-imagen DESPUÉS del permiso (si se rechaza, no se toca nada).
+  const undo = opts.ctx.undo;
+  let preTaken = false;
+  if (undo && UNDOABLE_TOOLS.has(tool.name)) {
+    try { undo.snapshotPre(tool.name, undoablePaths(tool.name, args, opts.ctx.cwd, resources)); preTaken = true; } catch { /* snapshot falló: se ejecuta sin undo */ }
+  }
+  try {
+    const result = await tool.run(args, opts.ctx);
+    if (preTaken) try { undo!.snapshotPost(); } catch { opts.ctx.ui.info("undo: no se pudo guardar el snapshot"); }
+    return result.output;
+  } catch (err) {
+    if (preTaken) try { undo!.snapshotPost(); } catch { /* sin snapshot; el error original manda */ }
+    throw err;
+  }
+}
+
+const UNDOABLE_TOOLS = new Set(["write", "edit", "apply_patch", "bash"]);
+
+// Rutas afectadas por la tool (misma fuente que los permisos: permissionResources).
+function undoablePaths(name: string, args: Record<string, unknown>, cwd: string, resources: string[]): string[] {
+  if (name === "bash") return []; // marcamos el paso como NO deshacible
+  return resources
+    .filter((r) => r && !r.includes("\n"))
+    .map((r) => {
+      const expanded = expandHome(r.trim());
+      const resolved = resolve(cwd, expanded);
+      return resolved;
+    });
 }

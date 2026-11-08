@@ -1,7 +1,7 @@
 // Sesión en JSONL (append-only). Sin DB: una línea por mensaje/evento.
 // Ubicación: $XDG_DATA_HOME/vireo/sessions/<id>.jsonl
 
-import { appendFileSync, existsSync, mkdirSync, readFileSync, readdirSync, statSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
@@ -66,6 +66,31 @@ export class Session {
       } catch { /* línea corrupta: ignorar */ }
       return { id: f.replace(/\.jsonl$/, ""), title, mtime: statSync(path).mtimeMs };
     }).sort((a, b) => b.mtime - a.mtime);
+  }
+
+  /** Bifurca una sesión: nueva sesión que hereda TODOS los mensajes de `source`. */
+  static forkFrom(source: Session, cwd: string): Session {
+    const fork = new Session(randomUUID().slice(0, 8), cwd);
+    let title = "(sin título)";
+    try {
+      // mismo criterio que list(): la ÚLTIMA línea meta/title gana
+      for (const line of readFileSync(source.path, "utf8").split("\n")) {
+        if (!line.trim()) continue;
+        const obj = JSON.parse(line) as { type?: string; title?: string };
+        if (obj.type === "meta" || obj.type === "title") title = obj.title ?? title;
+      }
+    } catch { /* sin título legible */ }
+    fork.setTitle(`fork: ${title}`.slice(0, 80));
+    for (const m of source.messages()) fork.appendMessage(m);
+    return fork;
+  }
+
+  /** Borra el archivo de la sesión. Devuelve false si no existía. */
+  static remove(id: string): boolean {
+    const path = join(sessionsDir(), `${id}.jsonl`);
+    if (!existsSync(path)) return false;
+    rmSync(path);
+    return true;
   }
 
   /** Reescribe el título (append; gana la última línea title/meta al listar). */

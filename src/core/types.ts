@@ -58,6 +58,14 @@ export interface ToolContext {
   /** Archivos leídos en esta sesión (edit exige lectura previa). */
   readFiles: Set<string>;
   emit: (event: import("./events.js").AgentEvent) => void;
+  /** true dentro de un subagente (task). Permite vetar la recursión. */
+  isSubagent?: boolean;
+  /** Cambio de agente en caliente (plan-enter/plan-exit y TUI). */
+  switchAgent?: (agentId: string) => boolean;
+  /** Ejecuta un subagente y devuelve su respuesta final (tool `task`). */
+  runSubagent?: (opts: { agentId: string; prompt: string; description: string }) => Promise<string>;
+  /** Snapshots para /undo//redo (undefined = deshacer deshabilitado). */
+  undo?: import("./undo.js").UndoManager;
 }
 
 export interface UiHooks {

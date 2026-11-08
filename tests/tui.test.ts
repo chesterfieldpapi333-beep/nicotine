@@ -232,3 +232,75 @@ describe("TUI — mensajes y tools", () => {
     expect(frame).toContain("he cho");
   });
 });
+
+describe("TUI — diálogos fase 3", () => {
+  const mk = () => {
+    const deleted: string[] = [];
+    const renamed: [string, string][] = [];
+    const submitted: string[] = [];
+    const app = new TuiApp({
+      theme: defaultThemes[0],
+      setTheme: () => {},
+      tui: makeTuiConfig(),
+      cwd: "/tmp/proyecto-test",
+      themes: ["vireo-dark"],
+      commands: [
+        { name: "undo", hint: "deshacer", run: () => submitted.push("undo!") },
+      ],
+      submit: (p) => submitted.push(p),
+      abortTurn: () => {},
+      cycleAgent: () => "plan",
+      newSession: () => ({ id: "fork0001" }),
+      switchSession: () => true,
+      listSessions: () => [{ id: "ses00001", title: "sesión para borrar" }],
+      fetchModels: async () => [],
+      setModel: () => {},
+      renameSession: (id, title) => { renamed.push([id, title]); },
+      deleteSession: (id) => { deleted.push(id); },
+      currentModel: () => "mock-model",
+      currentAgent: () => "build",
+      currentSession: () => "activa00",
+      exit: () => {},
+    });
+    return { app, submitted, deleted, renamed };
+  };
+
+  const type = (app: TuiApp, text: string) => { for (const ch of text) app.handleKey({ name: ch, ctrl: false, meta: false, shift: false, sequence: ch }); };
+
+  test("pregunta sin opciones abre en modo libre directamente", async () => {
+    const { app } = mk();
+    const promise = app.askQuestions([{ header: "Renombrar", question: "Nuevo título:", options: [] }]);
+    expect(stripAnsi(app.computeFrame(80, 24).join("\n"))).toContain("respuesta libre");
+    type(app, "mi título");
+    app.handleKey(key("return"));
+    expect(await promise).toEqual(["mi título"]);
+  });
+
+  test("/undo desde el leader ejecuta el comando", async () => {
+    const { app, submitted } = mk();
+    app.handleKey(key("x", "\x18", { ctrl: true })); // leader
+    app.handleKey(key("u", "u"));                   // <leader>u → /undo
+    expect(submitted).toContain("undo!");
+  });
+
+  test("sesiones: 'd' pide confirmación y borra con '1'", async () => {
+    const { app, deleted } = mk();
+    app.openSessions();
+    app.handleKey(key("d")); // pedir confirmación
+    expect(stripAnsi(app.computeFrame(100, 30).join("\n"))).toContain("Borrar sesión");
+    app.handleKey(key("1")); // "Sí, borrar"
+    await new Promise((r) => setImmediate(r)); // confirmarDeleteSession es async
+    expect(deleted).toEqual(["ses00001"]);
+  });
+
+  test("sesiones: 'r' pide título libre y renombra", async () => {
+    const { app, renamed } = mk();
+    app.openSessions();
+    app.handleKey(key("r"));
+    await new Promise((r) => setImmediate(r));
+    type(app, "nuevo nombre");
+    app.handleKey(key("return"));
+    await new Promise((r) => setImmediate(r));
+    expect(renamed).toEqual([["ses00001", "nuevo nombre"]]);
+  });
+});

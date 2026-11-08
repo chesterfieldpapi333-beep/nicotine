@@ -21,6 +21,19 @@ export const BUILTIN_AGENTS: AgentDef[] = [
     description: "Agente de código por defecto: lectura y edición con permisos.",
     permissionRules: [], // hereda defaults (allow; .env ask)
   },
+  // Subagentes (los usan `task`; no aparecen en el ciclo de tab)
+  {
+    id: "general",
+    mode: "subagent",
+    description: "Subagente multi-paso de propósito general (todas las tools).",
+    permissionRules: [],
+  },
+  {
+    id: "explore",
+    mode: "subagent",
+    description: "Subagente de exploración rápida, de solo lectura.",
+    permissionRules: [{ action: "edit", resource: "*", effect: "deny" }],
+  },
   {
     id: "plan",
     mode: "primary",

@@ -13,9 +13,12 @@ import { webfetchTool } from "./webfetch.js";
 import { websearchTool } from "./websearch.js";
 import { todowriteTool } from "./todowrite.js";
 import { questionTool } from "./question.js";
+import { taskTool } from "./task.js";
+import { planEnterTool, planExitTool } from "./plan.js";
 
 export const ALL_TOOLS: AgentTool[] = [
   readTool, writeTool, editTool, applyPatchTool, bashTool,
   globTool, grepTool, listTool, webfetchTool, websearchTool,
   todowriteTool, questionTool,
+  taskTool, planEnterTool, planExitTool,
 ];

@@ -1,0 +1,154 @@
+// Compactación: estimación de tokens, corte seguro (nunca empieza por `tool`),
+// resumen vía proveedor mock, fallo limpio sin tocar el historial.
+import { describe, test, expect, beforeEach } from "bun:test";
+import { mkdtempSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import type { ChatMessage, ToolContext } from "../src/core/types.js";
+
+beforeEach(() => {
+  process.env.XDG_DATA_HOME = mkdtempSync(join(tmpdir(), "vireo-compact-"));
+});
+
+const history = (): ChatMessage[] => [
+  { role: "system", content: "system prompt" },
+  { role: "user", content: "primera tarea ".repeat(50) },
+  { role: "assistant", content: "trabajando ".repeat(50), tool_calls: [{ id: "c1", type: "function", function: { name: "bash", arguments: "{\"command\":\"ls\"}" } }] },
+  { role: "tool", tool_call_id: "c1", content: "salida de bash ".repeat(50) },
+  { role: "user", content: "segunda tarea, importante" },
+  { role: "assistant", content: "entendido, siguiendo" },
+];
+
+const summaryFetch = (body: string, status = 200): typeof fetch =>
+  (async (_url: unknown, _init?: unknown) => {
+    if (status !== 200) return new Response("boom", { status });
+    const sse = `data: ${JSON.stringify({ choices: [{ delta: { content: body } }] })}\n\ndata: [DONE]\n\n`;
+    return new Response(sse, { status: 200, headers: { "content-type": "text/event-stream" } });
+  }) as unknown as typeof fetch;
+
+const provider = { baseURL: "http://mock/v1", apiKey: "k", model: "m", headers: {} };
+
+describe("estimateTokens", () => {
+  test("~4 chars por token", async () => {
+    const { estimateTokens } = await import("../src/core/compact.js");
+    expect(estimateTokens([{ role: "user", content: "a".repeat(400) }])).toBe(100);
+  });
+});
+
+describe("maybeCompact", () => {
+  test("bajo el umbral: no compacta", async () => {
+    const { maybeCompact } = await import("../src/core/compact.js");
+    const messages = history();
+    const res = await maybeCompact({ messages, provider, config: { auto: true, thresholdTokens: 1_000_000, keepTokens: 100 }, fetchImpl: summaryFetch("x") });
+    expect(res.compacted).toBe(false);
+    expect(messages.length).toBe(6);
+  });
+
+  test("force: resume lo viejo, conserva system y cola; el corte no empieza en tool", async () => {
+    const { maybeCompact, estimateTokens } = await import("../src/core/compact.js");
+    const messages = history();
+    const res = await maybeCompact({ messages, provider, config: { auto: true, thresholdTokens: 1, keepTokens: 60 }, fetchImpl: summaryFetch("RESUMEN-DE-PRUEBA"), force: true });
+    expect(res.compacted).toBe(true);
+    expect(messages[0].role).toBe("system");
+    expect(messages[1].role).toBe("system");
+    expect(messages[1].content).toContain("RESUMEN-DE-PRUEBA");
+    // ningún mensaje del corte empieza por `tool` (huérfano de su tool_call)
+    expect(messages[2]?.role).not.toBe("tool");
+    // y la última respuesta original sigue presente
+    expect(messages[messages.length - 1].content).toBe("entendido, siguiendo");
+    expect(estimateTokens(messages)).toBeLessThan(res.beforeTokens);
+  });
+
+  test("sobre el umbral con auto: compacta", async () => {
+    const { maybeCompact } = await import("../src/core/compact.js");
+    const messages = history();
+    const res = await maybeCompact({ messages, provider, config: { auto: true, thresholdTokens: 10, keepTokens: 60 }, fetchImpl: summaryFetch("AUTO-RESUMEN") });
+    expect(res.compacted).toBe(true);
+  });
+
+  test("el proveedor falla: el historial no se toca y se emite error", async () => {
+    const { maybeCompact } = await import("../src/core/compact.js");
+    const messages = history();
+    const before = JSON.parse(JSON.stringify(messages));
+    const events: string[] = [];
+    const res = await maybeCompact({
+      messages, provider, config: { auto: true, thresholdTokens: 10, keepTokens: 60 },
+      fetchImpl: summaryFetch("", 500),
+      emit: (ev) => events.push(ev.type),
+    });
+    expect(res.compacted).toBe(false);
+    expect(messages).toEqual(before);
+    expect(events).toContain("error");
+  });
+});
+
+describe("compactionFromConfig", () => {
+  test("defaults y lectura de claves snake_case", async () => {
+    const { compactionFromConfig } = await import("../src/core/compact.js");
+    const d = compactionFromConfig({});
+    expect(d.auto).toBe(true);
+    expect(d.thresholdTokens).toBeGreaterThan(0);
+    const custom = compactionFromConfig({ compaction: { auto: false, threshold_tokens: 5000, keep_tokens: 900 } });
+    expect(custom).toEqual({ auto: false, thresholdTokens: 5000, keepTokens: 900 });
+  });
+});
+
+describe("task / plan tools", () => {
+  const baseCtx = (extra: Partial<ToolContext> = {}) => {
+    return {
+      cwd: process.cwd(), sessionId: "s", signal: new AbortController().signal,
+      ui: { confirm: async () => "once" as const, question: async () => null, info: () => {} },
+      readFiles: new Set<string>(), emit: () => {}, ...extra,
+    } as ToolContext;
+  };
+
+  test("task: usa ctx.runSubagent y devuelve su salida", async () => {
+    const { taskTool } = await import("../src/tools/task.js");
+    const ctx = baseCtx({ runSubagent: async ({ agentId, prompt }) => `subagente ${agentId} recibió: ${prompt.slice(0, 20)}` });
+    const res = await taskTool.run({ prompt: "investiga el módulo de permisos por favor", subagent_type: "explore" }, ctx);
+    expect(res.output).toContain("explore");
+  });
+
+  test("task: un subagente no puede anidar", async () => {
+    const { taskTool } = await import("../src/tools/task.js");
+    const ctx = baseCtx({ isSubagent: true, runSubagent: async () => "no debería llamarse" });
+    const res = await taskTool.run({ prompt: "otra tarea" }, ctx);
+    expect(res.output).toContain("profundidad máxima 1");
+  });
+
+  test("task: sin runSubagent (modo no interactivo viejo) no rompe", async () => {
+    const { taskTool } = await import("../src/tools/task.js");
+    const res = await taskTool.run({ prompt: "algo" }, baseCtx());
+    expect(res.output).toContain("no soportada");
+  });
+
+  test("plan-enter cambia a plan via switchAgent", async () => {
+    const { planEnterTool } = await import("../src/tools/plan.js");
+    const switched: string[] = [];
+    const ctx = baseCtx({ switchAgent: (id: string) => { switched.push(id); return true; } });
+    const res = await planEnterTool.run({}, ctx);
+    expect(switched).toEqual(["plan"]);
+    expect(res.output).toContain("plan");
+  });
+
+  test("plan-exit con rechazo del usuario no cambia de agente", async () => {
+    const { planExitTool } = await import("../src/tools/plan.js");
+    const switched: string[] = [];
+    const ctx = baseCtx({
+      switchAgent: () => { switched.push("build"); return true; },
+      ui: { confirm: async () => "reject" as const, question: async () => null, info: () => {} },
+    });
+    const res = await planExitTool.run({}, ctx);
+    expect(switched).toEqual([]);
+    expect(res.output).toContain("seguir en modo plan");
+  });
+
+  test("plan-exit con aprobación cambia a build", async () => {
+    const { planExitTool } = await import("../src/tools/plan.js");
+    const switched: string[] = [];
+    const ctx = baseCtx({ switchAgent: () => { switched.push("build"); return true; } });
+    const res = await planExitTool.run({}, ctx);
+    expect(switched).toEqual(["build"]);
+    expect(res.output).toContain("build");
+  });
+});

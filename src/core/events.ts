@@ -9,7 +9,8 @@ export type AgentEvent =
   | { type: "turn_end"; reason: "stop" | "max_steps" | "aborted"; usage?: TokenUsage }
   | { type: "error"; message: string }
   | { type: "todos_updated"; todos: TodoItem[] }
-  | { type: "session_saved"; sessionId: string };
+  | { type: "session_saved"; sessionId: string }
+  | { type: "compaction"; beforeTokens: number; afterTokens: number };
 
 export interface TokenUsage {
   promptTokens?: number;

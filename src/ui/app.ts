@@ -34,6 +34,8 @@ export interface TuiAppDeps {
   listSessions: () => { id: string; title: string }[];
   fetchModels: () => Promise<string[] | null>;
   setModel: (model: string) => void;
+  renameSession?: (id: string, title: string) => void;
+  deleteSession?: (id: string) => void;
   currentModel: () => string;
   currentAgent: () => string;
   currentSession: () => string;
@@ -44,7 +46,7 @@ type Dialog =
   | { kind: "none" }
   | { kind: "permission"; req: PermissionRequest; resolve: (d: PermissionDecision) => void; selected: number }
   | { kind: "question"; questions: QuestionPrompt[]; resolve: (a: string[] | null) => void; index: number; answers: string[]; freeMode: boolean; freeText: string }
-  | { kind: "list"; title: string; items: { id: string; label: string; hint?: string }[]; selected: number; onPick: (id: string) => void };
+  | { kind: "list"; title: string; items: { id: string; label: string; hint?: string }[]; selected: number; onPick: (id: string) => void; onKey?: (key: KeyEventLike) => boolean; hint?: string };
 
 interface Autocomplete {
   kind: "slash" | "file";
@@ -108,7 +110,11 @@ export class TuiApp {
     return new Promise((resolve) => { this.dialog = { kind: "permission", req, resolve, selected: 0 }; this.render(); });
   }
   askQuestions(questions: QuestionPrompt[]): Promise<string[] | null> {
-    return new Promise((resolve) => { this.dialog = { kind: "question", questions, resolve, index: 0, answers: [], freeMode: false, freeText: "" }; this.render(); });
+    return new Promise((resolve) => {
+      const first = questions[0];
+      this.dialog = { kind: "question", questions, resolve, index: 0, answers: [], freeMode: !first || first.options.length === 0, freeText: "" };
+      this.render();
+    });
   }
 
   // ————— frame —————
@@ -275,6 +281,7 @@ export class TuiApp {
         const line = `${selected ? "› " : "  "}${item.label}${item.hint ? dimmed + "  " + item.hint + reset : ""}`;
         rows.push(selected ? fgHex(token(t, "accent")) + fitAnsi(line, Math.max(0, width - 1)) + reset : fitAnsi(line, width));
       });
+      if (d.hint) rows.push(dimmed + "  " + d.hint + reset);
       if (d.items.length > budget) rows.push(dimmed + `  ${d.selected + 1}/${d.items.length}` + reset);
       return rows;
     }
@@ -355,9 +362,9 @@ export class TuiApp {
     if (match("model_list")) { void this.openModels(); return true; }
     if (match("theme_list")) { this.openThemes(); return true; }
     if (match("agent_list")) { this.info("agentes: build (tab alterna) · plan (sin edición)"); return true; }
-    if (match("session_compact")) { this.info("/compact llega en la fase 3"); return true; }
-    if (match("session_undo")) { this.info("/undo llega en la fase 3"); return true; }
-    if (match("session_redo")) { this.info("/redo llega en la fase 3"); return true; }
+    if (match("session_compact")) { this.deps.commands.find((c) => c.name === "compact")?.run(this); return true; }
+    if (match("session_undo")) { this.deps.commands.find((c) => c.name === "undo")?.run(this); return true; }
+    if (match("session_redo")) { this.deps.commands.find((c) => c.name === "redo")?.run(this); return true; }
     if (match("app_exit")) { this.deps.exit(); return true; }
     return false;
   }
@@ -375,7 +382,7 @@ export class TuiApp {
     if (d.kind === "question") {
       const q = d.questions[d.index];
       if (d.freeMode) {
-        if (key.name === "escape") { d.freeMode = false; return; }
+        if (key.name === "escape") { if (q.options.length === 0) return this.resolveQuestion(null); d.freeMode = false; return; }
         if (key.name === "return") return this.answerQuestion(d.freeText);
         if (key.name === "backspace") d.freeText = d.freeText.slice(0, -1);
         else if (key.sequence && !key.ctrl && !key.meta) d.freeText += key.sequence;
@@ -388,6 +395,7 @@ export class TuiApp {
       return;
     }
     if (d.kind === "list") {
+      if (d.onKey && d.onKey(key)) return; // la lista gestionó la tecla (p. ej. d/r en sesiones)
       if (key.name === "escape") { this.dialog = { kind: "none" }; return; }
       if (key.name === "up") d.selected = Math.max(0, d.selected - 1);
       else if (key.name === "down") d.selected = Math.min(d.items.length - 1, d.selected + 1);
@@ -445,10 +453,48 @@ export class TuiApp {
   }
 
   openSessions(): void {
-    const items = this.deps.listSessions().slice(0, 30).map((s) => ({ id: s.id, label: `${s.id}  ${s.title}` }));
+    this.renderSessionsDialog(this.deps.listSessions().slice(0, 30).map((s) => ({ id: s.id, label: `${s.id}  ${s.title}` })), 0);
+  }
+
+  private renderSessionsDialog(items: { id: string; label: string }[], selected: number): void {
     if (!items.length) { this.info("no hay sesiones guardadas"); return; }
-    this.dialog = { kind: "list", title: "sesiones (enter carga)", items, selected: 0, onPick: (id) => { if (this.deps.switchSession(id)) this.info(`sesión cargada: ${id}`); else this.info(`no se pudo cargar ${id}`); } };
+    this.dialog = {
+      kind: "list", title: "sesiones (enter carga)", items, selected: Math.min(selected, items.length - 1),
+      hint: "r renombrar · d borrar · enter cargar",
+      onPick: (id) => { if (this.deps.switchSession(id)) this.info(`sesión cargada: ${id}`); else this.info(`no se pudo cargar ${id}`); },
+      onKey: (key) => {
+        const d = this.dialog as Extract<Dialog, { kind: "list" }>;
+        const target = d.items[d.selected]?.id;
+        if (!target) return false;
+        if (key.name === "d") {
+          if (target === this.deps.currentSession()) { this.info("la sesión activa no se puede borrar"); return true; }
+          void this.confirmDeleteSession(target);
+          return true;
+        }
+        if (key.name === "r") { void this.renameSessionFlow(target); return true; }
+        return false;
+      },
+    };
     this.render();
+  }
+
+  private async confirmDeleteSession(id: string): Promise<void> {
+    const answers = await this.askQuestions([{ header: "Borrar sesión", question: `¿Borrar la sesión ${id}? Esta acción no se puede deshacer.`, options: ["Sí, borrar", "No"] }]);
+    if (answers?.[0]?.startsWith("Sí")) {
+      this.deps.deleteSession?.(id);
+      this.info(`sesión borrada: ${id}`);
+      this.renderSessionsDialog(this.deps.listSessions().slice(0, 30).map((s) => ({ id: s.id, label: `${s.id}  ${s.title}` })), 0);
+    }
+  }
+
+  private async renameSessionFlow(id: string): Promise<void> {
+    const answers = await this.askQuestions([{ header: "Renombrar sesión", question: "Nuevo título:", options: [] }]);
+    const title = answers?.[0]?.trim();
+    if (title) {
+      this.deps.renameSession?.(id, title);
+      this.info(`sesión ${id} renombrada`);
+      this.renderSessionsDialog(this.deps.listSessions().slice(0, 30).map((s) => ({ id: s.id, label: `${s.id}  ${s.title}` })), 0);
+    }
   }
 
   async openModels(): Promise<void> {

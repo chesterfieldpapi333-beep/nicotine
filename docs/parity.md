@@ -63,11 +63,11 @@ OpenCode está en transición v1 → v2. Esto afecta nombres; Vireo decide así:
 | Eventos tipados (`text_delta`, `tool_start`, `tool_end`, `turn_end`, `error`, `todos_updated`, `session_saved`) — el núcleo no imprime | hecho | spec; base para serve + TUI + print/json | 1 |
 | Proveedor OpenAI-compatible con streaming (chat/completions) | hecho (SSE manual; `--model` con prefijo `proveedor/` informativo) | `/docs/providers`; baseURL+apiKey+model en config/env | 1 |
 | Adaptador Vercel AI SDK opcional (desactivado por defecto) | falta | `ai` + `@ai-sdk/openai-compatible`; detrás de flag | 1 |
-| Sesión en JSONL (append-only, sin ORM) | parcial — creación/append/list/título listos (`~/.local/share/vireo/sessions`); undo/compact/subagentes fase 3 | spec; una línea por mensaje/evento | 1 (base) / 3 (sesiones) |
+| Sesión en JSONL (append-only, sin ORM) | hecho — create/load/list/título/fork/remove; fork herida del historial (`--fork`); padres→hijos en `task` | spec; una línea por mensaje/evento | 1 / 3 |
 | Contexto: instrucciones + skills + tools en el prompt | parcial — system prompt base + agente; context-files y skills fase 4 | spec + `/docs/agents` | 1 |
-| Compactación (auto al llenar buffer; keep.tokens) | falta | `/docs/config#compaction`; dos pasos en fase 8 | 3 / 8 |
-| Undo/redo con Git (revert de cambios de archivos) | falta | `/docs/tui#undo`; requiere repo git | 3 |
-| Subagentes (sesiones hijas, depth 1) | falta | `task` tool; `/docs/agents`, `experimental.subagent_depth` | 3 |
+| Compactación (auto al llenar buffer; keep.tokens) | hecho (un paso: resumir lo viejo, conservar cola `keep_tokens`; corte seguro sin partir tool_calls; fallo limpio sin tocar el historial; estimación chars/4, sin tokenizer) — dos pasos en fase 8 | `/docs/config#compaction`; claves `compaction.auto`, `threshold_tokens`, `keep_tokens` | 3 / 8 |
+| Undo/redo de cambios de archivos por turno | hecho — snapshots pre/post de archivos tocados por write/edit/apply_patch (2 MB/archivo); `bash` registrado pero NO deshacible; **desviación del spec:** sin git (funciona fuera de repos); respaldo automático del estado actual en `pre-undo/` antes de sobrescribir/borrar (la edición post-turno del usuario nunca se pierde); la conversación no se toca | spec lite; `/docs/snapshots` | 3 |
+| Subagentes (sesiones hijas, depth 1) | hecho — tool `task` (general/explore); explore deniega edición; sesión JSONL hija con título `task: …`; eventos de tools del hijo etiquetados `[agent]` para la UI; el hijo no ve el historial del padre salvo en el prompt; profundidad 1 (sin `task` dentro); misma señal de abort; heredan provider (sin config multi-modelo en lite) | `task` tool; `/docs/agents` | 3 |
 | Failover de modelos / rotación de claves ante 429/401 | falta | spec fase 8 | 8 |
 | Fallback tool-calls en texto (modelos sin FC nativo) | falta | spec fase 8 | 8 |
 | Memoria por proyecto (`.vireo/memory` o similar) | falta | spec fase 8 | 8 |
@@ -87,6 +87,8 @@ OpenCode está en transición v1 → v2. Esto afecta nombres; Vireo decide así:
 | `list` (listado no recursivo de directorio) | hecho | `read` cubre dir en OpenCode; spec pide `list` aparte | 1 |
 | `webfetch` (URL → markdown/text/html; timeout ≤ 120 s; conversor HTML→md naive) | hecho | `/docs/tools#webfetch` | 1 |
 | `websearch` (backends: `VIREO_SEARXNG_URL` o `EXA_API_KEY`; sin backend devuelve instrucciones, no rompe el loop) | hecho | `/docs/websearch`; sin credencial → tool ausente + aviso | 1 |
+| `task` (subagentes general/explore) | hecho | `/docs/agents`; ver A | 3 |
+| `plan-enter`, `plan-exit` (cambio de agente con consentimiento; plan-exit pide confirmación) | hecho (spec lite; v2 no los tiene como tools) | `/docs/cli`; `plan_exit` draft de permisos | 3 |
 | `todowrite` (lista de tareas de la sesión) | hecho | `/docs/config#todos`; en Vireo activado por defecto (era tool clásica) | 1 |
 | `question` (flat: readline numerado; TUI fase 2; sin TTY → null) | hecho | `/docs/tools#question`; requiere cliente interactivo; sin él → auto-respuesta vacía + aviso | 1 |
 | `skill` (carga body de SKILL.md por ID; solo nombre+descripción en prompt) | falta | `/docs/skills` | 4 (tool) / 4 |
@@ -140,11 +142,11 @@ OpenCode está en transición v1 → v2. Esto afecta nombres; Vireo decide así:
 
 | Comando | Estado | Ref | Fase |
 |---|---|---|---|
-| `/help`, `/models`, `/new` (`/clear`), `/sessions` (`/resume`,`/continue`), `/compact` (`/summarize`) | parcial — `/help`,`/models`,`/new`,`/sessions` en TUI; `/compact` fase 3 | `/docs/tui#commands` | 2/3 |
-| `/undo`, `/redo` (git-backed, requiere repo) | falta | `/docs/tui#undo` | 3 |
-| `/init` (crea/actualiza `AGENTS.md` guiado) | falta | `/docs/tui#init`, `/docs/rules` | 3 |
+| `/help`, `/models`, `/new` (`/clear`), `/sessions` (`/resume`,`/continue`), `/compact` (`/summarize`) | hecho — además `/fork` (bifurca y cambia a la nueva); `/sessions` con renombrar (`r`) y borrar (`d`, con confirmación) en la TUI | `/docs/tui#commands` | 2/3 |
+| `/undo`, `/redo` | hecho — ver A (sin git) | `/docs/tui#undo` | 3 |
+| `/init` (crea/actualiza `AGENTS.md` guiado) | hecho — `/init` envía un prompt canned al agente (explora, escribe/fusiona AGENTS.md con la tool write/edit; requiere un proveedor real para el análisis) | `/docs/tui#init`, `/docs/rules` | 3 |
 | `/themes`, `/thinking`, `/export`, `/editor`, `/connect` (API keys), `/exit` (`/quit`,`/q`) | parcial — `/themes`,`/thinking`(informativo),`/exit` en TUI; `/export`,`/editor`,`/connect` falta | `/docs/tui#commands` | 2/3 |
-| `/plan` (entrar/salir de agente plan) | falta | spec `plan-enter/plan-exit` | 3 |
+| `/plan` (entrar/salir de agente plan) | hecho vía tools `plan-enter`/`plan-exit` (el modelo puede pedir el cambio); tab cicla build/plan manualmente | spec `plan-enter/plan-exit` | 3 |
 | Comandos de archivo `commands/*.md` (frontmatter: description, model, agent; `$ARGUMENTS`; argumentos `$1..`/`$NAME`? — **sin verificar sintaxis exacta de args en v2**) | falta | `/docs/commands` | 4 |
 | Comandos de MCP prompts `<server>:<prompt>` | falta | `/docs/mcp-servers#names` | 5 |
 | Comandos custom desde config `commands: {}` | falta | `/docs/config#commands` | 4 |
@@ -168,9 +170,9 @@ OpenCode está en transición v1 → v2. Esto afecta nombres; Vireo decide así:
 
 | Función | Estado | Ref | Fase |
 |---|---|---|---|
-| Sesiones JSONL en `~/.local/share/vireo/sessions/<id>.jsonl` (o `XDG_DATA_HOME`) | falta | spec; ruta exacta ≠ OpenCode (sería `storage/session`) — decisión propia documentada | 3 |
-| `--continue`, `--session <id>`, `--fork` | falta | `/docs/cli` (tui flags) | 3 |
-| Título auto, listar/renombrar/borrar/cambiar | falta | `/docs/cli` (agent create), `session_*` | 3 |
+| Sesiones JSONL en `~/.local/share/vireo/sessions/<id>.jsonl` (o `XDG_DATA_HOME`) | hecho | spec; ruta exacta ≠ OpenCode (sería `storage/session`) — decisión propia documentada | 1/3 |
+| `--continue`, `--session <id>`, `--fork` | hecho (`--fork` bifurca la sesión sin tocar la original; `--fork` sin `-c`/`-s` bifurca la última) | `/docs/cli` (tui flags) | 3 |
+| Título auto, listar/renombrar/borrar/cambiar | hecho — `/sessions`: cargar (enter), renombrar (`r`), borrar (`d` con confirmación; la sesión activa no se puede borrar); título auto desde el primer prompt | `/docs/cli` (agent create), `session_*` | 3 |
 | Undo/redo con snapshots git (`snapshots: false` desactiva) | falta | `/docs/snapshots` | 3 |
 
 ### I. Skills (`src/compat/skills.ts`)
@@ -241,7 +243,7 @@ OpenCode está en transición v1 → v2. Esto afecta nombres; Vireo decide así:
 | `--json` (eventos JSONL a stdout) | hecho | spec | 1 |
 | `serve` (HTTP opcional, **apagado por defecto**, expone el mismo flujo de eventos; basic auth por env `VIREO_SERVER_PASSWORD` análogo a `OPENCODE_SERVER_PASSWORD`) | falta | `/docs/server`; Pi `--mode json/rpc` | 3+ |
 | `doctor` (fase 1: capas, reglas allow/ask/deny, modelo, tools, rg, websearch) — reporte completo de orígenes fase 7 | parcial | spec | 1 (esqueleto) / 7 (completo) |
-| `--model provider/model`, `--agent`, `--continue/-c`, `--session/-s`, `--fork`, `--port/--hostname/--mdns` | falta | `/docs/cli` | 2/3 |
+| `--model provider/model`, `--agent`, `--continue/-c`, `--session/-s`, `--fork`, `--port/--hostname/--mdns` | parcial — model/agent/continue/session/fork hechos; `--port/--hostname/--mdns` llegan con `serve` | `/docs/cli` | 2/3 |
 | `--auto` (auto-aprueba lo no denegado) | hecho (también salta el diálogo TUI; deny sigue denegado) | `/docs/cli` | 2 |
 | `--version`, `--help` | hecho | convención | 1 |
 
@@ -267,7 +269,7 @@ OpenCode está en transición v1 → v2. Esto afecta nombres; Vireo decide así:
 7. **Cobertura del scanner de shell**: Vireo lite usa splitter conservador; no sustituye al scanner de OpenCode (bach/zsh/sh/powershell completos). (Fase 1)
 8. **`python -m pytest` vs harness de tests**: se usará `bun test`.
 9. ~~Diff rendering OpenTUI~~ **resuelto (Fase 2)**: `StyledText` + `TextRenderable.content`; verificado con `createTestRenderer` y bajo pty. Ancho de celdas ignora dobles-anchos unicode (CJK/emoji) — mejora menor pendiente.
-10. **OpenCode v1 `plan_enter`/`plan_exit`** como nombres de tool: existieron en v1; en v2 no aparecen como tools. Se mantienen por spec del producto. (Fase 3)
+10. ~~`plan_enter`/`plan_exit`~~ **resuelto (Fase 3)**: tools `plan-enter` (cambio directo) y `plan-exit` (con confirmación del usuario; rechazo = sigue en plan). Nombres con guión tal como dice el spec parity.
 
 ## Mapa fase → secciones
 
@@ -276,7 +278,7 @@ OpenCode está en transición v1 → v2. Esto afecta nombres; Vireo decide así:
 | 0 | Este documento ✔ |
 | 1 | Núcleo + tools + permisos + config con renderer plano: `vireo --print "hola"` responde; `bun test` verde |
 | 2 | ✔ TUI: stream, editor multilínea, `@file` fuzzy, `/`+paleta, selector modelos/sesiones (en sesión), permisos con diff, temas, leader ctrl+x, motores opentui+ansi con fallback |
-| 3 | Sesiones JSONL, undo/redo git, compactación, subagentes, `/init` |
+| 3 | ✔ Sesiones (fork/rename/delete), undo/redo por turno (sin git, pre/post imagen + backup), compactación un paso, subagentes (`task` general/explore, depth 1, sesión hija), `/init` (prompt canned), tools `plan-enter`/`plan-exit` |
 | 4 | Skills + context files de todas las CLIs; `doctor` los lista |
 | 5 | MCP stdio/HTTP con probe `server/discover` + fallback legacy |
 | 6 | Ext API + slots TUI + `/fusion` como primera extensión |

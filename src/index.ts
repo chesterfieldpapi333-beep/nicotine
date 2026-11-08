@@ -25,6 +25,7 @@ Opciones:
       --auto         auto-aprueba lo que pregunte (deny sigue denegado)
   -c, --continue     reanuda la última sesión
   -s, --session <id> reanuda una sesión concreta
+      --fork         bifurca la sesión reanudada (historial copiado, id nuevo)
       --config-dir <dir>  capa extra de configuración (menor precedencia que el proyecto)
   -h, --help         ayuda
       --version      versión
@@ -49,6 +50,7 @@ interface Args {
   agent?: string;
   sessionId?: string;
   continueLatest: boolean;
+  fork: boolean;
   configDir?: string;
   help: boolean;
   version: boolean;
@@ -56,7 +58,7 @@ interface Args {
 }
 
 function parseArgs(argv: string[]): Args {
-  const args: Args = { print: false, json: false, auto: false, continueLatest: false, help: false, version: false, positional: [] };
+  const args: Args = { print: false, json: false, auto: false, continueLatest: false, fork: false, help: false, version: false, positional: [] };
   const next = (i: number, flag: string) => {
     if (i + 1 >= argv.length) throw new Error(`falta valor para ${flag}`);
     return argv[i + 1];
@@ -71,6 +73,7 @@ function parseArgs(argv: string[]): Args {
       case "--agent": args.agent = next(i, a); i++; break;
       case "--session": case "-s": args.sessionId = next(i, a); i++; break;
       case "--continue": case "-c": args.continueLatest = true; break;
+      case "--fork": args.fork = true; break;
       case "--config-dir": args.configDir = next(i, a); i++; break;
       case "--help": case "-h": args.help = true; break;
       case "--version": args.version = true; break;
@@ -122,7 +125,7 @@ async function main(): Promise<number> {
   const abort = new AbortController();
   process.on("SIGINT", () => abort.abort());
 
-  const base = { cwd, configDir: args.configDir, auto: args.auto, agentId: args.agent, modelFlag: args.model, sessionId: args.sessionId, continueLatest: args.continueLatest, signal: abort.signal };
+  const base = { cwd, configDir: args.configDir, auto: args.auto, agentId: args.agent, modelFlag: args.model, sessionId: args.sessionId, continueLatest: args.continueLatest, fork: args.fork, signal: abort.signal };
 
   try {
     if (args.json) {

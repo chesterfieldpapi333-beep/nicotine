@@ -2,10 +2,12 @@
 // Ideal para pipes, CI y para probar el núcleo sin UI.
 
 import { runAgentLoop } from "../core/loop.js";
-import { buildRuntime, persistNewMessages, type RuntimeOptions } from "./common.js";
+import { buildRuntime, persistNewMessages, prepareContext, type RuntimeOptions } from "./common.js";
 
 export async function runJson(opts: RuntimeOptions & { prompt: string }): Promise<number> {
   const rt = buildRuntime({ ...opts, attachUi: false });
+  await prepareContext(rt);
+  rt.ctx.undo?.beginTurn(opts.prompt.replace(/\s+/g, " ").slice(0, 80));
   // Solo JSONL en stdout; los diálogos de permiso siguen yendo por stderr (FlatUi hooks).
   rt.bus.on((ev) => process.stdout.write(JSON.stringify(ev) + "\n"));
   const startIndex = rt.messages.length;

@@ -4,7 +4,7 @@
 import { createInterface } from "node:readline/promises";
 import { stdin, stdout, stderr } from "node:process";
 import { runAgentLoop } from "../core/loop.js";
-import { buildRuntime, persistNewMessages, type RuntimeOptions } from "./common.js";
+import { buildRuntime, persistNewMessages, prepareContext, type RuntimeOptions } from "./common.js";
 import { Session } from "../core/session.js";
 
 export async function runRepl(opts: RuntimeOptions): Promise<number> {
@@ -21,6 +21,8 @@ export async function runRepl(opts: RuntimeOptions): Promise<number> {
       for (const s of Session.list().slice(0, 20)) stderr.write(`${s.id}  ${s.title}\n`);
       continue;
     }
+    await prepareContext(rt);
+    rt.ctx.undo?.beginTurn(line.slice(0, 80));
     const startIndex = rt.messages.length;
     rt.messages.push({ role: "user", content: line });
     rl.pause(); // no leer stdin mientras el modelo piensa (evita mezclar input con streams)

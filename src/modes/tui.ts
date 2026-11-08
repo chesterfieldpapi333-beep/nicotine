@@ -2,14 +2,12 @@
 // El núcleo nunca imprime: aquí solo suscribimos el bus de eventos a los widgets.
 
 import { runAgentLoop } from "../core/loop.js";
-import { findAgent, BUILTIN_AGENTS } from "../core/agents.js";
-import { loadConfig } from "../core/config.js";
-import { PermissionEngine } from "../core/permissions.js";
+import { findAgent } from "../core/agents.js";
 import { buildSystemPrompt } from "../core/context.js";
 import { Session } from "../core/session.js";
 import type { ChatMessage } from "../core/types.js";
 import type { UiHooks } from "../core/types.js";
-import { buildRuntime, persistNewMessages, type RuntimeOptions } from "./common.js";
+import { buildRuntime, persistNewMessages, prepareContext, compactNow, forkCurrentSession, type RuntimeOptions } from "./common.js";
 import { loadTuiConfig } from "../ui/tui-config.js";
 import { loadThemes, defaultThemes } from "../ui/theme.js";
 import { TuiApp, type SlashCommand } from "../ui/app.js";
@@ -29,12 +27,12 @@ export async function runTui(opts: TuiOptions): Promise<number> {
   const themes = loadThemes(cwd);
   let theme = themes.get(tuiCfg.theme) ?? themes.get("vireo-dark") ?? defaultThemes[0];
 
-  let currentAgentId = opts.agentId ?? (rt.config["default_agent"] as string | undefined) ?? "build";
-  const agentOrder = BUILTIN_AGENTS.filter((a) => a.mode === "primary").map((a) => a.id);
-
-  const rulesFor = (agentId: string) => {
-    const { rules } = loadConfig(cwd, { configDir: opts.configDir });
-    return [...rules, ...findAgent(agentId).permissionRules];
+  const cycleAgent = (): string => {
+    const order = rt.agent.list();
+    const idx = Math.max(0, order.indexOf(rt.agent.current()));
+    const next = order[(idx + 1) % order.length];
+    rt.agent.set(next); // reconstruye permisos + system prompt
+    return next;
   };
 
   let baseCount = rt.messages.length; // índice desde el que persistir (excluye system+historial cargado)
@@ -57,10 +55,12 @@ export async function runTui(opts: TuiOptions): Promise<number> {
     newSession: () => newSession(),
     switchSession: (id) => switchSession(id),
     listSessions: () => Session.list(),
+    renameSession: (id, title) => { Session.load(id)?.setTitle(title); },
+    deleteSession: (id) => { if (id !== rt.session.id) Session.remove(id); },
     fetchModels: () => fetchModels(),
     setModel: (model) => { rt.provider.model = model; },
     currentModel: () => rt.provider.model,
-    currentAgent: () => currentAgentId,
+    currentAgent: () => rt.agent.current(),
     currentSession: () => rt.session.id,
     exit: () => engine.stop(),
   });
@@ -77,8 +77,15 @@ export async function runTui(opts: TuiOptions): Promise<number> {
   function submitTurn(prompt: string): void {
     if (inFlight) return;
     inFlight = true;
+    void (async () => {
     turnAbort = new AbortController();
     rt.ctx.signal = turnAbort.signal;
+    try {
+      await prepareContext(rt); // compacta si toca, antes de tocar el historial
+    } catch (err) {
+      app.error(`compactación falló: ${(err as Error).message}`);
+    }
+    rt.ctx.undo?.beginTurn(prompt.replace(/\s+/g, " ").slice(0, 80));
     const startIndex = rt.messages.length;
     rt.messages.push({ role: "user", content: prompt });
     if (rt.messages.filter((m) => m.role === "user").length === 1) {
@@ -104,14 +111,10 @@ export async function runTui(opts: TuiOptions): Promise<number> {
         inFlight = false;
         rt.ctx.signal = turnAbort!.signal; // se sustituye en el próximo turno
       });
-  }
-
-  function cycleAgent(): string {
-    const idx = Math.max(0, agentOrder.indexOf(currentAgentId));
-    currentAgentId = agentOrder[(idx + 1) % agentOrder.length];
-    rt.permissions = new PermissionEngine(rulesFor(currentAgentId));
-    rt.messages[0] = { role: "system", content: buildSystemPrompt({ cwd, agent: findAgent(currentAgentId) }) };
-    return currentAgentId;
+    })().catch((err: unknown) => {
+      inFlight = false;
+      app.error(String((err as Error)?.message ?? err));
+    });
   }
 
   function newSession(): Session {
@@ -120,7 +123,7 @@ export async function runTui(opts: TuiOptions): Promise<number> {
     rt.session = s;
     rt.ctx.sessionId = s.id;
     rt.messages.length = 0;
-    rt.messages.push({ role: "system", content: buildSystemPrompt({ cwd, agent: findAgent(currentAgentId) }) });
+    rt.messages.push({ role: "system", content: buildSystemPrompt({ cwd, agent: findAgent(rt.agent.current()) }) });
     baseCount = 1;
     return s;
   }
@@ -133,7 +136,7 @@ export async function runTui(opts: TuiOptions): Promise<number> {
     rt.session = s;
     rt.ctx.sessionId = s.id;
     rt.messages.length = 0;
-    rt.messages.push({ role: "system", content: buildSystemPrompt({ cwd, agent: findAgent(currentAgentId) }) }, ...loaded);
+    rt.messages.push({ role: "system", content: buildSystemPrompt({ cwd, agent: findAgent(rt.agent.current()) }) }, ...loaded);
     baseCount = rt.messages.length;
     app.setHistory(displayHistory(loaded));
     return true;
@@ -154,6 +157,41 @@ export async function runTui(opts: TuiOptions): Promise<number> {
     }
   }
 
+  function runUndo(): void {
+    const mgr = rt.ctx.undo;
+    if (!mgr) { app.info("snapshots no disponibles en este modo"); return; }
+    const res = mgr.undo();
+    app.info(res.message);
+    for (const line of res.skipped) app.info(`  omitido: ${line}`);
+    if (res.backupDir) app.info(`  tu estado previo quedó respaldado en ${res.backupDir}`);
+  }
+
+  function runRedo(): void {
+    const mgr = rt.ctx.undo;
+    if (!mgr) { app.info("snapshots no disponibles en este modo"); return; }
+    const res = mgr.redo();
+    app.info(res.message);
+    for (const line of res.skipped) app.info(`  omitido: ${line}`);
+    if (res.backupDir) app.info(`  tu estado previo quedó respaldado en ${res.backupDir}`);
+  }
+
+  async function runCompact(): Promise<void> {
+    try {
+      app.info("compactando…");
+      const res = await compactNow(rt);
+      app.info(res.compacted ? `contexto compactado: ${res.beforeTokens} → ${res.afterTokens} tokens` : "historial demasiado corto para compactar");
+    } catch (err) {
+      app.error(`compactación falló: ${(err as Error).message}`);
+    }
+  }
+
+  function runFork(): void {
+    persistNewMessages(rt, baseCount);
+    const forked = forkCurrentSession(rt);
+    if (switchSession(forked.id)) app.info(`bifurcada como sesión ${forked.id} (la original queda intacta)`);
+    else app.error("no se pudo bifurcar la sesión");
+  }
+
   // ————— comandos slash / paleta —————
   const commands: SlashCommand[] = [
     { name: "help", hint: "atajos y comandos", run: () => app.openHelp() },
@@ -163,10 +201,11 @@ export async function runTui(opts: TuiOptions): Promise<number> {
     { name: "themes", hint: "cambiar tema", run: () => app.openThemes() },
     { name: "agent", hint: "alternar build/plan", run: () => { const id = cycleAgent(); app.info(`agente: ${id}`); } },
     { name: "thinking", hint: "razonamiento del modelo", run: () => app.info("razonamiento visible: se mostrará cuando el proveedor emita `reasoning_content` (la mayoría no lo hace); placeholder en fase 3") },
-    { name: "compact", hint: "compactar contexto (fase 3)", run: () => app.info("/compact llega en la fase 3") },
-    { name: "undo", hint: "deshacer último cambio (fase 3)", run: () => app.info("/undo llega en la fase 3") },
-    { name: "redo", hint: "rehacer (fase 3)", run: () => app.info("/redo llega en la fase 3") },
-    { name: "init", hint: "generar AGENTS.md (fase 3)", run: () => app.info("/init llega en la fase 3") },
+    { name: "compact", hint: "compactar contexto ahora", run: () => void runCompact() },
+    { name: "undo", hint: "deshacer cambios de archivos del último turno", run: () => runUndo() },
+    { name: "redo", hint: "rehacer el último undo", run: () => runRedo() },
+    { name: "fork", hint: "bifurcar la sesión actual", run: () => runFork() },
+    { name: "init", hint: "generar/actualizar AGENTS.md", run: () => submitTurn(INIT_PROMPT) },
     { name: "doctor", hint: "informe de carga", run: () => app.info("doctor: ejecuta `vireo doctor` en otra terminal (informe legible en stdout)") },
     { name: "exit", hint: "salir", run: () => engine.stop() },
   ];
@@ -235,3 +274,9 @@ function displayHistory(messages: ChatMessage[]): DisplayMessage[] {
   }
   return out;
 }
+
+const INIT_PROMPT =
+  "Analiza este repositorio para crear o actualizar AGENTS.md en la raíz. " +
+  "Primero explora: README, package.json/pyproject.toml/Cargo.toml, configs de build/test, y la estructura de src/. " +
+  "El AGENTS.md debe incluir: propósito del proyecto; comandos exactos de build, test y run; convenciones de código y de commits; y una guía rápida de estructura. " +
+  "Si AGENTS.md ya existe, ACTUALÍZALO fusionando con lo que hay (no borres nada). Usa las herramientas (read/glob/grep/write/edit); no inventes comandos.";
