@@ -1,6 +1,8 @@
 // doctor: qué se cargó, qué quedó pendiente. Fase 1: capas, reglas, modelo, tools.
 
 import { loadConfig } from "../core/config.js";
+import { loadContextFiles } from "../compat/context-files.js";
+import { loadSkillIndex } from "../compat/skills.js";
 import { PermissionEngine } from "../core/permissions.js";
 import { findAgent, BUILTIN_AGENTS } from "../core/agents.js";
 import { ALL_TOOLS } from "../tools/index.js";
@@ -8,7 +10,9 @@ import { spawnSync } from "node:child_process";
 import { sessionsDir } from "../core/session.js";
 
 export function runDoctor(opts: { cwd: string; configDir?: string; agentId?: string; modelFlag?: string }): number {
-  const { config, rules, layers } = loadConfig(opts.cwd, { configDir: opts.configDir });
+  const { config, rules, layers, warnings: configWarnings } = loadConfig(opts.cwd, { configDir: opts.configDir });
+  const contextFiles = loadContextFiles(opts.cwd, config);
+  const skills = loadSkillIndex(opts.cwd, config);
   const engine = new PermissionEngine(rules);
   const out: string[] = [];
   out.push("vireo doctor");
@@ -35,12 +39,31 @@ export function runDoctor(opts: { cwd: string; configDir?: string; agentId?: str
   out.push(`Agentes built-in: ${BUILTIN_AGENTS.map((a) => a.id).join(", ")} (seleccionado: ${findAgent(opts.agentId).id})`);
   out.push(`Tools (${ALL_TOOLS.length}): ${ALL_TOOLS.map((t) => t.name).join(", ")}`);
   out.push("");
+  out.push("Archivos de contexto (en orden de aplicación):");
+  if (contextFiles.files.length === 0) out.push("  (ninguno encontrado)");
+  else for (const f of contextFiles.files) out.push(`  ✓ ${f.path}  (${f.kind}, ${f.bytes} B${f.truncated ? ", TRUNCADO" : ""})`);
+  out.push(`Instrucciones de config: ${Array.isArray(config["instructions"]) ? (config["instructions"] as unknown[]).length : 0} orígenes`);
+  out.push("");
+  out.push(`Skills (${skills.skills.length}${skills.hidden.length ? `, ${skills.hidden.length} ocultas del listado` : ""}):`);
+  if (skills.skills.length === 0) out.push("  (ninguna)");
+  else for (const sk of skills.skills) out.push(`  ✓ ${sk.id}  [${sk.source}]${sk.disableModelInvocation ? " — disable-model-invocation" : ""}`);
+  const compatWarnings = [...contextFiles.warnings, ...skills.warnings];
+  if (compatWarnings.length) {
+    out.push("Avisos de carga (skills/contexto):");
+    for (const w of compatWarnings) out.push(`  ! ${w}`);
+  }
+  if (configWarnings.length) {
+    out.push("Avisos de config:");
+    for (const w of configWarnings) out.push(`  ! ${w}`);
+  }
+  out.push("");
   out.push("Entorno:");
   out.push(`  ripgrep: ${spawnSync("rg", ["--version"], { stdio: "ignore" }).status === 0 ? "sí" : "NO (grep usa fallback JS)"}`);
   out.push(`  websearch: ${process.env.VIREO_SEARXNG_URL ? "searxng" : process.env.EXA_API_KEY ? "exa" : "sin backend (configura VIREO_SEARXNG_URL o EXA_API_KEY)"}`);
   out.push(`  sesiones: ${sessionsDir()}`);
   out.push("");
-  out.push("Pendiente (fases siguientes): skills/context-files (4), MCP (5), extensiones (6), loaders de plugins (7), TUI (2).");
+  out.push("Avisos de seguridad: la cookie `ndus` de TeraBox u otras credenciales de terceros nunca deben escribirse en la config ni pegarse en el chat.");
+  out.push("Pendiente (fases siguientes): MCP (5), extensiones (6), loaders de plugins (7), memoria/dos-pasos (8).");
   process.stdout.write(out.join("\n") + "\n");
   return 0;
 }

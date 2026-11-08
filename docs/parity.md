@@ -9,8 +9,8 @@
 > fácil de aprender y de modificar, compatible con skills/plugins/MCP de otras
 > CLIs (Claude Code, Codex, Gemini CLI, OpenCode, Pi y similares).
 >
-> **Fecha de investigación:** 2026-11-08. **Estado del código:** Fase 2 (TUI) implementada —
-> motores OpenTUI y ANSI propio, `bun test` → 70/70 verde.
+> **Fecha de investigación:** 2026-11-08. **Estado del código:** Fase 4 implementada —
+> skills + archivos de contexto + `doctor` los lista. `bun test` → 114/114 verde.
 > Esta tabla es la guía de las fases 2–8.
 
 ## Leyenda
@@ -64,7 +64,7 @@ OpenCode está en transición v1 → v2. Esto afecta nombres; Vireo decide así:
 | Proveedor OpenAI-compatible con streaming (chat/completions) | hecho (SSE manual; `--model` con prefijo `proveedor/` informativo) | `/docs/providers`; baseURL+apiKey+model en config/env | 1 |
 | Adaptador Vercel AI SDK opcional (desactivado por defecto) | falta | `ai` + `@ai-sdk/openai-compatible`; detrás de flag | 1 |
 | Sesión en JSONL (append-only, sin ORM) | hecho — create/load/list/título/fork/remove; fork herida del historial (`--fork`); padres→hijos en `task` | spec; una línea por mensaje/evento | 1 / 3 |
-| Contexto: instrucciones + skills + tools en el prompt | parcial — system prompt base + agente; context-files y skills fase 4 | spec + `/docs/agents` | 1 |
+| Contexto: instrucciones + skills + tools en el prompt | hecho — system prompt + archivos de contexto (AGENTS/CLAUDE/GEMINI, raíz→cwd) + listado de skills (nombre+desc; body bajo demanda) | spec + `/docs/agents` | 1/4 |
 | Compactación (auto al llenar buffer; keep.tokens) | hecho (un paso: resumir lo viejo, conservar cola `keep_tokens`; corte seguro sin partir tool_calls; fallo limpio sin tocar el historial; estimación chars/4, sin tokenizer) — dos pasos en fase 8 | `/docs/config#compaction`; claves `compaction.auto`, `threshold_tokens`, `keep_tokens` | 3 / 8 |
 | Undo/redo de cambios de archivos por turno | hecho — snapshots pre/post de archivos tocados por write/edit/apply_patch (2 MB/archivo); `bash` registrado pero NO deshacible; **desviación del spec:** sin git (funciona fuera de repos); respaldo automático del estado actual en `pre-undo/` antes de sobrescribir/borrar (la edición post-turno del usuario nunca se pierde); la conversación no se toca | spec lite; `/docs/snapshots` | 3 |
 | Subagentes (sesiones hijas, depth 1) | hecho — tool `task` (general/explore); explore deniega edición; sesión JSONL hija con título `task: …`; eventos de tools del hijo etiquetados `[agent]` para la UI; el hijo no ve el historial del padre salvo en el prompt; profundidad 1 (sin `task` dentro); misma señal de abort; heredan provider (sin config multi-modelo en lite) | `task` tool; `/docs/agents` | 3 |
@@ -91,10 +91,10 @@ OpenCode está en transición v1 → v2. Esto afecta nombres; Vireo decide así:
 | `plan-enter`, `plan-exit` (cambio de agente con consentimiento; plan-exit pide confirmación) | hecho (spec lite; v2 no los tiene como tools) | `/docs/cli`; `plan_exit` draft de permisos | 3 |
 | `todowrite` (lista de tareas de la sesión) | hecho | `/docs/config#todos`; en Vireo activado por defecto (era tool clásica) | 1 |
 | `question` (flat: readline numerado; TUI fase 2; sin TTY → null) | hecho | `/docs/tools#question`; requiere cliente interactivo; sin él → auto-respuesta vacía + aviso | 1 |
-| `skill` (carga body de SKILL.md por ID; solo nombre+descripción en prompt) | falta | `/docs/skills` | 4 (tool) / 4 |
-| `task` (lanza subagente; `description`, `prompt`, foreground/background, depth 1) | falta | `/docs/tools#subagent` (v2); clásico `task` | 3 |
+| `skill` (carga body de SKILL.md por ID; solo nombre+descripción en prompt) | hecho — tool `skill`, cuerpo ≤16 KiB, archivos de soporte ≤10 listados; ids ocultados siguen cargándose; error listando disponibles | `/docs/skills` | 4 |
+| `task` (subagente; depth 1; se ejecuta en bloque) | hecho (fase 3) — alias v2 `subagent` sin tool aparte | `/docs/tools#subagent` (v2); clásico `task` | 3 |
 | `lsp` (experimental: diagnostics del servidor LSP si hay uno configurado) | falta | v2 no la lista como acción core; spec fase 1/8 | 8 |
-| `plan_enter` / `plan_exit` (cambiar agente build↔plan dentro de la sesión) | falta | OpenCode v1 tenía `plan_enter`/`plan_exit` como tools; v2 los pliega en agente plan | 3 |
+| `plan-enter` / `plan-exit` (cambiar agente build↔plan dentro de la sesión) | hecho (fase 3) — nombres con guión; plan-exit pide confirmación | v2 los pliega en agente plan | 3 |
 | MCP tools (`<server>_<tool>`, saneado `[^a-zA-Z0-9_-]` → `_`) | falta | `/docs/mcp-servers#names` | 5 |
 | `execute` / Code Mode (v2) | **fuera de alcance lite** | `/docs/tools#execute` | — |
 | `image_generate`, `browser`, worktrees (v2) | **fuera de alcance lite** | `/docs/tools` | — |
@@ -120,9 +120,9 @@ OpenCode está en transición v1 → v2. Esto afecta nombres; Vireo decide así:
 |---|---|---|---|
 | `opencode.json` y `opencode.jsonc` (JSONC propio: comentarios y trailing commas, respeta strings) | hecho | `/docs/config#format` | 1 |
 | Capas: system < global < proyecto (raíz→cwd) < `.opencode/` < `--config-dir` (custom) | hecho | `/docs/config#locations` | 1 |
-| Carpetas plurales: `agents/`, `commands/`, `skills/`, `plugins/`, `themes/` — aún no se leen (fases 4–7) | falta | `/docs/config#locations` | 1+ |
+| Carpetas plurales: `agents/`, `commands/`, `skills/`, `plugins/`, `themes/` — `skills/` leída (fase 4); el resto faltan (fases 6–7) | parcial | `/docs/config#locations` | 1+ |
 | Sustitución `{env:VAR}` y `{file:path}` en strings | hecho (`{file:}` relativo al dir del config) | `/docs/config#variables` | 1 |
-| `$schema` ignorado con aviso si desconocido; claves desconocidas → aviso, no error | falta | spec (skills) + `/docs/config` | 1 |
+| `$schema` ignorado con aviso si desconocido; claves desconocidas → aviso, no error | hecho (top-level; se lista en `doctor`) | spec (skills) + `/docs/config` | 1 |
 | `model` (flag `--model` > config > `VIREO_MODEL`/`OPENAI_MODEL`), `default_agent` → hecho; resto (`snapshots`, `compaction`, `instructions`, `skills`, `commands`, `mcp`, …) se parsea pero aún sin efecto — fases 3–7 | parcial | `/docs/config` | 1 (subconjunto) / 3+ |
 | `tui.json` separado (theme, leader_timeout 2000, keybinds, scroll_speed, diff_style, mouse, cursor) | falta | `/docs/tui#configure` | 2 |
 | Precedencia admin: managed prefs macOS / system dir | **fuera de alcance lite** | `/docs/config#locations` | — |
@@ -173,20 +173,20 @@ OpenCode está en transición v1 → v2. Esto afecta nombres; Vireo decide así:
 | Sesiones JSONL en `~/.local/share/vireo/sessions/<id>.jsonl` (o `XDG_DATA_HOME`) | hecho | spec; ruta exacta ≠ OpenCode (sería `storage/session`) — decisión propia documentada | 1/3 |
 | `--continue`, `--session <id>`, `--fork` | hecho (`--fork` bifurca la sesión sin tocar la original; `--fork` sin `-c`/`-s` bifurca la última) | `/docs/cli` (tui flags) | 3 |
 | Título auto, listar/renombrar/borrar/cambiar | hecho — `/sessions`: cargar (enter), renombrar (`r`), borrar (`d` con confirmación; la sesión activa no se puede borrar); título auto desde el primer prompt | `/docs/cli` (agent create), `session_*` | 3 |
-| Undo/redo con snapshots git (`snapshots: false` desactiva) | falta | `/docs/snapshots` | 3 |
+| Undo/redo por turno (sin git; pre/post imagen + respaldo `pre-undo/`) | hecho — ver sección A; `snapshots: false` aún sin efecto (config flag pendiente, fase 8) | `/docs/snapshots` | 3 |
 
 ### I. Skills (`src/compat/skills.ts`)
 
 | Función | Estado | Ref / nota | Fase |
 |---|---|---|---|
-| Formato `SKILL.md`: frontmatter YAML (`name` ≤64, `description` ≤1024, opcionales `license`/`compatibility`/`metadata`/`allowed-tools`) + body Markdown | falta | agentskills.io spec; Claude Code skills docs | 4 |
-| Carpetas escaneadas (global + proyecto): `~/.config/opencode/skills`, `.opencode/skills`, `~/.claude/skills`, `.claude/skills`, `~/.agents/skills`, `.agents/skills`, `~/.codex/skills`? — *Codex usa `.agents/skills` (verificado) y `~/.agents/skills`*; `~/.pi/agent/skills`, `.pi/skills`; `.gemini/skills`? **sin verificar** (Gemini docs mencionan "Agent skills" sin ruta clara en lo leído) → se incluye `.gemini/skills` como candidato con flag | falta | OpenCode `/docs/skills` (Discovery); Pi docs; Codex blog; Gemini CLI ext docs | 4 |
-| Carga: solo nombre+descripción al inicio; body bajo demanda (tool `skill`); base dir + sample de hasta 10 archivos de soporte | falta | `/docs/skills#loading` | 4 |
-| Claves desconocidas → ignorar con advertencia (no error) | falta | `/docs/skills#frontmatter` + spec | 4 |
-| `skills: ["./dir", "https://…/index.json"]` en config (HTTP catalogs) | falta | `/docs/skills#sources`,`#catalogs` | 4 |
-| Precedencia por ID (última fuente gana; orden documentado) | falta | `/docs/skills#precedence` | 4 |
-| `disable-model-invocation` / `metadata.opencode/autoinvoke: false` → oculta del listado, load explícito permitido | falta | `/docs/skills#frontmatter` | 4 |
-| Validación name 1–64 `^[a-z0-9]+(-[a-z0-9]+)*$`, match con directorio — *OpenCode v2 no la enforcea; Vireo avisa, no rechaza* | falta | agentskills spec + `/docs/skills#ids` | 4 |
+| Formato `SKILL.md`: frontmatter YAML (`name` ≤64, `description` ≤1024, opcionales `license`/`compatibility`/`metadata`/`allowed-tools`) + body Markdown | hecho — parser YAML propio mínimo (`yaml-lite.ts`, anidamiento ≤3 niveles, sin deps); `name`/`description` requeridos; desconocidas → aviso; body ≤16 KiB al cargar | agentskills.io spec; Claude Code skills docs | 4 |
+| Carpetas escaneadas (global + proyecto): `~/.config/opencode/skills`, `.opencode/skills`, `~/.claude/skills`, `.claude/skills`, `~/.agents/skills`, `.agents/skills`, `~/.codex/skills`? — *Codex usa `.agents/skills` (verificado) y `~/.agents/skills`*; `~/.pi/agent/skills`, `.pi/skills`; `.gemini/skills`? **sin verificar** (Gemini docs mencionan "Agent skills" sin ruta clara en lo leído) → se incluye `.gemini/skills` como candidato con flag | hecho — global: opencode/claude/agents/pi (+gemini tras flag `compat.geminiSkills`, default false); proyecto raíz→cwd: `.opencode/skills`, `.claude/skills`, `.agents/skills`, `.pi/skills` (+gemini tras flag); `~/.codex/skills` NO se escanea (sin verificar) | OpenCode `/docs/skills` (Discovery); Pi docs; Codex blog; Gemini CLI ext docs | 4 |
+| Carga: solo nombre+descripción al inicio; body bajo demanda (tool `skill`); base dir + sample de hasta 10 archivos de soporte | hecho — `# Skills disponibles` en el system prompt; tool `skill` devuelve cuerpo + directorio + ≤10 archivos de soporte | `/docs/skills#loading` | 4 |
+| Claves desconocidas → ignorar con advertencia (no error) | hecho (también claves desconocidas TOP-LEVEL de la config) | `/docs/skills#frontmatter` + spec | 4 |
+| `skills: ["./dir", ...]` en config | parcial — paths locales hechos (dir escaneado un nivel `*/SKILL.md` + SKILL.md suelto, o archivo directo); **HTTP catalogs NO soportados** (sin fetch en el arranque; se hará cuando la init sea asíncrona o con fetch acotado por timeout) — aviso claro, no fallo | `/docs/skills#sources`,`#catalogs` | 4 |
+| Precedencia por ID (última fuente gana; orden documentado) | hecho — global → proyecto (raíz→cwd) → `config.skills` (lo último referido gana; se avisa de pisado) | `/docs/skills#precedence` | 4 |
+| `disable-model-invocation` / `metadata.opencode.autoinvoke: false` → oculta del listado, load explícito permitido | hecho (ambos; el tool `skill` sigue cargándolos por id) | `/docs/skills#frontmatter` | 4 |
+| Validación name 1–64 `^[a-z0-9]+(-[a-z0-9]+)*$`, match con directorio — *OpenCode v2 no la enforcea; Vireo avisa, no rechaza* | hecho (aviso; la skill se carga igualmente) | agentskills spec + `/docs/skills#ids` | 4 |
 
 ### J. MCP (`src/compat/mcp.ts`)
 
@@ -229,9 +229,9 @@ OpenCode está en transición v1 → v2. Esto afecta nombres; Vireo decide así:
 
 | Función | Estado | Ref | Fase |
 |---|---|---|---|
-| `AGENTS.md`, `CLAUDE.md`, `GEMINI.md` — recorrido de raíz → cwd, concatenados con encabezado de origen | falta | Codex (root→cwd, override), Claude, Gemini docs; spec | 4 |
-| `AGENTS.override.md` (Codex) con precedencia sobre `AGENTS.md` en el mismo dir | falta | Codex docs | 4 |
-| `instructions: []` en config (paths/globs/URLs) sumadas al contexto | falta | `/docs/config#instructions` | 4 |
+| `AGENTS.md`, `CLAUDE.md`, `GEMINI.md` — recorrido de raíz → cwd, concatenados con encabezado de origen | hecho — encabezado `## ruta (kind)`; 32 KiB por archivo (nota de truncado en el bloque); aparecen en `doctor` | Codex (root→cwd, override), Claude, Gemini docs; spec | 4 |
+| `AGENTS.override.md` (Codex) con precedencia sobre `AGENTS.md` en el mismo dir | hecho (misma directorio; en hijos no afecta al padre) | Codex docs | 4 |
+| `instructions: []` en config (paths/globs/URLs) sumadas al contexto | parcial — paths y globs hechos (relativos al cwd; `~`/`$HOME`/absolutos; máx 20); **URLs no soportadas** (sin fetch en arranque) — aviso claro; 32 KiB por archivo | `/docs/config#instructions` | 4 |
 | `/init` genera `AGENTS.md` | falta | `/docs/tui#init` | 3 |
 
 ### M. Modos (`src/modes/`) y CLI
@@ -242,7 +242,7 @@ OpenCode está en transición v1 → v2. Esto afecta nombres; Vireo decide así:
 | `--print` / `-p` (un turno; stdout limpio, chatter en stderr) | hecho | `/docs/cli` run; Pi `-p` | 1 |
 | `--json` (eventos JSONL a stdout) | hecho | spec | 1 |
 | `serve` (HTTP opcional, **apagado por defecto**, expone el mismo flujo de eventos; basic auth por env `VIREO_SERVER_PASSWORD` análogo a `OPENCODE_SERVER_PASSWORD`) | falta | `/docs/server`; Pi `--mode json/rpc` | 3+ |
-| `doctor` (fase 1: capas, reglas allow/ask/deny, modelo, tools, rg, websearch) — reporte completo de orígenes fase 7 | parcial | spec | 1 (esqueleto) / 7 (completo) |
+| `doctor` (fase 1: capas, reglas allow/ask/deny, modelo, tools, rg, websearch) — fase 4: orígenes de skills y archivos de contexto + avisos de config/compat; reporte completo fase 7 | parcial | spec | 1 (esqueleto) / 4 (skills+contexto) / 7 (completo) |
 | `--model provider/model`, `--agent`, `--continue/-c`, `--session/-s`, `--fork`, `--port/--hostname/--mdns` | parcial — model/agent/continue/session/fork hechos; `--port/--hostname/--mdns` llegan con `serve` | `/docs/cli` | 2/3 |
 | `--auto` (auto-aprueba lo no denegado) | hecho (también salta el diálogo TUI; deny sigue denegado) | `/docs/cli` | 2 |
 | `--version`, `--help` | hecho | convención | 1 |
@@ -257,13 +257,14 @@ OpenCode está en transición v1 → v2. Esto afecta nombres; Vireo decide así:
 - Bun **1.4.4** instalado en `~/.bun/bin` (npm global sin permisos → install script oficial). Node v20.20.2, git 2.47.3.
 - Registry npm accesible: `@modelcontextprotocol/client@2.4.0`, `@modelcontextprotocol/core@2.4.0`, `@modelcontextprotocol/sdk@1.32.2` (legacy).
 - OpenCode docs v1 (docs.opencode.ai) y v2 (opencode.ai/docs) accesibles; difieren en nombres (ver tabla v1/v2).
+- Líneas: `src/core` 1305, `src/compat` (fase 4, sin loaders) 461 → core+compat = 1766. El objetivo "tiny core" (<1500) ya no se cumple: decisión pendiente en fase 8 (estrechar presupuesto o factorizar undo/compact a util).
 
 ## Sin verificar / TODOs explícitos
 
 1. **API de `@modelcontextprotocol/client@2.4.0`**: si `auto`-fallback es interno o manual; confirmación de `server/discover` exacto y shape de `_meta`. Se implementará probe manual para no depender. (Fase 5)
-2. **Sintaxis de argumentos de file-commands en v2** (`$ARGUMENTS` vs posicionales) — verificar `/docs/commands`. (Fase 4)
+2. **Sintaxis de argumentos de file-commands en v2** (`$ARGUMENTS` vs posicionales) — verificar `/docs/commands`. (Comandos personalizados: fase 6+; hoy no hay file-commands en Vireo)
 3. **Ruta de skills de Codex**: `.agents/skills` verificado; ¿`~/.codex/skills` existe? no confirmado → no se esc anea salvo flag. (Fase 4)
-4. **Ruta de skills de Gemini CLI**: docs mencionan "Agent skills" sin path claro → candidato `.gemini/skills` + `~/.gemini/skills`, flag `compat.geminiSkills`. (Fase 4)
+4. ~~Ruta de skills de Gemini CLI~~ **resuelto (Fase 4)**: flag `compat.geminiSkills: true` activa `.gemini/skills` + `~/.gemini/skills`; default false (ruta sin verificar). El repo de Gemini no publica la ruta en lo leído.
 5. **Layout de `.codex-plugin/`**: no se encontró manifest oficial → loader `codex` reporta `sin verificar` y carga solo convenciones (skills/mcp/commands) si existen. (Fase 7)
 6. **Formato de commands de extensiones Gemini** (TOML vs MD) — verificar `docs/extensions`. (Fase 7)
 7. **Cobertura del scanner de shell**: Vireo lite usa splitter conservador; no sustituye al scanner de OpenCode (bach/zsh/sh/powershell completos). (Fase 1)
@@ -279,7 +280,7 @@ OpenCode está en transición v1 → v2. Esto afecta nombres; Vireo decide así:
 | 1 | Núcleo + tools + permisos + config con renderer plano: `vireo --print "hola"` responde; `bun test` verde |
 | 2 | ✔ TUI: stream, editor multilínea, `@file` fuzzy, `/`+paleta, selector modelos/sesiones (en sesión), permisos con diff, temas, leader ctrl+x, motores opentui+ansi con fallback |
 | 3 | ✔ Sesiones (fork/rename/delete), undo/redo por turno (sin git, pre/post imagen + backup), compactación un paso, subagentes (`task` general/explore, depth 1, sesión hija), `/init` (prompt canned), tools `plan-enter`/`plan-exit` |
-| 4 | Skills + context files de todas las CLIs; `doctor` los lista |
+| 4 | ✔ Skills + context files de todas las CLIs; `doctor` los lista (HTTP catalogs pendientes a hook de init async) |
 | 5 | MCP stdio/HTTP con probe `server/discover` + fallback legacy |
 | 6 | Ext API + slots TUI + `/fusion` como primera extensión |
 | 7 | Loaders plugins claude/codex/gemini/opencode/pi (+ `agents-dir`) |

@@ -66,6 +66,8 @@ export interface ToolContext {
   runSubagent?: (opts: { agentId: string; prompt: string; description: string }) => Promise<string>;
   /** Snapshots para /undo//redo (undefined = deshacer deshabilitado). */
   undo?: import("./undo.js").UndoManager;
+  /** Índice de skills ya cargado (tool `skill`); ausente en contextos sin compat. */
+  skills?: import("../compat/skills.js").SkillIndex;
 }
 
 export interface UiHooks {

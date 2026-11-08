@@ -1,11 +1,12 @@
-// Construye el system prompt. Hoy: identidad + entorno + agente.
-// Fase 4 añadirá AGENTS.md/CLAUDE.md/GEMINI.md y la lista de skills
-// (solo nombre+descripción; el body se carga bajo demanda con la tool `skill`).
+// Construye el system prompt. Identidad + entorno + agente + (fase 4):
+// archivos de contexto del proyecto (AGENTS.md/CLAUDE.md/GEMINI.md/instructions)
+// y la lista de skills (solo nombre+descripción; el body se carga bajo demanda
+// con la tool `skill`).
 
 import { platform, release } from "node:os";
 import type { AgentDef } from "./agents.js";
 
-export function buildSystemPrompt(opts: { cwd: string; agent: AgentDef }): string {
+export function buildSystemPrompt(opts: { cwd: string; agent: AgentDef; contextBlock?: string; skillBlock?: string }): string {
   const lines = [
     "Eres Vireo, un agente de ingeniería de software que trabaja en la terminal del usuario.",
     "Respondes en el idioma del usuario. Eres conciso: nada de preámbulos ni resúmenes innecesarios.",
@@ -22,5 +23,7 @@ export function buildSystemPrompt(opts: { cwd: string; agent: AgentDef }): strin
     "- Las salidas grandes se truncan; pide offset/limit si necesitas más.",
   ];
   if (opts.agent.systemAppend) lines.push("", opts.agent.systemAppend);
+  if (opts.contextBlock) lines.push("", opts.contextBlock.trimEnd());
+  if (opts.skillBlock) lines.push("", opts.skillBlock.trimEnd());
   return lines.join("\n");
 }

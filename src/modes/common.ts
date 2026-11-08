@@ -10,6 +10,8 @@ import { FlatUi } from "../ui/flat.js";
 import { resolveProvider, type ProviderConfig } from "../core/provider.js";
 import { compactionFromConfig, maybeCompact, estimateTokens, type CompactionConfig } from "../core/compact.js";
 import { UndoManager } from "../core/undo.js";
+import { loadContextFiles, type ContextFilesResult } from "../compat/context-files.js";
+import { loadSkillIndex, type SkillIndex } from "../compat/skills.js";
 import type { AgentTool, ChatMessage, ToolContext } from "../core/types.js";
 import { ALL_TOOLS } from "../tools/index.js";
 import { runAgentLoop } from "../core/loop.js";
@@ -49,10 +51,19 @@ export interface Runtime {
   compaction: CompactionConfig;
   /** Cambio de agente en caliente (reconstruye permisos + system prompt). */
   agent: { current(): string; set(id: string): boolean; list(): string[] };
+  /** Archivos de contexto cargados (AGENTS.md/CLAUDE.md/GEMINI.md/instructions). */
+  contextFiles: ContextFilesResult;
+  /** Índice de skills cargado al arranque. */
+  skills: SkillIndex;
+  /** Avisos de config y de compat (skills/contexto) — para `doctor`. */
+  warnings: string[];
 }
 
 export function buildRuntime(opts: RuntimeOptions): Runtime {
-  const { config, rules, layers } = loadConfig(opts.cwd, { configDir: opts.configDir });
+  const { config, rules, layers, warnings: configWarnings } = loadConfig(opts.cwd, { configDir: opts.configDir });
+  const contextFiles = loadContextFiles(opts.cwd, config);
+  const skillIndex = loadSkillIndex(opts.cwd, config);
+  const compatWarnings = [...contextFiles.warnings, ...skillIndex.warnings];
   const agent = findAgent(opts.agentId ?? (config["default_agent"] as string | undefined));
   const provider = resolveProvider(config, opts.modelFlag);
 
@@ -72,6 +83,7 @@ export function buildRuntime(opts: RuntimeOptions): Runtime {
   const bus = new EventBus();
   const ui = new FlatUi({ auto: opts.auto });
   if (opts.attachUi !== false) ui.attach(bus);
+  for (const w of [...configWarnings, ...compatWarnings]) ui.info(`config: ${w}`);
   const readFiles = new Set<string>();
   const undo = new UndoManager(session.id);
   const ctx: ToolContext = {
@@ -83,10 +95,12 @@ export function buildRuntime(opts: RuntimeOptions): Runtime {
     emit: (ev) => bus.emit(ev),
     isSubagent: false,
     undo,
+    skills: skillIndex,
   };
 
+  const promptOpts = { contextBlock: contextFiles.block, skillBlock: skillIndex.block };
   const messages: ChatMessage[] = [
-    { role: "system", content: buildSystemPrompt({ cwd: opts.cwd, agent }) },
+    { role: "system", content: buildSystemPrompt({ cwd: opts.cwd, agent, ...promptOpts }) },
     ...session.messages(),
   ];
 
@@ -100,7 +114,7 @@ export function buildRuntime(opts: RuntimeOptions): Runtime {
       if (next.mode === "subagent") return false;
       currentAgentId = next.id;
       rt.permissions = new PermissionEngine([...rules, ...next.permissionRules]);
-      rt.messages[0] = { role: "system", content: buildSystemPrompt({ cwd: opts.cwd, agent: next }) };
+      rt.messages[0] = { role: "system", content: buildSystemPrompt({ cwd: opts.cwd, agent: next, ...promptOpts }) };
       return true;
     },
   };
@@ -114,7 +128,7 @@ export function buildRuntime(opts: RuntimeOptions): Runtime {
     const child = Session.create(opts.cwd);
     child.setTitle(`task: ${label}`);
     const childMessages: ChatMessage[] = [
-      { role: "system", content: buildSystemPrompt({ cwd: opts.cwd, agent: subAgent }) },
+      { role: "system", content: buildSystemPrompt({ cwd: opts.cwd, agent: subAgent, ...promptOpts }) },
       { role: "user", content: prompt },
     ];
     const childReadFiles = new Set<string>();
@@ -127,6 +141,7 @@ export function buildRuntime(opts: RuntimeOptions): Runtime {
       emit: (ev) => bus.emit(tagSubagentEvent(ev, subAgent.id)),
       isSubagent: true,
       undo, // comparte el gestor: sus ediciones quedan en el mismo undo por turno
+      skills: skillIndex,
     };
     const subPermissions = new PermissionEngine([...rules, ...subAgent.permissionRules]);
     const subTools = ALL_TOOLS.filter((t) => !["task", "plan-enter", "plan-exit"].includes(t.name));
@@ -144,6 +159,9 @@ export function buildRuntime(opts: RuntimeOptions): Runtime {
     usageTotals: { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
     compaction: compactionFromConfig(config),
     agent: agentCtl,
+    contextFiles,
+    skills: skillIndex,
+    warnings: [...configWarnings, ...compatWarnings],
   };
   return rt;
 }

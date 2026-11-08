@@ -17,7 +17,19 @@ export interface LoadedConfig {
   rules: Rule[];
   /** Archivos cargados, en orden de aplicación (para `doctor`). */
   layers: string[];
+  /** Avisos no fatales (claves desconocidas, etc.); nunca errores. */
+  warnings: string[];
 }
+
+// Claves de primer nivel conocidas (las que usa o irá usando Vireo). Una clave
+// fuera de esta lista se reporta como aviso y se ignora — nunca es un error.
+const KNOWN_TOP_KEYS = new Set([
+  "$schema", "model", "small_model", "default_agent", "permission", "permissions",
+  "compaction", "instructions", "skills", "mcp", "snapshots", "tui", "theme",
+  "agents", "commands", "themes", "plugins", "policies", "provider", "providers",
+  "mode", "tools", "experimental", "share", "autoupdate", "enabled_providers",
+  "disabled_providers", "keybinds", "username", "shell", "compat", "approval_policy",
+]);
 
 const SYSTEM_DIR = process.platform === "darwin" ? "/Library/Application Support/opencode" : "/etc/opencode";
 const GLOBAL_DIR = join(homedir(), ".config", "opencode");
@@ -106,5 +118,10 @@ export function loadConfig(cwd: string, opts: { configDir?: string } = {}): Load
   const rules: Rule[] = [...baseRules()];
   for (const layer of layers) rules.push(...configToRules(layer.data["permission"], layer.data["permissions"]));
 
-  return { config, rules, layers: layers.map((l) => l.path) };
+  const warnings: string[] = [];
+  for (const key of Object.keys(config)) {
+    if (!KNOWN_TOP_KEYS.has(key)) warnings.push(`clave desconocida (se ignora): "${key}"`);
+  }
+
+  return { config, rules, layers: layers.map((l) => l.path), warnings };
 }
