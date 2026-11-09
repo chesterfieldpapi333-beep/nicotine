@@ -131,11 +131,28 @@ const listMd = (dir: string): string[] => {
   } catch { return []; }
 };
 
-/** Sustituye $ARGUMENTS y $1..$9 en el cuerpo del comando. */
+/**
+ * Sustituye $ARGUMENTS y $1..$9 en el cuerpo del comando (spec commands de
+ * OpenCode, verificado 2026-11):
+ *   - $ARGUMENTS = cadena completa tal cual;
+ *   - $N posicional = n-ésimo argumento; el marcador de mayor número consume
+ *     su argumento y TODO lo posterior (/compare $1 con $2 → «api» «stable branch»);
+ *   - posicionales ausentes → "";
+ *   - si la plantilla no tiene $ARGUMENTS/$N y hay argumentos, se anexan tras un
+ *     salto de línea ("fallback" de la spec).
+ */
 export function renderCommandBody(cmd: FileCommand, rawArgs: string): string {
-  const args = splitArgs(rawArgs);
-  let out = cmd.body.replace(/\$ARGUMENTS\b/g, rawArgs.trim());
-  for (let i = 1; i <= 9; i++) out = out.replace(new RegExp(`\\$${i}\\b`, "g"), args[i - 1] ?? "");
+  const trimmed = rawArgs.trim();
+  const args = splitArgs(trimmed);
+  let out = cmd.body;
+  const placeholders = [...out.matchAll(/\$([1-9])\b/g)].map((m) => Number(m[1]));
+  const highest = placeholders.length ? Math.max(...placeholders) : 0;
+  out = out.replace(/\$ARGUMENTS\b/g, trimmed);
+  for (let i = 1; i <= 9; i++) {
+    const rep = i === highest ? args.slice(i - 1).join(" ") : (args[i - 1] ?? "");
+    out = out.replace(new RegExp(`\\$${i}\\b`, "g"), rep);
+  }
+  if (!/\$ARGUMENTS\b|\$[1-9]\b/.test(cmd.body) && trimmed) out += `\n\n${trimmed}`;
   return out;
 }
 

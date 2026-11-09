@@ -20,6 +20,7 @@ import type { AgentTool, ChatMessage, ToolContext } from "../core/types.js";
 import { ALL_TOOLS } from "../tools/index.js";
 import { runAgentLoop } from "../core/loop.js";
 import { discoverPlugins, type PluginsReport } from "../compat/plugins.js";
+import { parseConfigCommands, type ConfigCommand } from "../compat/config-commands.js";
 import { runHooks } from "../compat/hooks.js";
 import { readFileSync } from "node:fs";
 
@@ -74,6 +75,8 @@ export interface Runtime {
   extensionOrigins: Record<string, "system" | "global" | "project" | "custom">;
   /** Reporte del descubrimiento multi-CLI (fase 7). */
   plugins: PluginsReport;
+  /** Comandos custom desde `commands: {}` en config (spec JSON, verificado). */
+  configCommands: ConfigCommand[];
 }
 
 export function buildRuntime(opts: RuntimeOptions): Runtime {
@@ -98,8 +101,19 @@ export function buildRuntime(opts: RuntimeOptions): Runtime {
     } catch { /* aviso ya emitido en el descubrimiento */ }
   }
   const skillIndex = loadSkillIndex(opts.cwd, config, { extraSources: plugins.skillSources });
-  const compatWarnings = [...contextFiles.warnings, ...skillIndex.warnings, ...plugins.warnings];
-  const agent = findAgent(opts.agentId ?? (config["default_agent"] as string | undefined));
+  const configCommands = parseConfigCommands(config["commands"]);
+  const compatWarnings = [...contextFiles.warnings, ...skillIndex.warnings, ...plugins.warnings, ...configCommands.warnings.map((w) => `commands: ${w}`)];
+  // default_agent desconocido NO tumba la sesión: aviso + fallback a build
+  // (--agent explícito sí es un error). Spec: fallback «build → primer primary visible».
+  const defaultAgent = opts.agentId ?? (config["default_agent"] as string | undefined);
+  let agent;
+  try {
+    agent = findAgent(defaultAgent);
+  } catch (err) {
+    if (opts.agentId) throw err;
+    compatWarnings.push(`default_agent «${String(defaultAgent)}» desconocido; se usa «build» (${(err as Error).message})`);
+    agent = findAgent(undefined);
+  }
   const provider = resolveProvider(config, opts.modelFlag);
 
   let session: Session;
@@ -213,6 +227,7 @@ export function buildRuntime(opts: RuntimeOptions): Runtime {
     mcp: { servers: [], prompts: [] },
     extensionOrigins,
     plugins,
+    configCommands: configCommands.commands,
   };
   return rt;
 }

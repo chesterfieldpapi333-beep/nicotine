@@ -114,7 +114,7 @@ OpenCode está en transición v1 → v2. Esto afecta nombres; Vireo decide así:
 | Defaults: `*` allow; `read *.env`/`*.env.*` ask; `*.env.example` allow | hecho | `/docs/permissions#defaults` | 1 |
 | `external_directory` — en Vireo es **ask** por defecto (spec), configurable; expansión `~` `$HOME` | hecho (desviación deliberada del default v2) | `/docs/permissions#directories`; **pregunta extra en TUI si la regla es ask** | 1 |
 | Regla compuesta (patch multi-archivo vía `permissionResources`; `deny` > `ask` > `allow`) | hecho | `/docs/permissions#matching` | 1 |
-| Saved approvals ("always" guarda patrón en memoria de sesión — para rutas, `carpeta/*`; persistencia proyecto-scoped: fase 3; nunca pisan `deny`) | parcial | `/docs/permissions#approvals` | 3 |
+| Saved approvals ("always" guarda `carpeta/*` en memoria de sesión; **persistencia por proyecto** en `$XDG_DATA_HOME/vireo/approvals/<sha1(cwd)>.json`; deny siempre gana) | hecho (6.5 — mostrando también patrón en diálogo) | `/docs/permissions#approvals` | 3 |
 | Diálogo de aprobación en TUI con diff (once/always/reject + feedback) | hecho (flechas+enter, y/a/n, diff coloreado truncado al alto) | `/docs/permissions#approvals`; `permission.prompt.fullscreen` no soportado (lite) | 2 |
 | Scanner de shell (heurística conservadora; análisis por subcomandos) | hecho (conservador) — `shell-scan.ts` divide `&&`, `||`, `;`, `|`, saltos de línea respetando comillas simples/dobles/backtick y `$(…)`/backticks recursivamente; heredoc (`<<`) o balanceo imposible → comando completo (como antes). Cada segmento se evalúa por separado y se combina deny > ask > allow; **nunca amplía permisos** | `/docs/permissions#scanner`; Vireo lite: sin parser completo (bash/zsh/sh/powershell) — limitación inherente, documentada | 1 |
 | `policies` v2 (hard-deny post-reglas) | hecho (fase 8) — `policies: [{action, resource}]` en config (array, acumulan entre capas; `bash` sin expandir `~`, rutas con expansión); se aplican DESPUÉS del motor y de los allows guardados — ningún allow las pisa; `doctor` las cuenta; `PermissionDenied` acota la causa a UNA regla/policy/«rechazado por el usuario» (nunca el ruleset completo — legado #53446 de opencode) | `/docs/permissions#policies` | 8 |
@@ -126,11 +126,11 @@ OpenCode está en transición v1 → v2. Esto afecta nombres; Vireo decide así:
 |---|---|---|---|
 | `opencode.json` y `opencode.jsonc` (JSONC propio: comentarios y trailing commas, respeta strings) | hecho | `/docs/config#format` | 1 |
 | Capas: system < global < proyecto (raíz→cwd) < `.opencode/` < `--config-dir` (custom) | hecho | `/docs/config#locations` | 1 |
-| Carpetas plurales: `agents/`, `commands/`, `skills/`, `plugins/`, `themes/` — `skills/` leída (fase 4); el resto faltan (fases 6–7) | parcial | `/docs/config#locations` | 1+ |
+| Carpetas plurales: `agents/`, `commands/`, `skills/`, `plugins/`, `themes/` — todas leídas (skills f4; commands/agents/themes/plugins f7); `plugins/*.ts` nunca ejecutan | hecho (fase 7) | `/docs/config#locations` | 1+ |
 | Sustitución `{env:VAR}` y `{file:path}` en strings | hecho (`{file:}` relativo al dir del config) | `/docs/config#variables` | 1 |
 | `$schema` ignorado con aviso si desconocido; claves desconocidas → aviso, no error | hecho (top-level; se lista en `doctor`) | spec (skills) + `/docs/config` | 1 |
-| `model` (flag `--model` > config > `VIREO_MODEL`/`OPENAI_MODEL`), `default_agent` → hecho; `snapshots: false` y `policies` → hechos (fase 8); resto (`compaction`, `instructions`, `skills`, `commands`, `mcp`, …) se parsea y está vivo — fases 3–7 | parcial | `/docs/config` | 1 (subconjunto) / 3+ |
-| `tui.json` separado (theme, leader_timeout 2000, keybinds, scroll_speed, diff_style, mouse, cursor) | falta | `/docs/tui#configure` | 2 |
+| `model` (flag > config > `VIREO_MODEL`/`OPENAI_MODEL`), `default_agent` → hecho (**con fallback «build» + aviso** si la config nombra un agente desconocido; `--agent` desconocido → exit 1); `snapshots: false` y `policies` → hechos (fase 8); resto (`compaction`, `instructions`, `skills`, `commands`, `mcp`, …) vivo | hecho | `/docs/config` | 1 (subconjunto) / 3+ |
+| `tui.json` separado — archivo+precedencia (`$VIREO_TUI_CONFIG` > global > proyecto raíz→cwd + `.opencode/`), merge keybinds-over-defaults, `"none"` desactiva, theme/leader_timeout/mouse/cursor/diff_style parseados | parcial — honrados: theme·leader_timeout·keybinds·mouse·cursor(·diff_style en diffs de permisos); **scroll_speed sin efecto** (sin handler de rueda) | `/docs/tui#configure` | 2 |
 | Precedencia admin: managed prefs macOS / system dir | **fuera de alcance lite** | `/docs/config#locations` | — |
 
 ### E. Agentes (`src/core/agents` + `agents/`)
@@ -138,11 +138,11 @@ OpenCode está en transición v1 → v2. Esto afecta nombres; Vireo decide así:
 | Función | Estado | Ref | Fase |
 |---|---|---|---|
 | Built-ins `build`, `plan` (deniega edit), **`architect`** (deniega edit; diseño/tradeoffs) y **`editor`** (aplica cambios mínimos verificados) — primary, vía `--agent` y ciclo de tab; `general`/`explore` para `task` | hecho (fase 8: +architect/editor) | `/docs/agents#built-ins` | 1 (defs) / 3 / 8 |
-| Agentes en Markdown con frontmatter (`description`, `mode`, `model`, `permissions`) — body = system prompt; ID `team/reviewer` por subdirectorio | falta | `/docs/agents#formats` | 1/3 |
+| Agentes en Markdown con frontmatter — `description` requerida, `mode`, `tools:` mapeadas, body=system prompt, plugins con prefijo «plugin:id», IDs planos (sin subdirectorio→namespace en lite); `model`/`permissions`/`mode:all` parcialmente, `permissions` de archivo NO honrada (deny * vive en config) | parcial | `/docs/agents#formats` | 1/3 |
 | Merge: escalares reemplazan, permissions se **añaden** | falta | `/docs/agents#merging` | 1 |
-| `default_agent`, selección con fallback (build → primer primary visible) | falta | `/docs/agents#selection` | 3 |
-| Modos `primary`/`subagent`/`all`; profundidad subagentes = 1 | falta | `/docs/agents#modes` | 3 |
-| Ocultar `compaction`/`title`/`summary` (internos, no seleccionables) | falta | `/docs/agents#built-ins` | 3 |
+| `default_agent`, selección con fallback — config desconocido → aviso + `build`; `--agent` desconocido → error limpio con exit 1 | hecho (2026-11) | `/docs/agents#selection` | 3 |
+| Modos `primary`/`subagent`/`all` (tab cicla solo primaries); subagentes depth 1, no visibles en tab, sin `task`/`plan-*` | hecho (3/7) | `/docs/agents#modes` | 3 |
+| Ocultar `compaction`/`title`/`summary` (internos, no seleccionables) | hecho — **no aplica**: vireo no tiene agentes internos (compaction/title se hacen en código, no como agentes); nada que ocultar | `/docs/agents#built-ins` | 3 |
 
 ### F. Comandos slash built-in (TUI y print)
 
@@ -155,7 +155,7 @@ OpenCode está en transición v1 → v2. Esto afecta nombres; Vireo decide así:
 | `/plan` (entrar/salir de agente plan) | hecho vía tools `plan-enter`/`plan-exit` (el modelo puede pedir el cambio); tab cicla build/plan manualmente | spec `plan-enter/plan-exit` | 3 |
 | Comandos de archivo `commands/*.md` (frontmatter: description, model, agent; `$ARGUMENTS`; argumentos `$1..`/`$NAME`) | hecho (fase 7) — `.claude|.opencode/commands/**.md`, `.pi/prompts/*.md`, plugins namespaced `plugin:comando`; `$ARGUMENTS` y `$1..$9`; frontmatter `description`/`argument-hint` (`model`/`agent` ignorados con aviso); en v1 no hay dispatch de slash fuera de la TUI | `/docs/commands` | 4→7 |
 | Comandos de MCP prompts `<server>:<prompt>` | hecho — comandos dinámicos en TUI; args posicionales→orden declarado (required ausente → error de uso); el prompt renderizado se envía como turno del usuario | `/docs/commands` | 5/6 |
-| Comandos custom desde config `commands: {}` | falta | `/docs/config#commands` | 4 |
+| Comandos custom desde config `commands: {}` — `template` requerido; `$ARGUMENTS`/`$N` (mayor N consume el resto); sin placeholder → args anexados; `agent`/`model` honrados en TUI; `subagent`/`subtask` y bloques `` !`…` `` aceptados pero no honrados (aviso); builtins ganan; `doctor` los lista | hecho (2026-11) | `/docs/config#commands` | 4 |
 
 ### G. TUI (`src/ui/`)
 
@@ -239,7 +239,7 @@ OpenCode está en transición v1 → v2. Esto afecta nombres; Vireo decide así:
 | `AGENTS.md`, `CLAUDE.md`, `GEMINI.md` — recorrido de raíz → cwd, concatenados con encabezado de origen | hecho — encabezado `## ruta (kind)`; 32 KiB por archivo (nota de truncado en el bloque); aparecen en `doctor` | Codex (root→cwd, override), Claude, Gemini docs; spec | 4 |
 | `AGENTS.override.md` (Codex) con precedencia sobre `AGENTS.md` en el mismo dir | hecho (misma directorio; en hijos no afecta al padre) | Codex docs | 4 |
 | `instructions: []` en config (paths/globs/URLs) sumadas al contexto | parcial — paths y globs hechos (relativos al cwd; `~`/`$HOME`/absolutos; máx 20); **URLs no soportadas** (sin fetch en arranque) — aviso claro; 32 KiB por archivo | `/docs/config#instructions` | 4 |
-| `/init` genera `AGENTS.md` | falta | `/docs/tui#init` | 3 |
+| `/init` genera `AGENTS.md` — prompt canned (explora y escribe/fusiona); `/init` no garantiza el modelo | hecho (3) | `/docs/tui#init` | 3 |
 
 ### M. Modos (`src/modes/`) y CLI
 
@@ -265,6 +265,7 @@ OpenCode está en transición v1 → v2. Esto afecta nombres; Vireo decide así:
 - Registry npm accesible: `@modelcontextprotocol/client@2.4.0`, `@modelcontextprotocol/core@2.4.0`, `@modelcontextprotocol/sdk@1.32.2` (legacy).
 - OpenCode docs v1 (docs.opencode.ai) y v2 (opencode.ai/docs) accesibles; difieren en nombres (ver tabla v1/v2).
 - Fase 8 (2026-11-09): **220/220 tests**, `tsc` limpio; e2e con mock provider contra un proyecto de pruebas (`/tmp/vireo-e2e-proj`): `vireo skills update` instaló y cacheó 1 skill desde un catálogo HTTP local (puerto 8798) con digest verificado; doctor lista contexto `memory`, agentes architect/editor, contador de policies; `--agent architect --print` ejecutó bash (ok) — y con `policies: [{action:"bash", resource:"echo *"}]` el MISMO comando fue bloqueado end-to-end aunque `--auto` lo habría aprobado (`policy v2 «echo *»`).
+- Cierre de paridad (2026-11-09, post-fase 8): **232/232 tests** (`tests/config-commands.test.ts`, +12); e2e con mock provider (8799) sobre proyecto de pruebas: `vireo doctor` lista «Comandos de config «commands» (2)» con avisos (variant descartada, def no-objeto ignorada); `--print` con `default_agent` inexistente → aviso + cae a `build` (exit 0); `--agent nope` → mensaje claro, exit 1. Expansión de argumentos corregida a la spec ($N mayor consume el resto; sin placeholder → args anexados tras línea en blanco). Implementado: `commands:{}` desde config (template requerido; `agent`/`model` honrados en TUI; `subagent`/`subtask` ignorados con aviso; builtins > config > archivo; `doctor` los lista). TODOs «sin verificar» quedaron resueltos en fase 8 (formatos Codex/Gemini verificados en máquina). Filas antes «falta» cerradas o honestamente parciales (tui.json: `scroll_speed` sin efecto; agentes de archivo sin merge de permissions; expansión de variables `${extensionPath}` pendiente).
 - **Decisión de presupuesto (fase 8, cierra TODO §Sin-verificar #8):** se RETIRA el tope único "core+compat < 1500 LOC" — era inalcanzable para la paridad demandada y seguir persiguiéndolo a martillazos producía cortes artificiales. Nueva política documentada y aplicada: (a) `src/core` (kernel agéntico: loop/provider/permissions/config/session/compact/undo/types/events/shell-scan/text-tool-calls/agents/context) ≤ **1800 LOC**, tope blando por archivo 300 — hoy **1796**; cualquier crecimiento neto debe desplazar o justificarse en el commit. (b) `src/compat/` (adaptadores de datos multi-CLI; nunca estado agéntico, nunca ejecución de código ajeno) queda FUERA del tope; protegida por: zero-dep, parse-only, un test por loader, tope blando ~400/archivo. (c) `src/ext/` (API pública de extensiones) 267 — congelada salvo extensiones aprobadas en fase. (d) Total a la vista: 1796 + 2451 + 267 ≈ 4.5k LOC con 220 tests. La extracción de compat a paquete propio queda como posible fase opcional futura si algún día se publica vireo como librería; NO como precondición de la paridad.
 
 - Fase 6 (2026-11-08): 148/148 tests (`bun test`), `tsc --noEmit` limpio; e2e con mock provider (`VIREO_MOCK_SCENARIO=extshout`): extensión de proyecto auto-aprobada con aviso, tool `ext_shout` ejecutada, `turn_end` log; `doctor` lista extensión sin importarla; MCP `prompts/list|get` verificados contra fake server.

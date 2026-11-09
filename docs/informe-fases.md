@@ -11,11 +11,11 @@ Métricas globales al cierre de Fase 8:
 
 | Métrica | Valor |
 |---|---|
-| Commits de fase | 9 (`14edee4`…fase 8) |
-| Tests | **220/220** (`bun test`, 22 archivos) |
+| Commits de fase | 10 (`14edee4`…cierre de paridad) |
+| Tests | **232/232** (`bun test`, 23 archivos) |
 | Typecheck | `tsc --noEmit` limpio (TS 7.0.2, Bun 1.4.4) |
 | Presupuesto core+compat | **4247 líneas** (`src/core` 1796 + `src/compat` 2451) + `src/ext` 267 |
-| Paridad (conteo de filas) | 95 hecho · 10 parcial · 12 falta (ver `docs/parity.md`) |
+| Paridad (conteo de filas) | **103 hecho · 9 parcial · 5 falta** (ver `docs/parity.md`) |
 | Líneas del repo (src+tests+docs+examples) | ~10 600 |
 | Estrategia de testing en vivo | 100% mock (proveedor OpenAI falso + MCP fake + pty); sin APIs reales |
 
@@ -142,6 +142,38 @@ de extensión (formato sin verificar), `~/.claude.json` → reporte «no soporta
 
 ---
 
+## 8+ — Cierre de paridad (commit propio tras fase 8)
+
+**Objetivo:** cerrar las filas de paridad honestamente implementables tras la fase 8,
+sin inventar alcance (serve/OAuth/LSP se mantienen fuera).
+
+**Entregado:**
+
+- **Comandos custom desde config** `commands: {}` (`src/compat/config-commands.ts`):
+  `template` requerido; `$ARGUMENTS` y `$1..$9`; **el posicional mayor consume su
+  argumento y todo lo posterior** (spec commands verificada 2026-11); plantillas sin
+  placeholder y con argumentos los anexan tras línea en blanco (fallback spec);
+  `agent` cambia el agente de la sesión en TUI (como /agent), `model` fija el modelo
+  (variant `#…` descartada con aviso); `subagent`/`subtask` se aceptan pero se IGNORAN
+  con aviso (sin sesiones en background); bloques shell `` !`…` `` quedan LITERALES
+  con aviso; builtins ganan > config > comandos de archivo; `doctor` lista los comandos
+  de config y sus avisos.
+- **Fix de expansión posicional** en `renderCommandBody` (compat): pasa a cumplir la
+  spec ($N mayor greedy) y añade el fallback — afecta también a comandos de archivo.
+- **Fallback de `default_agent`**: agente desconocido EN LA CONFIG → aviso + `build`;
+  `--agent` desconocido → error exit 1 (comportamiento previo preservado).
+- **Docs honestas**: 8 filas de parity.md flipadas a hecho o parcial-con-motivo
+  (carpetas plurales f7, saved approvals 6.5, `model`+fallback, `tui.json`,
+  `default_agent`, modos, «ocultar internos» (no aplica: no hay agentes internos),
+  `/init` fase 3, `/commands{}` nueva). Faltas restantes justificadas: Vercel AI SDK,
+  LSP ×2, `serve` (fase propia), merge de agentes en config.
+- **Sin crecimiento de core**: los cambios viven en `src/compat` (config-commands.ts,
+  +~95 LOC) y `src/modes`/`src/ui`; el cap de core (≤1800) se respeta (1796).
+
+**Métricas:** 220 → **232/232** tests. e2e con mock provider: doctor lista comandos
+de config con avisos; `--print` con `default_agent` inválido cae a build (exit 0);
+`--agent nope` → exit 1 con mensaje.
+
 ## Estado de paridad por sección (ver `docs/parity.md` para el detalle fila a fila)
 
 | Sección | Resumen |
@@ -151,8 +183,8 @@ de extensión (formato sin verificar), `~/.claude.json` → reporte «no soporta
 | C. Config | opencode.json(c) + capas raíz→cwd + `.opencode/`; `tui.json`; `extensions` |
 | D. Core loop | streaming SSE; tool-calls; subagentes depth 1 |
 | E. Sesiones | JSONL, fork, undo/redo, compactación **2 pasos** (poda sin LLM → resumen) |
-| F. Comandos | builtins + `/init` + MCP prompts + extensiones + archivo (fase 7); `commands: {}` en config **falta** |
-| G. TUI | paridad funcional lograda; ANSI + OpenTUI; temas; leader; sin `onKey` para ext (v1) |
+| F. Comandos | builtins + `/init` + MCP prompts + extensiones + archivo + **`commands: {}` en config** (2026-11) |
+| G. TUI | paridad funcional lograda; ANSI + OpenTUI; temas; leader; `tui.json` separado (scroll_speed sin efecto); sin `onKey` para ext (v1) |
 | H. Sesiones/historial | hecho; `snapshots: false` honrado (no se toman snapshots) |
 | I. Skills | hecho **+ catálogos HTTP** con verificación sha256 (`vireo skills update`; init nunca descarga) |
 | J. MCP | stdio/HTTP stateless+legacy; multi-origen; OAuth fuera de lite |
@@ -236,7 +268,7 @@ presupuesto núcleo.
   `src/ext/` congelada (267). Extracción de compat a paquete propio queda como fase
   opcional futura, no como precondición.
 
-**Métricas:** 170 → **220/220** tests (2 archivos nuevos: `tests/fase8.test.ts`,
+**Métricas:** 170 → **220/220** tests (1 archivo nuevo (`config-commands.test.ts`; +12 tests): `tests/fase8.test.ts`,
 `tests/skill-catalog.test.ts`); e2e con mock provider: `skills update` instaló 1 skill
 desde catálogo local con digest verificado; doctor lista `memory`/architect/policies;
 `--agent architect --print` ejecutó bash (ok) y con

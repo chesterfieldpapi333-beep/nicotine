@@ -246,9 +246,25 @@ export async function runTui(opts: TuiOptions): Promise<number> {
     { name: "exit", hint: "salir", run: () => engine.stop() },
   ];
   commands.push(...mcpPromptCommands);
+  // ————— comandos de config `commands: {}` (spec JSON verificado 2026-11) —————
+  for (const cc of rt.configCommands) {
+    if (commands.some((c) => c.name === cc.name)) { app.info(`/${cc.name} (config) ignorado: nombre en uso`); continue; }
+    commands.push({
+      name: cc.name,
+      hint: cc.hint,
+      run: (_app, rawArgs) => {
+        if (cc.model) { rt.provider.model = cc.model; _app.info(`modelo: ${cc.model} (este comando)`); }
+        if (cc.agent) {
+          const ok = rt.agent.set(cc.agent);
+          _app.info(ok ? `agente: ${cc.agent} (este comando)` : `agente «${cc.agent}» no seleccionable aquí (subagent o desconocido); se mantiene el actual`);
+        }
+        submitTurn(renderCommandBody(cc, rawArgs ?? ""));
+      },
+    });
+  }
   // ————— comandos de archivo (fase 7): .claude/commands, .opencode/commands, .pi/prompts, plugins (plugin:name) —————
   for (const fc of rt.plugins.commands) {
-    if (commands.some((c) => c.name === fc.name)) { app.info(`/${fc.name} (${fc.source}) ignorado: nombre en uso por un builtin`); continue; }
+    if (commands.some((c) => c.name === fc.name)) { app.info(`/${fc.name} (${fc.source}) ignorado: nombre en uso por un builtin, comando de config o MCP`); continue; }
     commands.push({ name: fc.name, hint: fc.hint, run: (_app, rawArgs) => submitTurn(renderCommandBody(fc, rawArgs ?? "")) });
   }
   for (const w of foreignThemeWarnings) app.info(w);

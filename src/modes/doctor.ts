@@ -1,6 +1,7 @@
 // doctor: qué se cargó, qué quedó pendiente. Fase 1: capas, reglas, modelo, tools.
 
 import { loadConfig } from "../core/config.js";
+import { parseConfigCommands } from "../compat/config-commands.js";
 import { loadContextFiles } from "../compat/context-files.js";
 import { loadSkillIndex } from "../compat/skills.js";
 import { mcpServersFromConfig } from "../compat/mcp/manager.js";
@@ -110,6 +111,10 @@ export function runDoctor(opts: { cwd: string; configDir?: string; agentId?: str
   }
   out.push(`Comandos de archivo (${plugins.commands.length}):`);
   for (const c of plugins.commands) out.push(`  /${c.name}  [${c.origin}]${c.plugin ? ` (plugin ${c.plugin})` : ""}  ← ${c.source}`);
+  const configCmds = parseConfigCommands(config["commands"]);
+  out.push(`Comandos de config «commands» (${configCmds.commands.length}):`);
+  for (const c of configCmds.commands) out.push(`  /${c.name}${c.agent ? `  agent=${c.agent}` : ""}${c.model ? `  model=${c.model}` : ""}`);
+  for (const w of configCmds.warnings) out.push(`  ! ${w}`);
   out.push(`Agentes de archivo (${plugins.agents.length}):`);
   for (const a of plugins.agents) out.push(`  ✓ ${a.id}  (${a.mode})  — ${a.description.slice(0, 60)}`);
   out.push(`Temas de otras CLIs (${plugins.themes.length}):`);
