@@ -7,6 +7,8 @@ import { runRepl } from "./modes/repl.js";
 import { runTui } from "./modes/tui.js";
 import { runDoctor } from "./modes/doctor.js";
 import { runServe } from "./modes/serve.js";
+import { mcpServersFromConfig, asDef } from "./compat/mcp/manager.js";
+import { runAuthorizationFlow, deleteOauthEntry, readOauthStore } from "./compat/mcp/oauth.js";
 import { loadConfig } from "./core/config.js";
 import { updateCatalogs } from "./compat/skill-catalog.js";
 
@@ -19,6 +21,8 @@ Uso:
   vireo --print [opciones] [prompt]  un turno; respuesta a stdout
   vireo --json  [opciones] [prompt]  eventos JSONL a stdout
   vireo doctor [opciones]            diagnóstico
+  vireo mcp auth <nombre>         autoriza (OAuth 2.1+PKCE) a un servidor MCP remoto
+  vireo mcp logout <nombre>       olvida el token guardado de un servidor MCP remoto
   vireo skills update [url…]      descarga catálogos HTTP de skills (discovery) y los cachea
 
 Opciones:
@@ -92,7 +96,7 @@ function parseArgs(argv: string[]): Args {
       case "--hostname": args.hostname = next(i, a); i++; break;
       case "--help": case "-h": args.help = true; break;
       case "--version": args.version = true; break;
-      case "doctor": case "serve": case "skills":
+      case "doctor": case "serve": case "skills": case "mcp":
         if (!args.command) { args.command = a; break; }
         args.positional.push(a); break;
       case "--": args.positional.push(...argv.slice(i + 1)); i = argv.length; break;
@@ -145,6 +149,9 @@ async function main(): Promise<number> {
     }
     return failed ? 1 : 0;
   }
+  if (args.command === "mcp") {
+    return runMcpAuthCli({ cwd, configDir: args.configDir, positional: args.positional });
+  }
   if (args.command === "serve") {
     return runServe({ cwd, configDir: args.configDir, auto: args.auto, agentId: args.agent, modelFlag: args.model, sessionId: args.sessionId, continueLatest: args.continueLatest, fork: args.fork, port: args.port, hostname: args.hostname });
   }
@@ -178,3 +185,58 @@ async function main(): Promise<number> {
 }
 
 main().then((code) => process.exit(code));
+
+
+// ————— vireo mcp auth|logout —————
+
+async function runMcpAuthCli(opts: { cwd: string; configDir?: string; positional: string[] }): Promise<number> {
+  const [sub, name] = opts.positional;
+  if (sub === "list") {
+    const store = readOauthStore();
+    const names = Object.keys(store);
+    process.stdout.write(names.length ? `OAuth MCP — autorizados (${names.length}): ${names.join(", ")}\n` : "OAuth MCP: ningún servidor autorizado.\n");
+    return 0;
+  }
+  if ((sub !== "auth" && sub !== "logout") || !name) {
+    process.stderr.write("uso: vireo mcp auth \"<nombre>\" | vireo mcp logout \"<nombre>\" | vireo mcp list\n");
+    return 2;
+  }
+  if (sub === "logout") {
+    const done = deleteOauthEntry(name);
+    process.stdout.write(done ? `token de «${name}» eliminado (oauth.json)\n` : `no hay token guardado para «${name}»\n`);
+    return 0;
+  }
+  // auth
+  const { loadConfig } = await import("./core/config.js");
+  const { config, mcpOrigins } = loadConfig(opts.cwd, { configDir: opts.configDir });
+  const entry = mcpServersFromConfig(config).find((s) => s.name === name);
+  if (!entry) {
+    process.stderr.write(`vireo mcp auth: no hay servidor MCP «${name}» en la config (${mcpServersFromConfig(config).map((s) => s.name).join(", ") || "ninguno"})\n`);
+    return 2;
+  }
+  const def = asDef(entry.name, entry.raw, mcpOrigins as Record<string, "system" | "global" | "project" | "custom">, opts.cwd);
+  if (def.transport.kind !== "http") {
+    process.stderr.write(`vireo mcp auth: «${name}» es stdio — usa env/headers en su config; OAuth solo aplica a servidores remotos\n`);
+    return 2;
+  }
+  const oauthCfgRaw = (entry.raw as Record<string, unknown>)["oauth"];
+  const oauthConfig = (oauthCfgRaw && typeof oauthCfgRaw === "object" && !Array.isArray(oauthCfgRaw))
+    ? { clientId: typeof (oauthCfgRaw as any).clientId === "string" ? String((oauthCfgRaw as any).clientId) : undefined,
+        clientSecret: typeof (oauthCfgRaw as any).clientSecret === "string" ? String((oauthCfgRaw as any).clientSecret) : undefined,
+        scope: typeof (oauthCfgRaw as any).scope === "string" ? String((oauthCfgRaw as any).scope) : undefined }
+    : undefined;
+  process.stdout.write(`Abriendo el navegador para autorizar «${name}»…\nsi no se abre solo, copia esta URL:\n`);
+  try {
+    const { issuer, resource } = await runAuthorizationFlow({
+      def,
+      oauthConfig,
+      timeoutMs: 180_000,
+      onUrl: (url) => process.stdout.write(url + "\n"),
+    });
+    process.stdout.write(`\n✓ «${name}» autorizado (issuer ${issuer}; resource ${resource})\n  token guardado en oauth.json (0600); nunca se muestra. Las próximas sesiones lo usan automáticamente.\n`);
+    return 0;
+  } catch (err) {
+    process.stderr.write(`vireo mcp auth: ${(err as Error).message}\n`);
+    return 1;
+  }
+}

@@ -77,7 +77,7 @@ function strMap(v: unknown): Record<string, string> {
   return out;
 }
 
-function asDef(name: string, raw: Record<string, unknown>, origins: Record<string, McpLayerKind>, cwd: string): McpServerDef {
+export function asDef(name: string, raw: Record<string, unknown>, origins: Record<string, McpLayerKind>, cwd: string): McpServerDef {
   const origin: McpLayerKind = origins[name] ?? "project"; // sin capa conocida → tratar como no confiado
   const timeouts = (raw["timeouts"] ?? {}) as Record<string, unknown>;
   const protocolRaw = String(raw["protocol"] ?? "").toLowerCase();

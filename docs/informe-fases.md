@@ -211,7 +211,16 @@ Hasta 251/251. Bloque de paridad menor entregado:
 - tui.json `scroll_speed`: honrado como paso de PgUp/PgDn (`round(speed×4)` líneas, mínimo 0.001). La rueda de ratón no está cableada en ANSI ni en OpenTUI (honestamente: solo teclado).
 - Agentes `.md`: frontmatter `permissions:` (por entrada, con `normalizeAction`; efecto inválido → aviso + omisión), `hidden`/`disabled`, `body→systemPrompt`, `model` honrado (vendor/ y #variant cortados al pedir), IDs anidados por subdirectorio (`team/reviewer`); `name:` pisa el ID de ruta. `yaml-lite` ahora parsea listas de mapas en bloques.
 - Tests nuevos: `tests/connect-export.test.ts` (4) + 2 en `config-agents.test.ts`.
-- Sigue gateado (sin cambio salvo aprobación explícita): serve HTTP, LSP, OAuth MCP, `/fusion`.
+- serve **hecho** (fase 9, aprobada): diseño propio mínimo, auth básica obligatoria,
+  ask→reject sin --auto, un turno a la vez; LSP **hecho** (solo diagnostics, off por
+  defecto con `lsp:` en config; JSON-RPC Content-Length propio); OAuth MCP **hecho**
+  (OAuth 2.1 + PKCE S256 + RFC 8707/9728/8414/7591; refresh single-flight; 401→refresh→
+  1 reintento; `vireo mcp auth|logout|list`; tokens 0600; sin CIMD);
+  `/editor` y `$EDITOR` en `/export` (suspend/resume de la TUI en ANSI y OpenTUI);
+  failover de **modelos** (`provider.fallbackModels`/`VIREO_MODEL_FALLBACKS`);
+  `diff_style=stacked` real; suite **275/275**.
+- Sigue sin implementarse: `/fusion` (sin spec pública). Sigue fuera por diseño:
+  adaptador Vercel AI SDK, URLs en `instructions`, código de terceros, browser/Code Mode.
 
 ## Estado de paridad por sección (ver `docs/parity.md` para el detalle fila a fila)
 
@@ -229,8 +238,8 @@ Hasta 251/251. Bloque de paridad menor entregado:
 | J. MCP | stdio/HTTP stateless+legacy; multi-origen; OAuth fuera de lite |
 | K. Plugins/hooks | **hecho** (este informe, fase 7) |
 | L. Contexto | hecho; URLs en `instructions` **falta** (parcial deliberado) |
-| M. Modos | hecho; `serve` **falta** |
-| N. No-objetivos | respeto: sin browser, sin Code Mode, sin LSP completo, sin plugins ejecutables |
+| M. Modos | hecho — `serve` **hecho** (diseño propio, auth obligatoria) |
+| N. No-objetivos | respeto: sin browser, sin Code Mode, LSP solo diagnostics mínimo (fase 9), sin plugins ejecutables |
 
 ## Decisiones arquitectónicas relevantes
 

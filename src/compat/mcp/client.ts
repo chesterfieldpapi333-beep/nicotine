@@ -21,6 +21,7 @@
 
 import { spawn, type ChildProcess } from "node:child_process";
 import type { McpServerDef } from "./types.js";
+import { getValidAccessToken } from "./oauth.js";
 import type { ToolParameters } from "../../core/types.js";
 
 export interface McpToolInfo {
@@ -86,36 +87,57 @@ export class McpClient {
     const t = this.def.transport;
     if (t.kind !== "http") throw new Error("internal: sendHttp en transporte stdio");
     const id = this.nextId++;
-    const headers: Record<string, string> = {
-      "content-type": "application/json",
-      accept: "application/json, text/event-stream",
-      ...t.headers,
-    };
-    if (this.sessionId) headers["mcp-session-id"] = this.sessionId;
+    // OAuth: bearer guardado cuando el usuario NO puso Authorization explícita
+    const hasExplicitAuth = Object.keys(t.headers).some((h) => h.toLowerCase() === "authorization");
+    let oauthToken: string | null = null;
+    if (!hasExplicitAuth) {
+      try { oauthToken = await getValidAccessToken(this.def); } catch { oauthToken = null; }
+    }
     let bodyParams = params as Record<string, unknown> | undefined;
     if (stateless) {
       bodyParams = { ...(bodyParams ?? {}), _meta: { ...(((bodyParams ?? {})["_meta"] as Record<string, unknown>) ?? {}), "io.modelcontextprotocol/protocolVersion": PROTOCOL_2026, clientInfo: CLIENT_INFO, clientCapabilities: {} } };
-      headers["mcp-method"] = method;
-      const toolName = (bodyParams as { name?: string })?.name;
-      if (toolName) headers["mcp-name"] = toolName;
     }
-    const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), timeoutMs);
-    let res: Response;
-    try {
-      res = await fetch(t.url, { method: "POST", headers, body: JSON.stringify({ jsonrpc: "2.0", id, method, params: bodyParams }), signal: ctrl.signal });
-    } catch (err) {
-      clearTimeout(timer);
-      const e = err as Error;
-      throw new Error(e.name === "AbortError" ? `timeout (${timeoutMs}ms) en ${method} contra ${t.url}` : `no se pudo contactar ${t.url}: ${e.message}`);
+    const attempt = async (token: string | null): Promise<Response> => {
+      const headers: Record<string, string> = {
+        "content-type": "application/json",
+        accept: "application/json, text/event-stream",
+        ...t.headers,
+      };
+      if (this.sessionId) headers["mcp-session-id"] = this.sessionId;
+      if (stateless) {
+        headers["mcp-method"] = method;
+        const toolName = (bodyParams as { name?: string })?.name;
+        if (toolName) headers["mcp-name"] = toolName;
+      }
+      if (token) headers["authorization"] = `Bearer ${token}`;
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+      try {
+        return await fetch(t.url, { method: "POST", headers, body: JSON.stringify({ jsonrpc: "2.0", id, method, params: bodyParams }), signal: ctrl.signal });
+      } catch (err) {
+        const e = err as Error;
+        throw new Error(e.name === "AbortError" ? `timeout (${timeoutMs}ms) en ${method} contra ${t.url}` : `no se pudo contactar ${t.url}: ${e.message}`);
+      } finally {
+        clearTimeout(timer);
+      }
+    };
+    let res = await attempt(oauthToken);
+    // 401 → intenta refresh UNA vez y reintenta UNA vez (nunca bucle infinito)
+    if (res.status === 401 && !hasExplicitAuth) {
+      const refreshed = await getValidAccessToken(this.def, fetch, { forceRefresh: true }).catch(() => null);
+      if (refreshed) {
+        res = await attempt(refreshed);
+      } else if (oauthToken) {
+        throw new Error(`HTTP 401 en ${method}: el token de «${this.def.name}» no se pudo renovar; ejecuta «vireo mcp auth ${this.def.name}»`);
+      }
     }
-    clearTimeout(timer);
     const sid = res.headers.get("mcp-session-id");
     if (sid) this.sessionId = sid;
     const ct = res.headers.get("content-type") ?? "";
     if (!res.ok && res.status !== 202) {
       const tail = (await res.text().catch(() => "")).slice(0, 300);
-      throw new Error(`HTTP ${res.status} en ${method}: ${tail || res.statusText}`);
+      const hint = res.status === 401 && !hasExplicitAuth ? ` — ejecuta «vireo mcp auth ${this.def.name}»` : "";
+      throw new Error(`HTTP ${res.status} en ${method}${hint}: ${tail || res.statusText}`);
     }
     if (ct.includes("text/event-stream")) return readSseForId(res, id, timeoutMs);
     // application/json (o cuerpo vacío para 202)
