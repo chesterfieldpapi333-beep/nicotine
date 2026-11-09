@@ -30,7 +30,7 @@ describe("runAgentLoop con proveedor mock", () => {
     const events: AgentEvent[] = [];
     const messages: ChatMessage[] = [{ role: "user", content: "hola" }];
     const reason = await runAgentLoop({
-      provider: { baseURL: "http://mock/v1", apiKey: "k", model: "mock", headers: {} },
+      provider: { baseURL: "http://mock/v1", apiKey: "k", model: "mock", headers: {}, engine: "fetch" as const },
       permissions: new PermissionEngine(baseRules()),
       messages,
       tools: [bashTool],
@@ -58,7 +58,7 @@ describe("runAgentLoop con proveedor mock", () => {
     };
     const messages: ChatMessage[] = [{ role: "user", content: "hola" }];
     await runAgentLoop({
-      provider: { baseURL: "http://mock/v1", apiKey: "k", model: "mock", headers: {} },
+      provider: { baseURL: "http://mock/v1", apiKey: "k", model: "mock", headers: {}, engine: "fetch" as const },
       permissions: new PermissionEngine([...baseRules(), { action: "bash", resource: "*", effect: "deny" }]),
       messages,
       tools: [bashTool],

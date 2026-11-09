@@ -26,7 +26,7 @@ const summaryFetch = (body: string, status = 200): typeof fetch =>
     return new Response(sse, { status: 200, headers: { "content-type": "text/event-stream" } });
   }) as unknown as typeof fetch;
 
-const provider = { baseURL: "http://mock/v1", apiKey: "k", model: "m", headers: {} };
+const provider = { baseURL: "http://mock/v1", apiKey: "k", model: "m", headers: {}, engine: "fetch" as const };
 
 describe("estimateTokens", () => {
   test("~4 chars por token", async () => {

@@ -1,8 +1,10 @@
 import { matchAuth } from "./auth.js";
 // Proveedor OpenAI-compatible con streaming (chat/completions + SSE).
-// Multiproveedor de verdad (adapters Anthropic/Gemini nativos, Vercel AI SDK)
-// queda fuera del lite v1; cualquier endpoint OpenAI-compatible funciona:
-// OpenAI, OpenRouter, proxies, Ollama (--openai compatible), LM Studio…
+// Cualquier endpoint OpenAI-compatible funciona: OpenAI, OpenRouter, proxies,
+// Ollama (--openai compatible), LM Studio…
+// Motor «vercel-ai» OPCIONAL (opt-in, off por defecto): provider.engine="vercel-ai"
+// o VIREO_PROVIDER_ENGINE=vercel-ai delega el transporte en el Vercel AI SDK
+// (import dinámico, cero deps en el núcleo). Ver provider-vercel.ts.
 // Resolución de modelo: --model > config.model > VIREO_MODEL > OPENAI_MODEL.
 // Si el modelo lleva "proveedor/" se usa solo el sufijo con OPENAI_API_KEY/OPENAI_BASE_URL.
 
@@ -34,6 +36,8 @@ export interface ProviderConfig {
    */
   fallbackModels?: string[];
   headers: Record<string, string>;
+  /** Motor de transporte: "fetch" (SSE propio, cero deps; por defecto) | "vercel-ai" (Vercel AI SDK, opcional). */
+  engine: "fetch" | "vercel-ai";
 }
 
 /** Quita el prefijo vendor/ (informativo) y la variante #… de un string de modelo. */
@@ -68,6 +72,12 @@ export function resolveProvider(config: Record<string, unknown>, flagModel?: str
   }
   const fallbackModels = [...new Set(fallback.filter((m) => m && m !== model))];
   const headers = (providerCfg["headers"] ?? {}) as Record<string, string>;
+  const engineRaw = (typeof providerCfg["engine"] === "string" && providerCfg["engine"].trim() ? providerCfg["engine"].trim() : undefined)
+    ?? process.env.VIREO_PROVIDER_ENGINE ?? "fetch";
+  if (engineRaw !== "fetch" && engineRaw !== "vercel-ai") {
+    throw new Error(`provider.engine «${engineRaw}» desconocido; valores: fetch (por defecto) | vercel-ai`);
+  }
+  const engine = engineRaw as "fetch" | "vercel-ai";
   if (!apiKeys.length && !/localhost|127\.0\.0\.1/.test(baseURL)) {
     // Último recurso: auth.json de /connect — SOLO si la baseURL encaja (exacto)
     // o es el default de openai. Nunca se registra ni se muestra la clave.
@@ -77,7 +87,7 @@ export function resolveProvider(config: Record<string, unknown>, flagModel?: str
   if (!apiKeys.length && !/localhost|127\.0\.0\.1/.test(baseURL)) {
     throw new Error(`Falta API key para ${baseURL}. Exporta OPENAI_API_KEY (o OPENAI_API_KEYS=lista) o pon provider.apiKey / provider.apiKeys en opencode.json (acepta {env:VAR}) o usa /connect.`);
   }
-  return { baseURL, apiKey: apiKeys[0] ?? "", apiKeys, model, fallbackModels, headers };
+  return { baseURL, apiKey: apiKeys[0] ?? "", apiKeys, model, fallbackModels, headers, engine };
 }
 
 export interface StreamChatOptions {
@@ -100,6 +110,11 @@ export interface StreamChatResult {
 
 export async function streamChat(opts: StreamChatOptions): Promise<StreamChatResult> {
   const provider = opts.provider;
+  if (provider.engine === "vercel-ai") {
+    // Motor opcional: el módulo del SDK solo se carga aquí (import dinámico dentro).
+    const { vercelStreamChat } = await import("./provider-vercel.js");
+    return vercelStreamChat(opts);
+  }
   const body: Record<string, unknown> = {
     model: provider.model,
     messages: opts.messages,

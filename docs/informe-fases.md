@@ -220,7 +220,7 @@ Hasta 251/251. Bloque de paridad menor entregado:
   failover de **modelos** (`provider.fallbackModels`/`VIREO_MODEL_FALLBACKS`);
   `diff_style=stacked` real; suite **275/275**.
 - Sigue sin implementarse: `/fusion` (sin spec pública). Sigue fuera por diseño:
-  adaptador Vercel AI SDK, URLs en `instructions`, código de terceros, browser/Code Mode.
+  código de terceros, browser/Code Mode.
 
 ## Estado de paridad por sección (ver `docs/parity.md` para el detalle fila a fila)
 
@@ -348,5 +348,7 @@ desde catálogo local con digest verificado; doctor lista `memory`/architect/pol
   requiere un modelo real; HTTP catalogs exigen digest sha256 índice ↔ disco.
 - Presupuesto core+compat: riesgo de deriva de compat LOC si se añaden loaders sin
   discusión previa (tope blando ~400/archivo + test por loader lo contienen).
+
+- **Fase 10c (2026-11, aprobación «todo»):** adaptador **Vercel AI SDK** opt-in (`provider.engine: "vercel-ai"` o `VIREO_PROVIDER_ENGINE=vercel-ai`). Import dinámico de `ai` + `@ai-sdk/openai-compatible`; el núcleo sigue con cero deps; sin paquetes, el error dice exactamente qué instalar. Failover del motor fetch replicado (`maxRetries: 0`); conversión OpenAI→ModelMessage probada en seco + contra mock SSE local con los paquetes reales (ai@7.0.166 / @ai-sdk/openai-compatible@3.0.87). El paquete de verdad sale de `package.json`/`bun.lock` tras verificar.
 
 - **Fase 10 (2026-11, aprobación «todo»):** `instructions` con URLs (fetch post-arranque, timeout 10s, 32 KiB/8 URLs, solo texto; fallos → aviso y omisión; `prepareUrlContext`); suite **277/277**. repair-env.sh re-añade credential helpers automáticamente.

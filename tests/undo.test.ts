@@ -28,7 +28,7 @@ describe("UndoManager", () => {
     const permissions = new PermissionEngine(baseRules());
     const target = join(tmp, "nuevo.txt");
     undo.beginTurn("probar write");
-    await executeTool(writeTool, { path: target, content: "contenido-v1\n" }, { provider: { baseURL: "http://x/v1", apiKey: "k", model: "m", headers: {} }, permissions, messages: [], tools: [writeTool], ctx });
+    await executeTool(writeTool, { path: target, content: "contenido-v1\n" }, { provider: { baseURL: "http://x/v1", apiKey: "k", model: "m", headers: {}, engine: "fetch" as const }, permissions, messages: [], tools: [writeTool], ctx });
     expect(readFileSync(target, "utf8")).toBe("contenido-v1\n");
     const undone = undo.undo();
     expect(undone.ok).toBe(true);
@@ -50,7 +50,7 @@ describe("UndoManager", () => {
     const target = join(tmp, "existente.txt");
     writeFileSync(target, "original\n");
     undo.beginTurn("sobrescribir");
-    await executeTool(writeTool, { path: target, content: "modificado\n" }, { provider: { baseURL: "http://x/v1", apiKey: "k", model: "m", headers: {} }, permissions, messages: [], tools: [writeTool], ctx });
+    await executeTool(writeTool, { path: target, content: "modificado\n" }, { provider: { baseURL: "http://x/v1", apiKey: "k", model: "m", headers: {}, engine: "fetch" as const }, permissions, messages: [], tools: [writeTool], ctx });
     undo.undo();
     expect(readFileSync(target, "utf8")).toBe("original\n");
     undo.redo();
@@ -67,7 +67,7 @@ describe("UndoManager", () => {
     const ctx = makeCtx(tmp, undo);
     const permissions = new PermissionEngine(baseRules());
     undo.beginTurn("bash turn");
-    await executeTool(bashTool, { command: "echo hola" }, { provider: { baseURL: "http://x/v1", apiKey: "k", model: "m", headers: {} }, permissions, messages: [], tools: [bashTool], ctx });
+    await executeTool(bashTool, { command: "echo hola" }, { provider: { baseURL: "http://x/v1", apiKey: "k", model: "m", headers: {}, engine: "fetch" as const }, permissions, messages: [], tools: [bashTool], ctx });
     const res = undo.undo();
     expect(res.ok).toBe(true);
     expect(res.skipped.some((s) => s.includes("bash"))).toBe(true);

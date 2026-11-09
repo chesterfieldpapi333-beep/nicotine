@@ -51,7 +51,7 @@ describe("compactación en dos pasos", () => {
       asst("a"), toolMsg("c1", 3000), toolMsg("c2", 3000), { role: "user", content: "hola" },
     ];
     const events: AgentEvent[] = [];
-    const res = await maybeCompact({ messages, provider: { baseURL: "http://x", apiKey: "k", model: "m", headers: {} }, config: { ...compactCfg, thresholdTokens: 400 }, emit: (e) => events.push(e), fetchImpl });
+    const res = await maybeCompact({ messages, provider: { baseURL: "http://x", apiKey: "k", model: "m", headers: {}, engine: "fetch" as const }, config: { ...compactCfg, thresholdTokens: 400 }, emit: (e) => events.push(e), fetchImpl });
     expect(res.pass).toBe(1);
     expect(res.compacted).toBe(true);
     expect(llmCalls).toBe(0);
@@ -67,7 +67,7 @@ describe("compactación en dos pasos", () => {
     for (let i = 0; i < 30; i++) { messages.push(asst(big)); messages.push({ role: "user", content: "haz algo" }); }
     const before = messages.length;
     const events: AgentEvent[] = [];
-    const res = await maybeCompact({ messages, provider: { baseURL: "http://x", apiKey: "k", model: "m", headers: {} }, config: compactCfg, emit: (e) => events.push(e), fetchImpl });
+    const res = await maybeCompact({ messages, provider: { baseURL: "http://x", apiKey: "k", model: "m", headers: {}, engine: "fetch" as const }, config: compactCfg, emit: (e) => events.push(e), fetchImpl });
     expect(res.pass).toBe(2);
     expect(messages.length).toBeLessThan(before);
     expect(messages[0].content).toBe("sys");
@@ -81,7 +81,7 @@ describe("compactación en dos pasos", () => {
     for (let i = 0; i < 30; i++) { messages.push(asst(big)); messages.push({ role: "user", content: "haz algo" }); }
     const snapshot = JSON.parse(JSON.stringify(messages));
     const events: AgentEvent[] = [];
-    const res = await maybeCompact({ messages, provider: { baseURL: "http://x", apiKey: "k", model: "m", headers: {} }, config: compactCfg, emit: (e) => events.push(e), fetchImpl });
+    const res = await maybeCompact({ messages, provider: { baseURL: "http://x", apiKey: "k", model: "m", headers: {}, engine: "fetch" as const }, config: compactCfg, emit: (e) => events.push(e), fetchImpl });
     expect(res.pass).toBe(0);
     expect(res.compacted).toBe(false);
     expect(messages).toEqual(snapshot);
@@ -98,7 +98,7 @@ describe("compactación en dos pasos", () => {
 
 // ————— failover / rotación de claves —————
 const sseOk = (text: string) => `data: ${JSON.stringify({ choices: [{ delta: { content: text } }] })}\n\ndata: [DONE]\n\n`;
-const providerWith = (apiKeys: string[]): ProviderConfig => ({ baseURL: "http://mock/v1", apiKey: apiKeys[0] ?? "", apiKeys, model: "m", headers: {} });
+const providerWith = (apiKeys: string[]): ProviderConfig => ({ baseURL: "http://mock/v1", apiKey: apiKeys[0] ?? "", apiKeys, model: "m", headers: {}, engine: "fetch" as const });
 
 describe("failover de claves (401/403/429/5xx)", () => {
   test("resolveProvider construye el pool: config apiKeys + env OPENAI_API_KEYS, dedup", () => {
@@ -288,7 +288,7 @@ describe("failover de modelos (VIREO_MODEL_FALLBACKS / provider.fallbackModels)"
       if (body.model === "modelo-a") return new Response("rate", { status: 429 });
       return new Response('data: {"choices":[{"delta":{"content":"ok-B"}}]}\ndata: [DONE]\n\n', { status: 200, headers: { "content-type": "text/event-stream" } });
     }) as unknown as typeof fetch;
-    const provider = { model: "modelo-a", baseURL: "http://127.0.0.1:9/v1", apiKey: "k1", apiKeys: ["k1", "k2"], fallbackModels: ["modelo-b"], headers: {} };
+    const provider = { model: "modelo-a", baseURL: "http://127.0.0.1:9/v1", apiKey: "k1", apiKeys: ["k1", "k2"], fallbackModels: ["modelo-b"], headers: {}, engine: "fetch" as const };
     const seen: any[] = [];
     const res = await streamChat({ provider, messages: [{ role: "user", content: "hi" }], fetchImpl, onRetry: (i) => seen.push(i) });
     expect(res.message.content).toBe("ok-B");
@@ -300,7 +300,7 @@ describe("failover de modelos (VIREO_MODEL_FALLBACKS / provider.fallbackModels)"
   test("400 NO rota ni salta al fallback", async () => {
     const calls: string[] = [];
     const fetchImpl = (async (_url: string, init: any) => { calls.push(JSON.parse(init.body).model); return new Response("bad request", { status: 400 }); }) as unknown as typeof fetch;
-    const provider = { model: "mal", baseURL: "http://127.0.0.1:9/v1", apiKey: "k1", apiKeys: ["k1", "k2"], fallbackModels: ["bueno"], headers: {} };
+    const provider = { model: "mal", baseURL: "http://127.0.0.1:9/v1", apiKey: "k1", apiKeys: ["k1", "k2"], fallbackModels: ["bueno"], headers: {}, engine: "fetch" as const };
     let caught: any = null;
     try { await streamChat({ provider, messages: [{ role: "user", content: "hi" }], fetchImpl }); } catch (e) { caught = e; }
     expect(caught?.name).toBe("ProviderError");
@@ -308,7 +308,7 @@ describe("failover de modelos (VIREO_MODEL_FALLBACKS / provider.fallbackModels)"
   });
 
   test("cadena agotada → ProviderError con el último status", async () => {
-    const provider = { model: "a", baseURL: "http://127.0.0.1:9/v1", apiKey: "k1", apiKeys: ["k1", "k2"], fallbackModels: ["b"], headers: {} };
+    const provider = { model: "a", baseURL: "http://127.0.0.1:9/v1", apiKey: "k1", apiKeys: ["k1", "k2"], fallbackModels: ["b"], headers: {}, engine: "fetch" as const };
     const fetchImpl = (async () => new Response("boom", { status: 500 })) as unknown as typeof fetch;
     let caught: any = null;
     try { await streamChat({ provider, messages: [{ role: "user", content: "hi" }], fetchImpl }); } catch (e) { caught = e; }
