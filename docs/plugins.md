@@ -12,15 +12,41 @@ obligarte a duplicarlos. **Nunca ejecuta código de terceros**: plugins/extensio
 | Claude | `~/.claude/plugins/*/​{commands,agents,skills,hooks}`, `~/.claude/{commands,agents}`, `~/.claude/settings.json` (hooks) | `.claude/plugins/*`, `.claude/{commands,agents}`, `.claude/settings.json` + `settings.local.json` | comandos .md, agentes .md, skills, hooks (Pre/PostToolUse) |
 | OpenCode | `~/.config/opencode/{agents,commands,themes}` | `.opencode/{agents,commands,themes}` | comandos .md, agentes .md, temas JSON |
 | Pi | `~/.pi/agent/{prompts,themes,agents,skills}` | `.pi/{prompts,themes,agents,skills}` | prompts .md, temas JSON, agentes .md, skills |
-| Gemini | `~/.gemini/extensions/*/gemini-extension.json`, `~/.gemini/settings.json` | `.gemini/extensions/*/…`, `.gemini/settings.json` | MCP servers, `contextFileName`, `excludeTools` (skills de extensión vía `skills/`) |
-| Codex | `~/.codex/config.toml` | `.codex/config.toml` | `[mcp_servers.*]` (mini-parser TOML sin deps) |
+| Gemini | `~/.gemini/extensions/*/gemini-extension.json`, `~/.gemini/settings.json` | `.gemini/extensions/*/…`, `.gemini/settings.json` | MCP servers, `contextFileName`, `excludeTools`, skills (`skills/`), **comandos TOML** (`commands/**/*.toml`, VERIFICADO — ver abajo) |
+| Codex | `~/.codex/config.toml`, `~/.codex/plugins/*/…`, `~/.codex/plugins/cache/*/*` (caché de `codex plugin marketplace add`), `~/.codex/skills` (`$CODEX_HOME/skills`) | `.codex/config.toml`, `.codex/plugins/*`, `.codex/skills` | `[mcp_servers.*]` (mini-parser TOML sin deps); skills (VERIFICADO); **plugins `.codex-plugin/plugin.json`** (VERIFICADO — ver abajo) |
 | Claude MCP | — | `.mcp.json` | `mcpServers` (stdio y http/sse) |
 | — | `~/.config/opencode/themes`, `~/.pi/agent/themes` | `.opencode/themes`, `.pi/themes` | temas JSON (shape best-effort) |
 
 **No se carga en v1 (y `doctor` lo dice):** plugins `.ts/.js` de opencode (`plugins/`),
 packages de Pi en `node_modules` con clave `pi`, `~/.claude.json` (user-scope MCP),
-comandos de extensiones Gemini (formato sin verificar), plugins de Claude sin
-`.claude-plugin/plugin.json`.
+plugins de Claude sin `.claude-plugin/plugin.json`, `hooks/` y `.app.json` de plugins
+de Codex (reporte, nunca ejecución), TOML `policies/` de extensiones Gemini (Policy
+Engine — fuera de lite).
+
+## Plugins de Codex (VERIFICADO 2026-11)
+
+Layout: el plugin es la carpeta que **contiene** `.codex-plugin/plugin.json` (dentro
+de `.codex-plugin/` va ÚNICAMENTE `plugin.json`); `skills/`, `.mcp.json`, `hooks/` y
+`.app.json` van en la **raíz** del plugin. Manifiesto: `name` (kebab-case), `version`,
+`skills`, `mcpServers` (punteros relativos — informativos; vireo carga siempre
+`<raíz>/skills` y `<raíz>/.mcp.json`, y nunca rutas fuera del plugin).
+
+Dónde busca vireo: `~/.codex/plugins/*` (instalación manual, un nivel),
+`~/.codex/plugins/cache/<marketplace>/<plugin>` (caché oficial, dos niveles) y
+proyecto `.codex/plugins/*` (raíz→cwd). Carga: **skills** (descubrimiento normal) y
+**MCP** (`<raíz>/.mcp.json` → `mcpServers`; proyecto pasa por la compuerta). `hooks/hooks.json`
+y `.app.json` se reportan y no se ejecutan.
+
+## Comandos TOML de extensiones de Gemini (VERIFICADO 2026-11)
+
+`<extensión>/commands/**/*.toml` (geminicli.com/docs/extensions/reference): campo
+`prompt` **requerido** (string), `description` opcional. Los subdirectorios generan
+namespace con dos puntos (`commands/gcs/sync.toml` → `gcs:sync`). En vireo se registran
+**siempre** con el prefijo de la extensión —`<ext>:cmd` o `<ext>:sub:cmd`— en vez de
+solapar el nombre pelado (desviación deliberada: vireo mantiene la precedencia de
+opencode/usuario sin *shadowing* implícito). `{{args}}` → `$ARGUMENTS`,
+`{{args[N]}}` → `$N+1` (sustitución estándar de vireo). Extensión con `commands/` pero
+sin `prompt` válido → comando ignorado con aviso.
 
 ## Compuerta de confianza (igual que MCP nativo)
 

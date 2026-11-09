@@ -120,7 +120,9 @@ export function buildRuntime(opts: RuntimeOptions): Runtime {
   if (opts.attachUi !== false) ui.attach(bus);
   for (const w of [...configWarnings, ...compatWarnings]) ui.info(`config: ${w}`);
   const readFiles = new Set<string>();
-  const undo = new UndoManager(session.id);
+  // `snapshots: false` en config desactiva el undo por completo (ni gestor ni
+  // directorios); cualquier otro valor lo deja activo.
+  const undo = config["snapshots"] === false ? undefined : new UndoManager(session.id);
   const ctx: ToolContext = {
     cwd: opts.cwd,
     sessionId: session.id,

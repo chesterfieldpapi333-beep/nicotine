@@ -1,12 +1,14 @@
 // Wrap/alto visual de líneas CON escapes ANSI. Sin esto, cortar por índice rompería los escapes.
-// Aproximación honesta: cuenta celdas visibles (ignora dobles-anchos unicode — pendiente).
+// Cuenta celdas visibles con src/ui/width.ts: CJK/emoji = 2, combinantes = 0.
+
+import { cellWidth, textWidth } from "./width.js";
 
 export interface WrappedLine { text: string; continuation: boolean }
 
 const SGR = /\x1b\[[0-9;]*m/g;
 
 export function visibleWidth(s: string): number {
-  return stripAnsi(s).length;
+  return textWidth(stripAnsi(s));
 }
 
 export function stripAnsi(s: string): string {
@@ -20,22 +22,34 @@ export function wrapAnsi(line: string, width: number): WrappedLine[] {
   const chunks: WrappedLine[] = [];
   let current = "";
   let cells = 0;
+  let hasContent = false; // hay al menos un carácter visible en `current`
   let continuation = false;
   const tokens = tokenize(line);
   for (const tok of tokens) {
     if (tok.kind === "escape") { current += tok.text; continue; }
     for (const ch of tok.text) {
+      const cw = cellWidth(ch.codePointAt(0) ?? 0);
+      // Un carácter doble no cabe a medias: si no cabe entero, salta a la siguiente línea.
+      if (cw === 2 && cells > 0 && cells + cw > width) {
+        chunks.push({ text: current + "\x1b[0m", continuation });
+        current = "\x1b[0m";
+        cells = 0;
+        hasContent = false;
+        continuation = true;
+      }
       current += ch;
-      cells++;
+      cells += cw;
+      if (cw > 0) hasContent = true;
       if (cells >= width) {
         chunks.push({ text: current + "\x1b[0m", continuation });
         current = "\x1b[0m"; // el siguiente trozo arranca limpio (los fg se pierden; aceptable v1)
         cells = 0;
+        hasContent = false;
         continuation = true;
       }
     }
   }
-  if (current) chunks.push({ text: current, continuation });
+  if (hasContent) chunks.push({ text: current, continuation });
   return chunks;
 }
 

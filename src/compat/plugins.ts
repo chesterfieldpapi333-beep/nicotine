@@ -23,7 +23,7 @@ import { join, basename } from "node:path";
 import { homedir } from "node:os";
 import { parseToml } from "./toml-lite.js";
 import { dirsRootToCwd } from "./util.js";
-import { scanFileCommands, type FileCommand, type PluginCommandSource } from "./file-commands.js";
+import { scanFileCommands, scanTomlCommands, type FileCommand, type PluginCommandSource, type TomlCommandSource } from "./file-commands.js";
 import { scanForeignThemes, type ForeignTheme, type PluginThemeSource } from "./foreign-themes.js";
 import { scanAgentFiles, type AgentFileSource } from "./agent-files.js";
 import { collectHooks, type HookCommand, type HookPluginSource } from "./hooks.js";
@@ -85,6 +85,7 @@ export function discoverPlugins(cwd: string, opts: { home?: string } = {}): Plug
   const mcp: ExtraMcpDef[] = [];
   const contextFiles: ExtraContextFile[] = [];
   const skillSources: { dir: string; origin: "global" | "project" }[] = [];
+  const tomlExtensions: TomlCommandSource[] = [];
 
   const seenPlugins = new Set<string>();
   const addPlugin = (kind: PluginKind, origin: "global" | "project", name: string, root: string, source: string): PluginInfo | null => {
@@ -113,7 +114,11 @@ export function discoverPlugins(cwd: string, opts: { home?: string } = {}): Plug
   for (const dir of oneLevelDirs(join(home, ".gemini", "extensions"))) {
     const manifestPath = join(dir, "gemini-extension.json");
     if (!isFile(manifestPath)) continue;
-    geminiExtension(dir, manifestPath, "global", plugins, warnings, mcp, contextFiles, skillSources, addPlugin, pushMcp, unsupported);
+    geminiExtension(dir, manifestPath, "global", plugins, warnings, mcp, contextFiles, skillSources, addPlugin, pushMcp, unsupported, tomlExtensions);
+  }
+  // codex plugins (VERIFICADO 2026-11: .codex-plugin/plugin.json; skills/ y .mcp.json en la RAÍZ del plugin)
+  for (const pdir of codexPluginDirs(join(home, ".codex", "plugins"))) {
+    codexPlugin(pdir, "global", plugins, warnings, mcp, skillSources, addPlugin, pushMcp, unsupported);
   }
   // gemini settings.json (user) — mcpServers
   readGeminiSettings(join(home, ".gemini", "settings.json"), "global", warnings, mcp, pushMcp);
@@ -148,7 +153,10 @@ export function discoverPlugins(cwd: string, opts: { home?: string } = {}): Plug
     for (const pdir of oneLevelDirs(join(dir, ".gemini", "extensions"))) {
       const manifestPath = join(pdir, "gemini-extension.json");
       if (!isFile(manifestPath)) continue;
-      geminiExtension(pdir, manifestPath, "project", plugins, warnings, mcp, contextFiles, skillSources, addPlugin, pushMcp, unsupported);
+      geminiExtension(pdir, manifestPath, "project", plugins, warnings, mcp, contextFiles, skillSources, addPlugin, pushMcp, unsupported, tomlExtensions);
+    }
+    for (const pdir of oneLevelDirs(join(dir, ".codex", "plugins"))) {
+      codexPlugin(pdir, "project", plugins, warnings, mcp, skillSources, addPlugin, pushMcp, unsupported);
     }
     // opencode: plugins/*.ts NO se ejecutan → reporte
     const ocPlugins = join(dir, ".opencode", "plugins");
@@ -168,17 +176,26 @@ export function discoverPlugins(cwd: string, opts: { home?: string } = {}): Plug
   const agentPlugins: AgentFileSource[] = commandPlugins;
   const hookPlugins: HookPluginSource[] = commandPlugins;
 
-  const commands = scanFileCommands(cwd, { home, plugins: commandPlugins });
+  const mdCommands = scanFileCommands(cwd, { home, plugins: commandPlugins });
+  const tomlCommands = scanTomlCommands(tomlExtensions);
+  const seenNames = new Set<string>();
+  const commands: FileCommand[] = [];
+  for (const c of [...mdCommands.commands, ...tomlCommands.commands]) {
+    if (seenNames.has(c.name)) { mdCommands.warnings.push(`comando «${c.name}»: ${c.source} ignorado (nombre en uso)`); continue; }
+    seenNames.add(c.name);
+    commands.push(c);
+  }
+  const commandWarnings = [...mdCommands.warnings, ...tomlCommands.warnings];
   const themes = scanForeignThemes(cwd, { home, plugins: themePlugins });
   const agents = scanAgentFiles(cwd, { home, plugins: agentPlugins });
   const hooks = collectHooks(cwd, { home, plugins: hookPlugins });
 
   return {
     plugins,
-    warnings: [...warnings, ...commands.warnings, ...themes.warnings, ...agents.warnings, ...hooks.warnings],
+    warnings: [...warnings, ...commandWarnings, ...themes.warnings, ...agents.warnings, ...hooks.warnings],
     unsupported,
     mcp,
-    commands: commands.commands,
+    commands,
     themes: themes.themes,
     agents: agents.agents,
     hooks: hooks.hooks,
@@ -205,6 +222,7 @@ function geminiExtension(
   addPlugin: (kind: PluginKind, origin: "global" | "project", name: string, root: string, source: string) => PluginInfo | null,
   pushMcp: (name: string, raw: unknown, origin: McpLayerKind, source: string, excludeTools?: string[]) => void,
   unsupported: string[],
+  tomlExtensions: TomlCommandSource[],
 ): void {
   const manifest = readJson(manifestPath);
   if (!manifest) { warnings.push(`${manifestPath}: JSON inválido; extensión descartada`); return; }
@@ -228,9 +246,64 @@ function geminiExtension(
       pushMcp(serverName, def, origin, manifestPath, excludeTools);
     }
   }
-  // comandos TOML/MD de gemini: formato sin verificar → reporte, no ejecución
-  const cmdsDir = join(root, "commands");
-  if (isDir(cmdsDir)) unsupported.push(`gemini: ${cmdsDir} — comando de extensión en formato sin verificar; no se carga en v1`);
+  // comandos TOML de la extensión (VERIFICADO): commands/**/*.toml → <ext>:cmd[:cmd…]
+  if (isDir(join(root, "commands"))) {
+    tomlExtensions.push({ name, root, origin });
+  }
+}
+
+// Directorios candidatos a plugins de Codex (VERIFICADO 2026-11):
+//   ~/.codex/plugins/*                     (instalación/checkouts manuales, un nivel)
+//   ~/.codex/plugins/cache/*/*             (caché de `codex plugin marketplace`: marketplace/plugin, dos niveles)
+function codexPluginDirs(base: string): string[] {
+  const out: string[] = [];
+  for (const dir of oneLevelDirs(base)) {
+    if (basename(dir) === "cache") {
+      for (const mdir of oneLevelDirs(dir)) out.push(...oneLevelDirs(mdir));
+    } else out.push(dir);
+  }
+  return out.filter((d) => isFile(join(d, ".codex-plugin", "plugin.json")) || isDir(join(d, ".codex-plugin")));
+}
+
+// Plugin de Codex: solo DATOS. skills/ y .mcp.json van en la RAÍZ del plugin
+// (.codex-plugin/ contiene ÚNICAMENTE plugin.json). hooks y .app.json → reporte
+// (formato/sin verificar; nunca se ejecutan).
+function codexPlugin(
+  root: string,
+  origin: "global" | "project",
+  plugins: PluginInfo[],
+  warnings: string[],
+  mcp: ExtraMcpDef[],
+  skillSources: { dir: string; origin: "global" | "project" }[],
+  addPlugin: (kind: PluginKind, origin: "global" | "project", name: string, root: string, source: string) => PluginInfo | null,
+  pushMcp: (name: string, raw: unknown, origin: McpLayerKind, source: string, excludeTools?: string[]) => void,
+  unsupported: string[],
+): void {
+  const manifestPath = join(root, ".codex-plugin", "plugin.json");
+  if (!isFile(manifestPath)) { unsupported.push(`codex: ${root} (sin .codex-plugin/plugin.json); contenido no cargado`); return; }
+  const manifest = readJson(manifestPath);
+  if (!manifest) { warnings.push(`${manifestPath}: JSON inválido; plugin descartado`); return; }
+  const name = typeof manifest["name"] === "string" && String(manifest["name"]).trim() ? String(manifest["name"]).trim() : basename(root);
+  const info = addPlugin("codex", origin, name, root, manifestPath);
+  if (!info) return;
+  // skills/ (puntero manifest «skills» ignorado si apunta fuera del plugin — seguridad de rutas)
+  collectPluginSkills(root, origin, skillSources);
+  // .mcp.json en la RAÍZ del plugin (no dentro de .codex-plugin/)
+  const mcpJson = join(root, ".mcp.json");
+  if (isFile(mcpJson)) {
+    const json = readJson(mcpJson);
+    const servers = json?.["mcpServers"];
+    if (servers && typeof servers === "object") {
+      for (const [serverName, def] of Object.entries(servers as Record<string, unknown>)) pushMcp(serverName, def, origin, mcpJson);
+    } else warnings.push(`${mcpJson}: falta «mcpServers»; se ignora`);
+  }
+  // hooks y apps: sin verificar → reporte, nunca ejecución
+  if (isFile(join(root, "hooks", "hooks.json")) || typeof manifest["hooks"] === "string") {
+    unsupported.push(`codex: ${name} trae hooks — no se ejecutan (sin verificar en vireo)`);
+  }
+  if (isFile(join(root, ".app.json")) || manifest["apps"]) {
+    unsupported.push(`codex: ${name} trae apps (.app.json) — no soportado en vireo lite`);
+  }
 }
 
 function readGeminiSettings(

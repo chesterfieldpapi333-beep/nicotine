@@ -3,6 +3,7 @@
 
 import type { AgentTool, ChatMessage, ToolContext, ToolSchema } from "./types.js";
 import { PermissionDenied, expandHome, type PermissionEngine, type CheckResult } from "./permissions.js";
+import { shellSegments } from "./shell-scan.js";
 import { streamChat, type ProviderConfig } from "./provider.js";
 import type { TokenUsage } from "./events.js";
 import { resolve } from "node:path";
@@ -104,20 +105,24 @@ export async function executeTool(tool: AgentTool | undefined, args: Record<stri
   const resources = tool.permissionResources?.(args) ?? [tool.permission.resource(args)];
   const resource = resources[0];
   const isPathAction = ["read", "edit", "list", "write"].includes(action);
+  // bash: se analizan los subcomandos (shell-scan) — cada segmento contra las
+  // reglas; la combinación deny > ask > allow NUNCA amplía permisos.
+  const bashSegments = action === "bash" ? shellSegments(String(args.command ?? "")) : [];
+  const checkResources = bashSegments.length > 0 ? bashSegments : resources;
   const checkOne = (r: string): CheckResult =>
     isPathAction ? opts.permissions.checkPath(opts.ctx.cwd, action, r) : opts.permissions.check(action, r);
   // deny > ask > allow para operaciones compuestas
-  const results = resources.map(checkOne);
+  const results = checkResources.map(checkOne);
   let decision = results.find((r) => r.effect === "deny") ?? results.find((r) => r.effect === "ask") ?? results.find((r) => r.effect === "allow") ?? { effect: "ask" as const };
   if (decision.effect === "ask") {
     // diff antes de pedir permiso (spec para write/edit/apply_patch)
     let diff: string | undefined;
     try { diff = (await tool.preview?.(args, opts.ctx))?.diff; } catch { /* preview falló: se pide sin diff */ }
-    const patterns = resources.map((r) => proposeAlwaysPattern(action, r));
+    const patterns = checkResources.map((r) => proposeAlwaysPattern(action, r));
     const verdict = await opts.ctx.ui.confirm({ action, resource: resources.join(", "), diff, alwaysPattern: patterns.join(", ") });
     if (verdict === "reject") throw new PermissionDenied(action, resource);
     if (verdict === "always") {
-      for (const [i, r] of resources.entries()) {
+      for (const [i, r] of checkResources.entries()) {
         opts.permissions.addSavedAllow({ action, resource: patterns[i], effect: "allow" });
         opts.ctx.approvals?.save(action, patterns[i]); // proyecto-scoped (XDG), nunca pisa deny (el motor re-evalúa deny)
       }

@@ -3,11 +3,12 @@
 // Descubrimiento (global → proyecto → config; lo último GANA por id):
 //   global:  ~/.config/opencode/skills · ~/.claude/skills · ~/.agents/skills · ~/.pi/agent/skills
 //            (~/.gemini/skills solo con `compat.geminiSkills: true` — ruta SIN VERIFICAR)
+//            $CODEX_HOME/skills (defecto ~/.codex/skills) — VERIFICADO (agentskills/codex docs)
 //   proyecto (raíz→cwd): .opencode/skills · .claude/skills · .agents/skills · .pi/skills
 //            (.gemini/skills solo con el flag)
+//            .codex/skills — VERIFICADO
 //   config `skills: [...]`: carpeta a escanear (un nivel `*/SKILL.md` o `**/SKILL.md`) o un SKILL.md
 //            directo. Las URLs (HTTP catalogs) se avisan y se ignoran (sin fetch en arranque).
-//   Codex: .agents/skills (verificado). ~/.codex/skills NO se escanea (sin verificar).
 //
 // Carga: al arrancar SOLO nombre+descripción entran al system prompt; el body se
 // carga bajo demanda con la tool `skill`. `disable-model-invocation` (o
@@ -58,12 +59,14 @@ export function scanSkillSources(cwd: string, config: Record<string, unknown>, o
   const compat = (config["compat"] ?? {}) as Record<string, unknown>;
   const gemini = compat["geminiSkills"] === true;
 
+  const codexHome = process.env.CODEX_HOME?.trim() || join(home, ".codex");
   const sources: ScanSource[] = [];
   // 1) global
   sources.push({ dir: join(home, ".config", "opencode", "skills"), source: "global · opencode" });
   sources.push({ dir: join(home, ".claude", "skills"), source: "global · claude" });
   sources.push({ dir: join(home, ".agents", "skills"), source: "global · agents" });
   sources.push({ dir: join(home, ".pi", "agent", "skills"), source: "global · pi" });
+  sources.push({ dir: join(codexHome, "skills"), source: "global · codex" });
   if (gemini) sources.push({ dir: join(home, ".gemini", "skills"), source: "global · gemini (sin verificar)" });
   // 1b) skills de plugins (entre global y proyecto)
   for (const extra of opts.extraSources ?? []) {
@@ -76,6 +79,7 @@ export function scanSkillSources(cwd: string, config: Record<string, unknown>, o
       [".claude/skills", "proyecto · .claude/skills"],
       [".agents/skills", "proyecto · .agents/skills"],
       [".pi/skills", "proyecto · .pi/skills"],
+      [".codex/skills", "proyecto · .codex/skills"],
     ] as const) sources.push({ dir: join(dir, sub), source });
     if (gemini) sources.push({ dir: join(dir, ".gemini/skills"), source: "proyecto · .gemini/skills (sin verificar)" });
   }
