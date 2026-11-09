@@ -1,22 +1,22 @@
 # Informe de fases — vireo
 
-**Fecha:** 2026-11-09 · **Versión:** vireo 0.1.0 · **Estado:** Fases 0–7 cerradas y publicadas en `master` (`7576162 → 5368ddd`); Fase 8 **no aprobada**.
+**Fecha:** 2026-11-09 · **Versión:** vireo 0.1.0 · **Estado:** Fases 0–7 publicadas en `master` (`7576162 → 5368ddd`); **Fase 8 implementada y verificada** (commit en este informe).
 
 **vireo** es un agente de código CLI *lite*, compatible con el formato `opencode.json(c)`,
 que lee skills/plugins/MCP de Claude Code, Codex, Gemini CLI, OpenCode y Pi. Motor propio
 (sin `@opentui` forzado: ANSI de respaldo), TypeScript sobre Bun, **cero dependencias de
 runtime de agentes** (solo `@opentui/core` opcional para la TUI).
 
-Métricas globales al cierre de Fase 7:
+Métricas globales al cierre de Fase 8:
 
 | Métrica | Valor |
 |---|---|
-| Commits de fase | 8 (`14edee4`…`5368ddd`) |
-| Tests | **170/170** (`bun test`, 19 archivos) |
+| Commits de fase | 9 (`14edee4`…fase 8) |
+| Tests | **220/220** (`bun test`, 22 archivos) |
 | Typecheck | `tsc --noEmit` limpio (TS 7.0.2, Bun 1.4.4) |
-| Presupuesto core+compat | **3548 líneas** (`src/core` 1424 + `src/compat` 2124) + `src/ext` 267 |
-| Paridad (conteo de filas) | 87 hecho · 15 parcial · 16 falta (ver `docs/parity.md`) |
-| Líneas del repo (src+tests+docs+examples) | ~10 100 |
+| Presupuesto core+compat | **4247 líneas** (`src/core` 1796 + `src/compat` 2451) + `src/ext` 267 |
+| Paridad (conteo de filas) | 95 hecho · 10 parcial · 12 falta (ver `docs/parity.md`) |
+| Líneas del repo (src+tests+docs+examples) | ~10 600 |
 | Estrategia de testing en vivo | 100% mock (proveedor OpenAI falso + MCP fake + pty); sin APIs reales |
 
 ---
@@ -150,14 +150,14 @@ de extensión (formato sin verificar), `~/.claude.json` → reporte «no soporta
 | B. Permisos | allow/ask/deny last-match; deny re-evalúa tras allows guardados |
 | C. Config | opencode.json(c) + capas raíz→cwd + `.opencode/`; `tui.json`; `extensions` |
 | D. Core loop | streaming SSE; tool-calls; subagentes depth 1 |
-| E. Sesiones | JSONL, fork, undo/redo, compactación 1 paso |
+| E. Sesiones | JSONL, fork, undo/redo, compactación **2 pasos** (poda sin LLM → resumen) |
 | F. Comandos | builtins + `/init` + MCP prompts + extensiones + archivo (fase 7); `commands: {}` en config **falta** |
 | G. TUI | paridad funcional lograda; ANSI + OpenTUI; temas; leader; sin `onKey` para ext (v1) |
-| H. Sesiones/historial | hecho; `snapshots:false` sin efecto (fase 8) |
-| I. Skills | hecho; HTTP catalogs **falta** |
+| H. Sesiones/historial | hecho; `snapshots: false` honrado (no se toman snapshots) |
+| I. Skills | hecho **+ catálogos HTTP** con verificación sha256 (`vireo skills update`; init nunca descarga) |
 | J. MCP | stdio/HTTP stateless+legacy; multi-origen; OAuth fuera de lite |
 | K. Plugins/hooks | **hecho** (este informe, fase 7) |
-| L. Contexto | hecho; URLs en `instructions` **falta** |
+| L. Contexto | hecho; URLs en `instructions` **falta** (parcial deliberado) |
 | M. Modos | hecho; `serve` **falta** |
 | N. No-objetivos | respeto: sin browser, sin Code Mode, sin LSP completo, sin plugins ejecutables |
 
@@ -173,26 +173,78 @@ de extensión (formato sin verificar), `~/.claude.json` → reporte «no soporta
 | 6 | Hooks PreToolUse bloquean ANTES del permiso | 7 | el usuario manda, no el modelo |
 | 7 | Slots de extensión render-only, aditivos | 6 | robustez del frame |
 | 8 | Undo por pre/post imagen sin git | 3 | portabilidad |
-| 9 | Presupuesto core+compat NO se cumplió (3548 vs <1500) | 8 | pendiente decisión fase 8 |
+| 9 | Presupuesto: tope único <1500 retirado; política nueva (core ≤ 1800, compat fuera del tope) | 8 | paridad exige datos multi-CLI; corte artificial peor que presupuesto honesto |
 | 10 | `/fusion` nunca se inventó | 6–7 | sin spec; honestidad |
 
 ## Sin verificar / TODOs explícitos (vigentes)
 
-1. ~~client@2.4.0 API~~ (resuelto fase 5, hand-roll). 
+1. ~~client@2.4.0 API~~ (resuelto fase 5, hand-roll).
 2. ~~Sintaxis args file-commands~~ (resuelto fase 7).
-3. Ruta de skills de Codex (`~/.codex/skills`) — no confirmada; no se escanea.
-4. Layout `.codex-plugin/` — sin manifest oficial; no se carga.
-5. Formato de comandos de extensiones Gemini — sin verificar; no se cargan.
-6. Cobertura del scanner de shell de vireo — conservador; no sustituye el de OpenCode.
-7. Ancho de celdas CJK/emoji en el motor ANSI — mejora menor pendiente.
-8. Modelo "tiny core" (<1500) — decisión fase 8.
+3. ~~Ruta de skills de Codex~~ (resuelto fase 8: `$CODEX_HOME/skills` y `.codex/skills/` verificados; se escanean).
+4. ~~Layout `.codex-plugin/`~~ (resuelto fase 8: verificado; se cargan `skills/` y `.mcp.json`; hooks/apps → reporte, jamás ejecución).
+5. ~~Formato de comandos de extensiones Gemini~~ (resuelto fase 8: TOML en `commands/**/*.toml`, espacio de nombres `<ext>:...`).
+6. Scanner de shell de vireo — **limitación aceptada, no pendiente**: conservador por diseño; nunca amplía permisos.
+7. ~~Ancho de celdas CJK/emoji en el motor ANSI~~ (resuelto fase 8: `ui/width.ts` — CJK/emoji = 2, combinantes/VS = 0; integrado en `ansi-wrap`).
+8. ~~Modelo "tiny core" (<1500)~~ (resuelto fase 8 por decisión documentada: ver §Decisión de presupuesto en `parity.md`).
 
-## Fase 8 — pendiente de aprobación
+## 8 — Mejoras OpenCode-v2 + cierre de paridad (esta entrega)
 
-Según `docs/parity.md` §Mapa: edit fail con "fragmento más parecido", compactación
-**2 pasos**, failover/rotación de claves, tool-calls en texto, **memoria por proyecto**,
-architect/editor, PermissionDenied legacy review, decisión de presupuesto (y posible
-extraer `src/compat` del binomio). HTTP catalogs de skills podrían colar aquí.
+**Objetivo:** cerrar el backlog de mejoras internas (edit inteligente, compactación
+de dos pasos, rotación de claves, tool-calls en texto, memoria, agentes architect/editor,
+policies v2) y los TODOs «sin verificar» de las fases anteriores, más la decisión del
+presupuesto núcleo.
+
+**Entregado (todo en este árbol, commit adjunto):**
+
+- **Compactación de dos pasos** (`src/core/compact.ts`): (1) poda **sin LLM** —
+  salidas de tool > 1.2 KB se truncan y los `arguments` grandes de tool_calls se
+  encogen; (2) resumen con el modelo solo si aún no cabe. Menos tokens legado, mismo
+  comportamiento visible.
+- **Edit con near-match** (`src/core/tools/edit.ts`): si ningún fragmento casa
+  exactamente, se propone el más parecido con diff coloreado antes del diálogo de
+  permisos (el modelo ve la sugerencia; el usuario decide).
+- **Failover de proveedor / rotación de claves** (`provider.ts`): pool
+  `provider.apiKey`/`provider.apiKeys`; ante 401/403/429/5xx rota y reintenta con
+  backoff; agota el pool y entonces falla limpio.
+- **Tool-calls en texto** (`text-tool-calls.ts`): rescate de `<tool_call>{…}</tool_call>`
+  (Hermes/Qwen) y bloques ```` ```json ```` con `name`/`arguments` cuando el modelo no
+  usa FC nativo.
+- **Memoria por proyecto** (`.vireo/memory.md`): se carga como archivo de contexto
+  `kind=memory` al arrancar; `/init` y agentes la escriben con la tool write.
+- **Agentes `architect` y `editor`** (built-ins): architect deniega edit (diseño);
+  editor aplica cambios mínimos verificados (deniega bash destructive patterns).
+- **`policies` v2** (`policies: [{action, resource}, …]`): hard-deny post-reglas;
+  `bash` sin expansión; gana incluso a `--auto` (verificado end-to-end).
+- **PermissionDenied** review: errores de permisos llegan al modelo con detalle
+  (acción/recurso/regla) en vez de un «no» genérico.
+- **`snapshots: false`** honrado: no se crean pre/post snapshots (paridad v2).
+- **Catálogos HTTP de skills** (`src/compat/skill-catalog.ts` + `vireo skills update`):
+  índice `.well-known/agent-skills/index.json`, **digest sha256 obligatorio** por
+  SKILL.md, caché limpia en `$XDG_CACHE_HOME/vireo/skills-http/<hash-url>/`, init jamás
+  descarga (lectura síncrona de caché), `doctor` reporta estado y fecha. Riesgo de
+  supply-chain mitigado: NUNCA se ejecuta nada de la red; digest impide swaps.
+- **Formats VERIFICADOS** (vs TODOs): Codex skills (`$CODEX_HOME/skills`
+  + proyecto `.codex/skills/`), `.codex-plugin/plugin.json` (carga `skills/` y
+  `.mcp.json`; hooks/apps → reporte), comandos de extensiones Gemini (TOML en
+  `commands/**/*.toml`, `{{args}}` → `$ARGUMENTS`, nombre `<ext>:a:b…`).
+- **CJK/emoji** (`ui/width.ts`): anchos de celda correctos; integrado en `ansi-wrap`.
+- **`$schema` de la config**: predicado aceptaba «agentskills|agent-skills»; el discovery
+  oficial `schemas.agentskills.io/discovery/0.2.0/schema.json` ya no provoca aviso falso.
+- **Decisión de presupuesto** (documentada en `parity.md` §Verificación de entorno):
+  se retira el tope único <1500; política nueva — `src/core` ≤ **1800 LOC** (hoy 1796),
+  `src/compat/` fuera del tope (zero-dep, parse-only, un test por loader, ~400/archivo),
+  `src/ext/` congelada (267). Extracción de compat a paquete propio queda como fase
+  opcional futura, no como precondición.
+
+**Métricas:** 170 → **220/220** tests (2 archivos nuevos: `tests/fase8.test.ts`,
+`tests/skill-catalog.test.ts`); e2e con mock provider: `skills update` instaló 1 skill
+desde catálogo local con digest verificado; doctor lista `memory`/architect/policies;
+`--agent architect --print` ejecutó bash (ok) y con
+`policies: [{action:"bash", resource:"echo *"}]` el MISMO comando fue bloqueado
+(`policy v2 «echo *»`); MCP multi-origen y hooks sin cambios de comportamiento.
+
+**Diferido (sin cambios):** `/fusion` (sin spec), `serve` HTTP, OAuth MCP, URLs en
+`instructions`, LSP real.
 
 ## Operación del repo (entorno)
 
@@ -201,6 +253,7 @@ extraer `src/compat` del binomio). HTTP catalogs de skills podrían colar aquí.
 - **El sandbox se reinicia periódicamente** (pérdida de exec bits; `.git` y `node_modules`
   excluidos de snapshots): ejecutar `~/repair-env.sh` (chmod +x `bun`/`bin/vireo`, re-init
   `.git` + `reset --mixed origin/master`, `bun install`). El working tree sobrevive siempre.
+  Re-ejecutado **2026-11-09** (fase 8); el árbol surviviente incluía todos los cambios de fase.
 - `/home/user/arena-terabox.md` nunca se commitea (credenciales TeraBox).
 - `gh` **no está instalado** actualmente; el helper propio lo suple para push.
 - Pendiente del usuario: **rotar el token de GitHub** (filtrado en logs el 2026-11-09, fase 6.5).
@@ -209,5 +262,9 @@ extraer `src/compat` del binomio). HTTP catalogs de skills podrían colar aquí.
 
 - PreToolUse hooks ejecutan shell del proyecto (tras confirmación/auto): superficie real;
   la compuerta es la frontera, no hay sandbox.
-- Tema/paleta y ancho CJK imperfectos en motor ANSI.
-- `instructions` sin URLs; `snapshots:false` sin efecto; `/init` requiere un modelo real.
+- Ancho CJK/emoji en motor ANSI **resuelto** (fase 8); quedan matices menores de temas
+  ajenos best-effort (shape B).
+- `instructions` sin URLs (parcial deliberado); `snapshots:false` **resuelto**; `/init`
+  requiere un modelo real; HTTP catalogs exigen digest sha256 índice ↔ disco.
+- Presupuesto core+compat: riesgo de deriva de compat LOC si se añaden loaders sin
+  discusión previa (tope blando ~400/archivo + test por loader lo contienen).

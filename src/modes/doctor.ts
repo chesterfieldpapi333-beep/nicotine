@@ -11,16 +11,18 @@ import { PermissionEngine } from "../core/permissions.js";
 import { ALL_TOOLS } from "../tools/index.js";
 import { spawnSync } from "node:child_process";
 import { sessionsDir } from "../core/session.js";
+import { catalogStatus } from "../compat/skill-catalog.js";
 
 export function runDoctor(opts: { cwd: string; configDir?: string; agentId?: string; modelFlag?: string }): number {
-  const { config, rules, layers, warnings: configWarnings, mcpOrigins, extensionOrigins } = loadConfig(opts.cwd, { configDir: opts.configDir });
+  const { config, rules, policies, layers, warnings: configWarnings, mcpOrigins, extensionOrigins } = loadConfig(opts.cwd, { configDir: opts.configDir });
   let plugins: ReturnType<typeof discoverPlugins>;
   try { plugins = discoverPlugins(opts.cwd); }
   catch (err) { plugins = { plugins: [], warnings: [`descubrimiento multi-CLI falló: ${(err as Error).message}`], unsupported: [], mcp: [], commands: [], themes: [], agents: [], hooks: [], hooksSkipped: [], contextFiles: [], skillSources: [] }; }
   registerExtraAgents(plugins.agents);
   const contextFiles = loadContextFiles(opts.cwd, config);
   const skills = loadSkillIndex(opts.cwd, config, { extraSources: plugins.skillSources });
-  const engine = new PermissionEngine(rules);
+  const engine = new PermissionEngine(rules, policies);
+  const policyCount = policies.length;
   const out: string[] = [];
   out.push("vireo doctor");
   out.push("============");
@@ -36,6 +38,7 @@ export function runDoctor(opts: { cwd: string; configDir?: string; agentId?: str
   const ask = rules.filter((r) => r.effect === "ask").length;
   out.push(`  allow/ask/deny: ${rules.length - deny - ask}/${ask}/${deny}`);
   out.push(`  external_directory * → ${engine.check("external_directory", "/tmp/ejemplo/*").effect} (spec Vireo: ask por defecto)`);
+  out.push(`Policies v2 (hard-deny post-reglas): ${policyCount}`);
   out.push("");
   out.push("Modelo:");
   const model = opts.modelFlag ?? (config["model"] as string | undefined) ?? process.env.VIREO_MODEL ?? process.env.OPENAI_MODEL ?? "(sin configurar)";
@@ -54,6 +57,16 @@ export function runDoctor(opts: { cwd: string; configDir?: string; agentId?: str
   out.push(`Skills (${skills.skills.length}${skills.hidden.length ? `, ${skills.hidden.length} ocultas del listado` : ""}):`);
   if (skills.skills.length === 0) out.push("  (ninguna)");
   else for (const sk of skills.skills) out.push(`  ✓ ${sk.id}  [${sk.source}]${sk.disableModelInvocation ? " — disable-model-invocation" : ""}`);
+  const httpRe = /^https?:\/\//i;
+  const catalogUrls = Array.isArray(config["skills"]) ? (config["skills"] as unknown[]).filter((x): x is string => typeof x === "string" && httpRe.test(x)) : [];
+  if (catalogUrls.length) {
+    out.push(`Catálogos HTTP de skills (${catalogUrls.length}):`);
+    for (const st of catalogStatus(catalogUrls)) {
+      out.push(st.downloaded
+        ? `  ✓ ${st.url} — ${st.skills.length} en caché${st.updatedAt ? ` (actualizado ${st.updatedAt.slice(0, 10)})` : ""}`
+        : `  ! ${st.url} — sin descargar (ejecuta \`vireo skills update\`)`);
+    }
+  }
   // MCP: se LISTA, nunca se conecta desde doctor (los servidores de proyecto piden confirmación al arrancar)
   const mcpDefs = mcpServersFromConfig(config);
   out.push(`Servidores MCP (${mcpDefs.length}${mcpDefs.length ? ", sin conectar — doctor no los lanza" : ""}):`);
@@ -116,7 +129,6 @@ export function runDoctor(opts: { cwd: string; configDir?: string; agentId?: str
   out.push(`  sesiones: ${sessionsDir()}`);
   out.push("");
   out.push("Avisos de seguridad: la cookie `ndus` de TeraBox u otras credenciales de terceros nunca deben escribirse en la config ni pegarse en el chat.");
-  out.push("Pendiente (fases siguientes): memoria/dos-pasos (8).");
   process.stdout.write(out.join("\n") + "\n");
   return 0;
 }

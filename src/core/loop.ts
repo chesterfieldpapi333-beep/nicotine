@@ -4,6 +4,7 @@
 import type { AgentTool, ChatMessage, ToolContext, ToolSchema } from "./types.js";
 import { PermissionDenied, expandHome, type PermissionEngine, type CheckResult } from "./permissions.js";
 import { shellSegments } from "./shell-scan.js";
+import { parseTextToolCalls } from "./text-tool-calls.js";
 import { streamChat, type ProviderConfig } from "./provider.js";
 import type { TokenUsage } from "./events.js";
 import { resolve } from "node:path";
@@ -39,8 +40,17 @@ export async function runAgentLoop(opts: LoopOptions): Promise<"stop" | "max_ste
       signal: opts.ctx.signal,
       onText: (text) => emit({ type: "text_delta", text }),
       fetchImpl: opts.fetchImpl,
+      onRetry: (info) => emit({ type: "provider_retry", ...info }),
     });
     usage = stepUsage ?? usage;
+    // Rescate de tool-calls en texto: solo si el modelo NO emitió tool_calls nativos.
+    if (!message.tool_calls?.length && opts.ctx.textToolCalls !== false) {
+      const parsed = parseTextToolCalls(typeof message.content === "string" ? message.content : "", new Set(opts.tools.map((t) => t.name)));
+      if (parsed.calls.length) {
+        message.tool_calls = parsed.calls;
+        message.content = parsed.remainingText ? parsed.remainingText : null;
+      }
+    }
     opts.messages.push(message);
 
     if (!message.tool_calls?.length) {
@@ -120,7 +130,7 @@ export async function executeTool(tool: AgentTool | undefined, args: Record<stri
     try { diff = (await tool.preview?.(args, opts.ctx))?.diff; } catch { /* preview falló: se pide sin diff */ }
     const patterns = checkResources.map((r) => proposeAlwaysPattern(action, r));
     const verdict = await opts.ctx.ui.confirm({ action, resource: resources.join(", "), diff, alwaysPattern: patterns.join(", ") });
-    if (verdict === "reject") throw new PermissionDenied(action, resource);
+    if (verdict === "reject") throw new PermissionDenied(action, resource, "rechazado por el usuario");
     if (verdict === "always") {
       for (const [i, r] of checkResources.entries()) {
         opts.permissions.addSavedAllow({ action, resource: patterns[i], effect: "allow" });
@@ -129,7 +139,14 @@ export async function executeTool(tool: AgentTool | undefined, args: Record<stri
     }
     decision = { effect: "allow" };
   }
-  if (decision.effect === "deny") throw new PermissionDenied(action, resource);
+  if (decision.effect === "deny") {
+    const detail = decision.policy
+      ? `policy v2 «${decision.rule?.resource}»`
+      : decision.rule
+        ? `regla «${decision.rule.action}» × «${decision.rule.resource}»`
+        : undefined;
+    throw new PermissionDenied(action, resource, detail);
+  }
 
   // Snapshots pre-imagen DESPUÉS del permiso (si se rechaza, no se toca nada).
   const undo = opts.ctx.undo;

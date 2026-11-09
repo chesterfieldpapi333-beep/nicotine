@@ -30,8 +30,11 @@ export class FlatUi implements UiHooks {
           stderr.write(dim(`← ${ev.name} ${status} ${ev.durationMs}ms\n`) + truncateLines(ev.output, 10).map((l) => dim("  " + l) + "\n").join(""));
           break;
         }
+        case "provider_retry":
+          stderr.write(dim(`  · HTTP ${ev.status} — rotando a la key ${ev.attempt + 1}/${ev.total}\n`));
+          break;
         case "compaction":
-          stderr.write(`  · contexto compactado: ${ev.beforeTokens} → ${ev.afterTokens} tokens\n`);
+          stderr.write(`  · contexto compactado (${ev.pass === 1 ? "poda sin LLM" : "resumen"}): ${ev.beforeTokens} → ${ev.afterTokens} tokens\n`);
           break;
         case "turn_end": {
           stdout.write("\n");

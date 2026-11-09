@@ -46,9 +46,9 @@ describe("loadSkillIndex — descubrimiento y precedencia", () => {
     expect(byId.get("custom")!.description).toBe("POR-CONFIG");
   });
 
-  test("config `skills` URL → aviso y se omite", () => {
+  test("config `skills` HTTP → aviso con instrucción de `vireo skills update`", () => {
     const { warnings } = loadSkillIndex(root, { skills: ["https://example.com/catalog.json"] }, { home });
-    expect(warnings.some((w) => w.includes("URL"))).toBe(true);
+    expect(warnings.some((w) => w.includes("vireo skills update"))).toBe(true);
   });
 
   test("gemini global/proyecto solo con compat.geminiSkills", () => {

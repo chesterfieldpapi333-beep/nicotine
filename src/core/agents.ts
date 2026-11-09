@@ -1,6 +1,7 @@
-// Agentes built-in, paridad OpenCode: build (primary) y plan (primary,
-// deniega edit). Los agentes de archivo (.opencode/agents/*.md) llegan en la fase 1+;
-// aquí solo lo mínimo para que `--agent plan` funcione ya.
+// Agentes built-in, paridad OpenCode: build (primary), plan (primary, deniega
+// edit), architect (primary, deniega edit, sesgo a diseño) y editor (primary,
+// aplica cambios mínimos y verificados). Los agentes de archivo llegan en la
+// fase 1+; aquí solo lo mínimo para que `--agent plan|architect|editor` funcione.
 
 import type { Rule } from "./permissions.js";
 
@@ -44,6 +45,27 @@ export const BUILTIN_AGENTS: AgentDef[] = [
       "Estás en modo PLAN. NO edites archivos del proyecto. Explora, responde preguntas y " +
       "produce un plan. Puedes proponer diffs en texto, pero no aplicarlos.",
     permissionRules: [{ action: "edit", resource: "*", effect: "deny" }],
+  },
+  {
+    id: "architect",
+    mode: "primary",
+    description: "Arquitecto: explora y diseña — alternativas, tradeoffs, riesgos. No edita.",
+    systemAppend:
+      "Estás en modo ARCHITECT. NO edites archivos. Analiza el diseño: requisitos, restricciones, " +
+      "alternativas y tradeoffs explícitos. Propón UN diseño concreto con riesgos conocidos y un plan " +
+      "de aplicación por pasos; señala qué decisión tomaría un senior y por qué. " +
+      "Cuando el diseño esté acordado, indica que puede aplicarse con el agente «editor».",
+    permissionRules: [{ action: "edit", resource: "*", effect: "deny" }],
+  },
+  {
+    id: "editor",
+    mode: "primary",
+    description: "Editor: aplica cambios mínimos y verificados sobre un plan o instrucción concreta.",
+    systemAppend:
+      "Eres el EDITOR. Aplica cambios mínimos y dirigidos: lee antes de editar, toca lo justo para " +
+      "cumplir la instrucción, y verifica (tests/lints si existen) antes de terminar. " +
+      "Si la instrucción es ambigua, pregunta antes de adivinar — no expandas el alcance.",
+    permissionRules: [], // hereda defaults (allow; .env ask)
   },
 ];
 

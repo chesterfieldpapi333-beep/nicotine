@@ -17,7 +17,14 @@ export class ProviderError extends Error {
 
 export interface ProviderConfig {
   baseURL: string;
+  /** Primera del pool (compat con el código que la lee directamente). */
   apiKey: string;
+  /**
+   * Pool de rotación de claves (failover). Orden: `provider.apiKey`/`apiKeys`
+   * (config) → `OPENAI_API_KEYS` (coma-separadas, env). Deduplicada. Ante
+   * 401/403/429/5xx se prueba la siguiente. `resolveProvider` siempre lo define.
+   */
+  apiKeys?: string[];
   model: string;
   headers: Record<string, string>;
 }
@@ -30,11 +37,19 @@ export function resolveProvider(config: Record<string, unknown>, flagModel?: str
   const providerCfg = (config["provider"] ?? {}) as Record<string, unknown>;
   const baseURL = String(providerCfg["baseURL"] ?? process.env.OPENAI_BASE_URL ?? "https://api.openai.com/v1").replace(/\/$/, "");
   const apiKey = String(providerCfg["apiKey"] ?? process.env.OPENAI_API_KEY ?? "");
-  const headers = (providerCfg["headers"] ?? {}) as Record<string, string>;
-  if (!apiKey && !/localhost|127\.0\.0\.1/.test(baseURL)) {
-    throw new Error(`Falta API key para ${baseURL}. Exporta OPENAI_API_KEY o pon provider.apiKey en opencode.json (acepta {env:VAR}).`);
+  const extra: string[] = [];
+  if (Array.isArray(providerCfg["apiKeys"])) {
+    for (const k of providerCfg["apiKeys"] as unknown[]) if (typeof k === "string" && k.trim()) extra.push(k.trim());
   }
-  return { baseURL, apiKey, model, headers };
+  if (process.env.OPENAI_API_KEYS) {
+    for (const k of process.env.OPENAI_API_KEYS.split(",")) { const t = k.trim(); if (t) extra.push(t); }
+  }
+  const apiKeys = [...new Set([...extra, apiKey].filter(Boolean))];
+  const headers = (providerCfg["headers"] ?? {}) as Record<string, string>;
+  if (!apiKeys.length && !/localhost|127\.0\.0\.1/.test(baseURL)) {
+    throw new Error(`Falta API key para ${baseURL}. Exporta OPENAI_API_KEY (o OPENAI_API_KEYS=lista) o pon provider.apiKey / provider.apiKeys en opencode.json (acepta {env:VAR}).`);
+  }
+  return { baseURL, apiKey: apiKeys[0] ?? "", apiKeys, model, headers };
 }
 
 export interface StreamChatOptions {
@@ -46,6 +61,8 @@ export interface StreamChatOptions {
   onText?: (text: string) => void;
   /** Inyectable para tests. */
   fetchImpl?: typeof fetch;
+  /** Aviso de rotación de clave (sin exponer la clave). */
+  onRetry?: (info: { attempt: number; status: number; total: number }) => void;
 }
 
 export interface StreamChatResult {
@@ -62,17 +79,31 @@ export async function streamChat(opts: StreamChatOptions): Promise<StreamChatRes
   };
   if (opts.tools?.length) body["tools"] = opts.tools;
 
-  const res = await (opts.fetchImpl ?? fetch)(`${provider.baseURL}/chat/completions`, {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      ...(provider.apiKey ? { authorization: `Bearer ${provider.apiKey}` } : {}),
-      ...provider.headers,
-    },
-    body: JSON.stringify(body),
-    signal: opts.signal,
-  });
-  if (!res.ok) throw new ProviderError(res.status, await res.text());
+  const doFetch = opts.fetchImpl ?? fetch;
+  const FAILOVER = new Set([401, 403, 429, 500, 502, 503, 504]);
+  const pool: string[] = provider.apiKeys?.length ? provider.apiKeys : [provider.apiKey];
+  let res: Response | undefined;
+  for (let attempt = 0; attempt < pool.length; attempt++) {
+    res = await doFetch(`${provider.baseURL}/chat/completions`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        ...(pool[attempt] ? { authorization: `Bearer ${pool[attempt]}` } : {}),
+        ...provider.headers,
+      },
+      body: JSON.stringify(body),
+      signal: opts.signal,
+    });
+    if (res.ok) break;
+    const status = res.status;
+    const bodyText = await res.text();
+    if (!FAILOVER.has(status) || attempt + 1 >= pool.length) {
+      throw new ProviderError(status, bodyText);
+    }
+    // failover a la siguiente clave (401/403/429/5xx); aviso sin exponer claves
+    opts.onRetry?.({ attempt: attempt + 1, status, total: pool.length });
+  }
+  if (!res) throw new Error("El proveedor no respondió.");
   if (!res.body) throw new Error("El proveedor no devolvió stream (res.body vacío).");
 
   let text = "";

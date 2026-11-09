@@ -21,8 +21,13 @@ export function normalizeAction(action: string): string {
 }
 
 export class PermissionDenied extends Error {
-  constructor(public readonly action: string, public readonly resource: string) {
-    super(`permission denied: ${action} → ${resource}`);
+  /**
+   * `detail` resume UNA causa (regla o policy que coincide) o "rechazado por el
+   * usuario" — JAMÁS el ruleset completo (legado: #opencode-53446 volcaba todo el
+   * permission.bash en cada denegación y se reenviaba en cada request).
+   */
+  constructor(public readonly action: string, public readonly resource: string, public readonly detail?: string) {
+    super(`permission denied: ${action} → ${resource}${detail ? ` (${detail})` : ""}`);
     this.name = "PermissionDenied";
   }
 }
@@ -52,19 +57,23 @@ export function matchPattern(pattern: string, value: string): boolean {
   return new RegExp(`^${re}$`).test(v);
 }
 
-export interface CheckResult { effect: Effect; rule?: Rule }
+export interface CheckResult { effect: Effect; rule?: Rule; /** true si lo impide una policy v2 (hard-deny post-reglas). */ policy?: boolean }
+
+export interface Policy { action: string; resource: string }
 
 export class PermissionEngine {
   private rules: Rule[];
   private savedAllows: Rule[] = []; // "allow always" en esta sesión (persistencia: fase 3)
+  private policies: Policy[];
 
-  constructor(rules: Rule[]) {
+  constructor(rules: Rule[], policies: Policy[] = []) {
     this.rules = rules.map((r) => ({ ...r, action: normalizeAction(r.action) }));
+    this.policies = policies.map((p) => ({ action: normalizeAction(p.action), resource: p.resource }));
   }
 
   addSavedAllow(rule: Rule) { this.savedAllows.push({ ...rule, action: normalizeAction(rule.action) }); }
 
-  /** Última regla que coincide gana; sin coincidencia → ask (como OpenCode). */
+  /** Última regla que coincide gana; sin coincidencia → ask (como OpenCode). Las policies v2 se aplican DESPUÉS: hard-deny gane a gane. */
   check(action: string, resource: string): CheckResult {
     const act = normalizeAction(action);
     let hit: Rule | undefined;
@@ -73,8 +82,17 @@ export class PermissionEngine {
     // Un deny configurado NUNCA lo pisan los allows guardados: se re-evalúa.
     let denied: Rule | undefined;
     for (const r of this.rules) if (r.effect === "deny" && matchPattern(r.action, act) && matchPattern(r.resource, resource)) denied = r;
-    if (denied) return { effect: "deny", rule: denied };
-    return { effect: hit?.effect ?? "ask", rule: hit };
+    if (denied) return this.withPolicy(act, resource, { effect: "deny", rule: denied });
+    return this.withPolicy(act, resource, { effect: hit?.effect ?? "ask", rule: hit });
+  }
+
+  private withPolicy(act: string, resource: string, base: CheckResult): CheckResult {
+    for (const p of this.policies) {
+      if (matchPattern(p.action, act) && matchPattern(p.resource, resource)) {
+        return { effect: "deny", rule: { action: p.action, resource: p.resource, effect: "deny" }, policy: true };
+      }
+    }
+    return base;
   }
 
   /** Varios recursos: deny > ask > allow (regla de OpenCode para ops compuestas). */
@@ -117,6 +135,21 @@ export function baseRules(): Rule[] {
     { action: "read", resource: "*.env.example", effect: "allow" },
     { action: "external_directory", resource: "*", effect: "ask" },
   ];
+}
+
+/** Lee `policies` (v2): hard-deny post-reglas. Se ignora lo inválido. */
+export function policiesFromConfig(raw: unknown): Policy[] {
+  const out: Policy[] = [];
+  if (!Array.isArray(raw)) return out;
+  for (const item of raw) {
+    if (!item || typeof item !== "object") continue;
+    const { action, resource } = item as Record<string, unknown>;
+    if (typeof action !== "string" || typeof resource !== "string") continue;
+    if (!action.trim() || !resource.trim()) continue;
+    const act = normalizeAction(action);
+    out.push({ action: act, resource: act === "bash" ? String(resource) : expandHome(String(resource)) });
+  }
+  return out;
 }
 
 /** Traduce el bloque `permission` (v1, objeto) o `permissions` (v2, array) a reglas. */

@@ -6,6 +6,8 @@ import { runJson } from "./modes/json.js";
 import { runRepl } from "./modes/repl.js";
 import { runTui } from "./modes/tui.js";
 import { runDoctor } from "./modes/doctor.js";
+import { loadConfig } from "./core/config.js";
+import { updateCatalogs } from "./compat/skill-catalog.js";
 
 const VERSION = "0.1.0";
 
@@ -16,12 +18,13 @@ Uso:
   vireo --print [opciones] [prompt]  un turno; respuesta a stdout
   vireo --json  [opciones] [prompt]  eventos JSONL a stdout
   vireo doctor [opciones]            diagnóstico
+  vireo skills update [url…]      descarga catálogos HTTP de skills (discovery) y los cachea
 
 Opciones:
   -p, --print        modo no interactivo (un turno)
       --json         eventos como JSONL
   -m, --model <id>   modelo (p. ej. openai/gpt-4o-mini); [proveedor/]modelo
-      --agent <id>   agente built-in: build | plan
+      --agent <id>   agente built-in: build | plan | architect | editor
       --auto         auto-aprueba lo que pregunte (deny sigue denegado)
   -c, --continue     reanuda la última sesión
   -s, --session <id> reanuda una sesión concreta
@@ -77,7 +80,7 @@ function parseArgs(argv: string[]): Args {
       case "--config-dir": args.configDir = next(i, a); i++; break;
       case "--help": case "-h": args.help = true; break;
       case "--version": args.version = true; break;
-      case "doctor": case "serve":
+      case "doctor": case "serve": case "skills":
         if (!args.command) { args.command = a; break; }
         args.positional.push(a); break;
       case "--": args.positional.push(...argv.slice(i + 1)); i = argv.length; break;
@@ -111,6 +114,24 @@ async function main(): Promise<number> {
 
   if (args.command === "doctor") {
     return runDoctor({ cwd, configDir: args.configDir, agentId: args.agent, modelFlag: args.model });
+  }
+  if (args.command === "skills") {
+    if (args.positional[0] !== "update") { stderr.write("uso: vireo skills update [url…]\n"); return 2; }
+    const { config } = loadConfig(cwd, { configDir: args.configDir });
+    const httpRe = /^https?:\/\//i;
+    const fromConfig = Array.isArray(config["skills"])
+      ? (config["skills"] as unknown[]).filter((x): x is string => typeof x === "string" && httpRe.test(x))
+      : [];
+    const urls = [...new Set([...args.positional.slice(1), ...fromConfig])];
+    if (!urls.length) { stdout.write("No hay catálogos HTTP en `skills:` (y no se pasaron URLs). Nada que hacer.\n"); return 0; }
+    const results = await updateCatalogs(urls);
+    let failed = 0;
+    for (const r of results) {
+      stdout.write(`${r.url}\n  ✓ ${r.ok} skill(s) instalada(s) en caché\n`);
+      for (const sk of r.skipped) stdout.write(`  - omitida ${sk.name}: ${sk.reason}\n`);
+      for (const e of r.errors) { stdout.write(`  ✗ ${e}\n`); failed++; }
+    }
+    return failed ? 1 : 0;
   }
   if (args.command === "serve") {
     stderr.write("vireo serve llega en una fase posterior (HTTP opcional, apagado por defecto).\n");

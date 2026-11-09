@@ -10,7 +10,8 @@ export type AgentEvent =
   | { type: "error"; message: string }
   | { type: "todos_updated"; todos: TodoItem[] }
   | { type: "session_saved"; sessionId: string }
-  | { type: "compaction"; beforeTokens: number; afterTokens: number };
+  | { type: "compaction"; beforeTokens: number; afterTokens: number; pass?: 1 | 2 }
+  | { type: "provider_retry"; status: number; attempt: number; total: number };
 
 export interface TokenUsage {
   promptTokens?: number;

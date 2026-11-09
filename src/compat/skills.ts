@@ -8,7 +8,9 @@
 //            (.gemini/skills solo con el flag)
 //            .codex/skills — VERIFICADO
 //   config `skills: [...]`: carpeta a escanear (un nivel `*/SKILL.md` o `**/SKILL.md`) o un SKILL.md
-//            directo. Las URLs (HTTP catalogs) se avisan y se ignoran (sin fetch en arranque).
+//            directo. Las URLs apuntan a catálogos HTTP de skills (discovery): NO se
+//            descargan al arrancar — vireo lee la CACHÉ de `vireo skills update`
+//            (ver compat/skill-catalog.ts); sin caché → aviso.
 //
 // Carga: al arrancar SOLO nombre+descripción entran al system prompt; el body se
 // carga bajo demanda con la tool `skill`. `disable-model-invocation` (o
@@ -21,6 +23,7 @@ import { join, basename, dirname } from "node:path";
 import { homedir } from "node:os";
 import { dirsRootToCwd, isUrl, resolvePath } from "./util.js";
 import { parseFrontmatter } from "./yaml-lite.js";
+import { cachedCatalogSources } from "./skill-catalog.js";
 
 export const MAX_BODY_CHARS = 16 * 1024; // lo que ve el modelo al cargar la skill
 export const MAX_SKILLS = 200;
@@ -54,7 +57,7 @@ export interface SkillIndex {
 
 interface ScanSource { dir: string; source: string; }
 
-export function scanSkillSources(cwd: string, config: Record<string, unknown>, opts: { home?: string; extraSources?: { dir: string; origin: "global" | "project" }[] } = {}): { sources: ScanSource[]; warnings: string[] } {
+export function scanSkillSources(cwd: string, config: Record<string, unknown>, opts: { home?: string; extraSources?: { dir: string; origin: "global" | "project" }[]; catalogCacheRoot?: string } = {}): { sources: ScanSource[]; warnings: string[] } {
   const home = opts.home ?? homedir();
   const compat = (config["compat"] ?? {}) as Record<string, unknown>;
   const gemini = compat["geminiSkills"] === true;
@@ -86,14 +89,21 @@ export function scanSkillSources(cwd: string, config: Record<string, unknown>, o
   // 3) config `skills`
   const warnings: string[] = [];
   const raw = config["skills"];
+  const httpUrls: string[] = [];
   if (raw !== undefined && !Array.isArray(raw)) {
     warnings.push('config "skills" debe ser un array de paths o URLs; se ignora');
   } else if (Array.isArray(raw)) {
     for (const item of raw) {
       if (typeof item !== "string" || !item.trim()) { warnings.push("skills: entrada vacía o no-string; se ignora"); continue; }
-      if (isUrl(item)) { warnings.push(`skills URL omitida (HTTP catalogs sin fetch en arranque): ${item}`); continue; }
+      if (isUrl(item)) { httpUrls.push(item.trim()); continue; }
       sources.push({ dir: resolvePath(item, cwd), source: `config · ${item}` });
     }
+  }
+  // catálogos HTTP: solo caché (nunca red en el arranque)
+  for (const url of httpUrls) {
+    const [cached] = cachedCatalogSources([url], opts.catalogCacheRoot);
+    if (cached) sources.push(cached);
+    else warnings.push(`skills: catálogo HTTP sin descargar: ${url} — ejecuta \`vireo skills update\``);
   }
   return { sources, warnings };
 }
@@ -167,7 +177,7 @@ export function parseSkillFile(path: string, source: string): SkillRecord | { er
   };
 }
 
-export function loadSkillIndex(cwd: string, config: Record<string, unknown>, opts: { home?: string; extraSources?: { dir: string; origin: "global" | "project" }[] } = {}): SkillIndex {
+export function loadSkillIndex(cwd: string, config: Record<string, unknown>, opts: { home?: string; extraSources?: { dir: string; origin: "global" | "project" }[]; catalogCacheRoot?: string } = {}): SkillIndex {
   const { sources, warnings } = scanSkillSources(cwd, config, opts);
   const byId = new Map<string, SkillRecord>();
   let count = 0;

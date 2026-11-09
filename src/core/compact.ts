@@ -2,9 +2,11 @@
 // resume lo antiguo en un único mensaje y se conserva la cola reciente.
 //
 // OJO honesto: los tokens se estiman (chars/4) — no hay tokenizer real.
-// La fase 2 deja margen: esta es la versión de UN paso (resumir todo lo viejo).
-// La de dos pasos (primero podar salidas de herramientas, luego resumir) llega
-// con la fase 8. El system prompt (messages[0]) nunca se resume.
+// DOS PASOS: (1) poda sin LLM — trunca salidas de tool enormes y argumentos
+// de tool_calls gigantes (JSON → minimal válido); si con eso basta, listo.
+// (2) resumen LLM de lo antiguo (conserva la cola keep_tokens). Si el paso 2
+// falla, el historial del usuario NO se modifica. El system prompt
+// (messages[0]) nunca se resume.
 
 import type { ChatMessage } from "./types.js";
 import { streamChat, type ProviderConfig } from "./provider.js";
@@ -41,6 +43,39 @@ export function estimateTokens(messages: ChatMessage[]): number {
   return messages.reduce((acc, m) => acc + msgTokens(m), 0);
 }
 
+/** Tope de salida de tool que sobrevive a la poda del paso 1. */
+export const PRUNE_TOOL_CHARS = 1_200;
+/** Cabeza conservada de una salida de tool podada. */
+export const PRUNE_TOOL_HEAD = 600;
+/** Argumentos de tool_call por encima de esto se sustituyen por JSON mínimo válido. */
+export const PRUNE_TOOL_ARGS_CHARS = 800;
+
+const cloneForWork = (messages: ChatMessage[]): ChatMessage[] =>
+  messages.map((m) => ({ ...m, tool_calls: m.tool_calls?.map((tc) => ({ ...tc, function: { ...tc.function } })) }));
+
+/** Paso 1 (sin LLM): poda salidas de tools enormes y argumentos gigantes. Devuelve chars podados. */
+export function pruneForCompaction(messages: ChatMessage[]): number {
+  let saved = 0;
+  for (const m of messages) {
+    if (m.role === "tool" && typeof m.content === "string" && m.content.length > PRUNE_TOOL_CHARS) {
+      const removed = m.content.length - PRUNE_TOOL_HEAD - 80;
+      m.content = m.content.slice(0, PRUNE_TOOL_HEAD) + `\n…[truncado por vireo: ${removed} caracteres omitidos]`;
+      saved += removed;
+    }
+    if (m.role === "assistant" && m.tool_calls) {
+      for (const tc of m.tool_calls) {
+        const args = tc.function?.arguments;
+        if (typeof args === "string" && args.length > PRUNE_TOOL_ARGS_CHARS) {
+          const removed = args.length - 40;
+          tc.function.arguments = '{"_vireo_truncated":true}'; // JSON mínimo válido: el historial sigue siendo parseable
+          saved += removed;
+        }
+      }
+    }
+  }
+  return saved;
+}
+
 export interface MaybeCompactOptions {
   messages: ChatMessage[];
   provider: ProviderConfig;
@@ -52,24 +87,55 @@ export interface MaybeCompactOptions {
   force?: boolean;
 }
 
+export interface CompactResult {
+  compacted: boolean;
+  beforeTokens: number;
+  afterTokens: number;
+  /** 0 = sin compactar · 1 = podado sin LLM · 2 = resumen LLM (tras poda). */
+  pass: 0 | 1 | 2;
+}
+
+const replaceAll = (target: ChatMessage[], withMsgs: ChatMessage[]) => {
+  target.length = 0;
+  target.push(...withMsgs);
+};
+
 /** Compacta si toca (o si force). Muta `messages` in-place. No toca la sesión en disco. */
-export async function maybeCompact(opts: MaybeCompactOptions): Promise<{ compacted: boolean; beforeTokens: number; afterTokens: number }> {
+export async function maybeCompact(opts: MaybeCompactOptions): Promise<CompactResult> {
   const beforeTokens = estimateTokens(opts.messages);
   if (!opts.force && (!opts.config.auto || beforeTokens <= opts.config.thresholdTokens)) {
-    return { compacted: false, beforeTokens, afterTokens: beforeTokens };
+    return { compacted: false, beforeTokens, afterTokens: beforeTokens, pass: 0 };
   }
+
+  // —— Paso 1 (sin LLM): poda. Se trabaja sobre una COPIA: si no basta o el
+  // resumen falla, el historial del usuario queda intacto.
+  const working = cloneForWork(opts.messages);
+  pruneForCompaction(working);
+  const afterPrune = estimateTokens(working);
+  if (!opts.force && afterPrune <= opts.config.thresholdTokens) {
+    replaceAll(opts.messages, working);
+    opts.emit?.({ type: "compaction", beforeTokens, afterTokens: afterPrune, pass: 1 });
+    return { compacted: true, beforeTokens, afterTokens: afterPrune, pass: 1 };
+  }
+  // —— Paso 2 (LLM): resumen de lo antiguo sobre la copia podada. ——
   // Corte: cola que cabe en keepTokens, empezando en mensaje seguro (no `tool`)
-  let cut = opts.messages.length;
+  let cut = working.length;
   let acc = 0;
-  for (let i = opts.messages.length - 1; i > 0; i--) {
-    acc += msgTokens(opts.messages[i]);
+  for (let i = working.length - 1; i > 0; i--) {
+    acc += msgTokens(working[i]);
     if (acc > opts.config.keepTokens && i > 1) { cut = i + 1; break; }
     if (i === 1) cut = 1;
   }
-  while (cut < opts.messages.length && opts.messages[cut].role === "tool") cut++;
-  if (cut <= 1) return { compacted: false, beforeTokens, afterTokens: beforeTokens };
+  while (cut < working.length && working[cut].role === "tool") cut++;
+  if (cut <= 1) {
+    // La poda ya se aplicó sobre la copia; si el corte no da para resumir, aplica solo la poda.
+    replaceAll(opts.messages, working);
+    const afterTokens = estimateTokens(opts.messages);
+    opts.emit?.({ type: "compaction", beforeTokens, afterTokens, pass: 1 });
+    return { compacted: true, beforeTokens, afterTokens, pass: 1 };
+  }
 
-  const transcript = serializeTranscript(opts.messages.slice(1, cut));
+  const transcript = serializeTranscript(working.slice(1, cut));
   const summaryPrompt: ChatMessage[] = [
     {
       role: "system",
@@ -94,18 +160,19 @@ export async function maybeCompact(opts: MaybeCompactOptions): Promise<{ compact
     summary = (message.content ?? "").trim();
     if (!summary) throw new Error("el proveedor devolvió un resumen vacío");
   } catch (err) {
-    opts.emit?.({ type: "error", message: `compactación falló (el historial NO se modificó): ${(err as Error).message}` });
-    return { compacted: false, beforeTokens, afterTokens: beforeTokens };
+    opts.emit?.({ type: "error", message: `compactación (paso 2) falló (el historial NO se modificó): ${(err as Error).message}` });
+    return { compacted: false, beforeTokens, afterTokens: beforeTokens, pass: 0 };
   }
 
   const summaryMsg: ChatMessage = {
     role: "system",
     content: `<vireo:compaction>Resumen del contexto previo (compactado automáticamente):\n${summary}\n</vireo:compaction>`,
   };
-  opts.messages.splice(1, cut - 1, summaryMsg);
+  working.splice(1, cut - 1, summaryMsg);
+  replaceAll(opts.messages, working);
   const afterTokens = estimateTokens(opts.messages);
-  opts.emit?.({ type: "compaction", beforeTokens, afterTokens });
-  return { compacted: true, beforeTokens, afterTokens };
+  opts.emit?.({ type: "compaction", beforeTokens, afterTokens, pass: 2 });
+  return { compacted: true, beforeTokens, afterTokens, pass: 2 };
 }
 
 function serializeTranscript(messages: ChatMessage[]): string {

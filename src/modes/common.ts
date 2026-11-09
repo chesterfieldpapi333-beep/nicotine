@@ -86,7 +86,7 @@ export function buildRuntime(opts: RuntimeOptions): Runtime {
     plugins = { plugins: [], warnings: [`descubrimiento multi-CLI falló: ${(err as Error).message}`], unsupported: [], mcp: [], commands: [], themes: [], agents: [], hooks: [], hooksSkipped: [], contextFiles: [], skillSources: [] };
   }
   registerExtraAgents(plugins.agents);
-  const { config, rules, layers, warnings: configWarnings, mcpOrigins, extensionOrigins } = loadConfig(opts.cwd, { configDir: opts.configDir });
+  const { config, rules, policies, layers, warnings: configWarnings, mcpOrigins, extensionOrigins } = loadConfig(opts.cwd, { configDir: opts.configDir });
   const savedApprovals = loadProjectApprovals(opts.cwd).map((a) => ({ action: a.action, resource: a.resource, effect: "allow" as const }));
   const contextFiles = loadContextFiles(opts.cwd, config);
   // contexto extra de plugins de Gemini (contextFileName)
@@ -119,6 +119,8 @@ export function buildRuntime(opts: RuntimeOptions): Runtime {
   const ui = new FlatUi({ auto: opts.auto });
   if (opts.attachUi !== false) ui.attach(bus);
   for (const w of [...configWarnings, ...compatWarnings]) ui.info(`config: ${w}`);
+  const compatCfg = (config["compat"] ?? {}) as Record<string, unknown>;
+  const textToolCalls = compatCfg["text_tool_calls"] !== false;
   const readFiles = new Set<string>();
   // `snapshots: false` en config desactiva el undo por completo (ni gestor ni
   // directorios); cualquier otro valor lo deja activo.
@@ -133,6 +135,7 @@ export function buildRuntime(opts: RuntimeOptions): Runtime {
     isSubagent: false,
     undo,
     skills: skillIndex,
+    textToolCalls,
     approvals: { save: (action, resource) => saveProjectApproval(opts.cwd, action, resource) },
   };
 
@@ -143,7 +146,7 @@ export function buildRuntime(opts: RuntimeOptions): Runtime {
   ];
 
   const withSaved = (agentRules: import("../core/permissions.js").Rule[]) =>
-    new PermissionEngine([...rules, ...savedApprovals, ...agentRules]);
+    new PermissionEngine([...rules, ...savedApprovals, ...agentRules], policies);
 
   let currentAgentId = agent.id;
   const agentCtl = {
@@ -183,6 +186,7 @@ export function buildRuntime(opts: RuntimeOptions): Runtime {
       isSubagent: true,
       undo, // comparte el gestor: sus ediciones quedan en el mismo undo por turno
       skills: skillIndex,
+      textToolCalls,
     };
     const subPermissions = withSaved(subAgent.permissionRules);
     const subTools = ALL_TOOLS

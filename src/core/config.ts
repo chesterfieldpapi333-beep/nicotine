@@ -8,13 +8,14 @@ import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { parseJsonc } from "../util/jsonc.js";
-import { baseRules, configToRules, type Rule } from "./permissions.js";
+import { baseRules, configToRules, policiesFromConfig, type Rule, type Policy } from "./permissions.js";
 
 export interface LoadedConfig {
   /** Config final ya mergeada y con variables {env:}/{file:} sustituidas. */
   config: Record<string, unknown>;
   /** Reglas ordenadas: defaults < system < global < proyecto < .opencode < custom. */
   rules: Rule[];
+  policies: Policy[];
   /** Archivos cargados, en orden de aplicación (para `doctor`). */
   layers: string[];
   /** Avisos no fatales (claves desconocidas, etc.); nunca errores. */
@@ -122,7 +123,11 @@ export function loadConfig(cwd: string, opts: { configDir?: string } = {}): Load
   // Reglas: defaults primero; luego, capa por capa EN ORDEN (no del merge,
   // que reordenaría). Así los allows del proyecto pisan al ask global.
   const rules: Rule[] = [...baseRules()];
-  for (const layer of layers) rules.push(...configToRules(layer.data["permission"], layer.data["permissions"]));
+  const policies: Policy[] = [];
+  for (const layer of layers) {
+    rules.push(...configToRules(layer.data["permission"], layer.data["permissions"]));
+    policies.push(...policiesFromConfig(layer.data["policies"]));
+  }
 
   const warnings: string[] = [];
   for (const key of Object.keys(config)) {
@@ -157,5 +162,5 @@ export function loadConfig(cwd: string, opts: { configDir?: string } = {}): Load
     }
   }
 
-  return { config, rules, layers: layers.map((l) => l.path), warnings, mcpOrigins, extensionOrigins };
+  return { config, rules, policies, layers: layers.map((l) => l.path), warnings, mcpOrigins, extensionOrigins };
 }

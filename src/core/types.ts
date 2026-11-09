@@ -68,6 +68,8 @@ export interface ToolContext {
   undo?: import("./undo.js").UndoManager;
   /** Índice de skills ya cargado (tool `skill`); ausente en contextos sin compat. */
   skills?: import("../compat/skills.js").SkillIndex;
+  /** false desactiva el rescate de tool-calls en texto (config `compat.text_tool_calls: false`). Por defecto activado. */
+  textToolCalls?: boolean;
   /** Hooks de otras CLIs (fase 7). preTool → razón de bloqueo o null; postTool → void. */
   hooks?: {
     preTool?(tool: string, args: Record<string, unknown>): Promise<string | null>;

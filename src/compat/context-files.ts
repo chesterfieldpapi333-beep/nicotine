@@ -7,6 +7,10 @@
 //                   GEMINI.md
 //   fuera del recorrido: entradas de `instructions` (paths o globs; las URLs se
 //   avisan y se ignoran — arrancar no debe depender de la red).
+//   solo cwd:        .vireo/memory.md — MEMORIA DEL PROYECTO (kind "memory"), la
+//   escribe el propio agente con write/edit (con permisos normales); vireo la
+//   carga automáticamente al arrancar. Carga SOLO desde el cwd (un proyecto =
+//   un cwd), no desde cada nivel del recorrido.
 // Se concatena todo bajo un encabezado común para que el system prompt lo incluya.
 // Los archivos se truncan a MAX_FILE_BYTES; el total de `instructions` a MAX_INSTRUCTIONS_FILES.
 
@@ -17,7 +21,7 @@ import { dirsRootToCwd, isUrl, resolvePath } from "./util.js";
 export const MAX_FILE_BYTES = 32 * 1024;
 export const MAX_INSTRUCTIONS_FILES = 20;
 
-export type ContextFileKind = "agents" | "agents-override" | "claude" | "gemini" | "instructions";
+export type ContextFileKind = "agents" | "agents-override" | "claude" | "gemini" | "instructions" | "memory";
 
 export interface ContextFileEntry {
   path: string;
@@ -47,7 +51,10 @@ function readCapped(path: string): { text: string; truncated: boolean; bytes: nu
 function section(entry: ContextFileEntry, cwd: string): string {
   const rel = relative(cwd, entry.path) || entry.path;
   const note = entry.truncated ? " — TRUNCADA a 32 KiB" : "";
-  return `## ${rel} (${entry.kind})${note}\n${readCapped(entry.path)?.text ?? ""}`.trimEnd() + "\n";
+  const extra = entry.kind === "memory"
+    ? "\n(memoria del proyecto: decisiones y convenciones persistentes. Mantenla al día con write/edit cuando aprendas algo que deba sobrevivir a esta sesión.)\n"
+    : "";
+  return `## ${rel} (${entry.kind})${note}${extra}\n${readCapped(entry.path)?.text ?? ""}`.trimEnd() + "\n";
 }
 
 export function loadContextFiles(cwd: string, config: Record<string, unknown>): ContextFilesResult {
@@ -99,6 +106,10 @@ export function loadContextFiles(cwd: string, config: Record<string, unknown>): 
       consumed++;
     }
   }
+
+  // memoria por proyecto: <cwd>/.vireo/memory.md (solo cwd; el agente la mantiene)
+  const memoryPath = join(cwd, ".vireo", "memory.md");
+  if (isFile(memoryPath)) files.push(mk(memoryPath, "memory"));
 
   for (const f of files) if (!readCapped(f.path)) warnings.push(`no se pudo leer ${f.path}`);
 

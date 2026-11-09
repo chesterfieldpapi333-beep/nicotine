@@ -71,10 +71,56 @@ export function applyEdit(before: string, oldString: string, newString: string, 
     return spliceLinesWithPrecomputed(before, lines, m3, indented, replaceAll, "trim + re-indent");
   }
 
+  const near = findMostSimilar(lines, oldLines);
+  const suggestion = near
+    ? `Fragmento más parecido (líneas ${near.startLine}–${near.endLine}, similitud ${(near.score * 100).toFixed(0)}%):\n` +
+      near.lines.slice(0, 12).map((l, idx) => `${String(near.startLine + idx).padStart(5)} | ${l.length > 160 ? l.slice(0, 160) + "…" : l}`).join("\n") +
+      (near.lines.length > 12 ? `\n  … (+${near.lines.length - 12} líneas más)` : "") + `\n`
+    : "";
   throw new Error(
-    `oldString no encontrado en el archivo (ni exacto ni flexible). ` +
+    `oldString no encontrado en el archivo (ni exacto ni flexible).\n` +
+    suggestion +
     `Copia el fragmento EXACTO del read (incluida indentación) o usa un bloque más pequeño.`
   );
+}
+
+// —— Sugerencia de «fragmento más parecido» cuando nada casa ——
+const lineSim = (a: string, b: string): number => {
+  const x = a.trim().replace(/\s+/g, " ").toLowerCase();
+  const y = b.trim().replace(/\s+/g, " ").toLowerCase();
+  if (!x && !y) return 1;
+  if (!x || !y) return 0;
+  if (x === y) return 1;
+  let p = 0;
+  const maxP = Math.min(x.length, y.length);
+  while (p < maxP && x[p] === y[p]) p++;
+  const tx = new Set(x.split(" ")), ty = new Set(y.split(" "));
+  let inter = 0;
+  for (const t of tx) if (ty.has(t)) inter++;
+  const tokens = (2 * inter) / (tx.size + ty.size);
+  const prefix = (2 * p) / (x.length + y.length);
+  return Math.max(prefix, (prefix + tokens) / 2);
+};
+
+export interface SimilarFragment { startLine: number; endLine: number; lines: string[]; score: number }
+
+/** Ventana de líneas del archivo con mayor similitud (normalizada 0..1) al viejo bloque; null si nada supera 0.45. */
+export function findMostSimilar(lines: string[], oldLines: string[]): SimilarFragment | null {
+  const n = oldLines.length;
+  if (!n || lines.length === 0) return null;
+  const MAX_SCAN = 80_000; // seguridad: archivos gigantes no disparan O(L·n) sin límite
+  const limit = Math.min(lines.length, MAX_SCAN);
+  let bestStart = -1;
+  let bestScore = 0;
+  for (let i = 0; i + n <= limit; i++) {
+    let score = 0;
+    for (let j = 0; j < n; j++) score += lineSim(oldLines[j], lines[i + j]);
+    score /= n;
+    if (score > bestScore) { bestScore = score; bestStart = i; }
+  }
+  if (bestStart < 0 || bestScore < 0.45) return null;
+  const slice = lines.slice(bestStart, Math.min(lines.length, bestStart + n));
+  return { startLine: bestStart + 1, endLine: bestStart + slice.length, lines: slice, score: bestScore };
 }
 
 function countOccurrences(hay: string, needle: string): number {

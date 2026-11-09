@@ -284,6 +284,7 @@ export async function runTui(opts: TuiOptions): Promise<number> {
       case "error": app.error(ev.message); break;
       case "todos_updated": app.todosUpdated(ev.todos); break;
       case "session_saved": break;
+      case "provider_retry": app.info(`HTTP ${ev.status} — rotando a la key ${ev.attempt + 1}/${ev.total}`); break;
     }
   });
 
@@ -338,4 +339,5 @@ const INIT_PROMPT =
   "Analiza este repositorio para crear o actualizar AGENTS.md en la raíz. " +
   "Primero explora: README, package.json/pyproject.toml/Cargo.toml, configs de build/test, y la estructura de src/. " +
   "El AGENTS.md debe incluir: propósito del proyecto; comandos exactos de build, test y run; convenciones de código y de commits; y una guía rápida de estructura. " +
-  "Si AGENTS.md ya existe, ACTUALÍZALO fusionando con lo que hay (no borres nada). Usa las herramientas (read/glob/grep/write/edit); no inventes comandos.";
+  "Si AGENTS.md ya existe, ACTUALÍZALO fusionando con lo que hay (no borres nada). Usa las herramientas (read/glob/grep/write/edit); no inventes comandos. " +
+"Si encuentras decisiones o convenciones persistentes que no quepan bien en AGENTS.md, crea o actualiza también .vireo/memory.md (memoria del proyecto) con ellas.";
