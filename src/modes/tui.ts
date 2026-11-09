@@ -16,6 +16,7 @@ import { createAnsiEngine, type UiEngine } from "../ui/ansi.js";
 import { createOpenTuiEngine } from "../ui/opentui.js";
 import { prepareExtensions } from "../ext/loader.js";
 import { renderCommandBody } from "../compat/file-commands.js";
+import { stripModel } from "../core/provider.js";
 import type { UiBridge, ExtAppLike } from "../ext/api.js";
 import { splitArgs } from "../compat/util.js";
 
@@ -253,7 +254,7 @@ export async function runTui(opts: TuiOptions): Promise<number> {
       name: cc.name,
       hint: cc.hint,
       run: (_app, rawArgs) => {
-        if (cc.model) { rt.provider.model = cc.model; _app.info(`modelo: ${cc.model} (este comando)`); }
+        if (cc.model) { rt.provider.model = stripModel(cc.model); _app.info(`modelo: ${stripModel(cc.model)} (este comando)`); }
         if (cc.agent) {
           const ok = rt.agent.set(cc.agent);
           _app.info(ok ? `agente: ${cc.agent} (este comando)` : `agente «${cc.agent}» no seleccionable aquí (subagent o desconocido); se mantiene el actual`);

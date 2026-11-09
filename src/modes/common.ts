@@ -2,7 +2,9 @@
 
 import { PermissionEngine } from "../core/permissions.js";
 import { loadConfig } from "../core/config.js";
-import { findAgent, allAgents, registerExtraAgents } from "../core/agents.js";
+import { findAgent, allAgents, registerExtraAgents, registerConfigAgents } from "../core/agents.js";
+import { parseConfigAgents } from "../compat/config-agents.js";
+import { stripModel } from "../core/provider.js";
 import { Session } from "../core/session.js";
 import { buildSystemPrompt } from "../core/context.js";
 import { EventBus, type TokenUsage, type AgentEvent } from "../core/events.js";
@@ -102,7 +104,22 @@ export function buildRuntime(opts: RuntimeOptions): Runtime {
   }
   const skillIndex = loadSkillIndex(opts.cwd, config, { extraSources: plugins.skillSources });
   const configCommands = parseConfigCommands(config["commands"]);
-  const compatWarnings = [...contextFiles.warnings, ...skillIndex.warnings, ...plugins.warnings, ...configCommands.warnings.map((w) => `commands: ${w}`)];
+  const configAgents = parseConfigAgents(config["agents"]);
+  registerConfigAgents(configAgents.agents);
+  // Catálogo de subagentes expuesto al modelo vía la tool `task` (rebuild por carga)
+  const subIds = allAgents().filter((a) => (a.mode === "subagent" || a.mode === "all") && !a.hidden).map((a) => a.id);
+  for (const t of ALL_TOOLS) {
+    if (t.name !== "task") continue;
+    const params = t.parameters as unknown as { properties: Record<string, { enum?: string[]; description?: string }> };
+    t.description =
+      "Delega una tarea autocontenida a un subagente y devuelve su respuesta final. " +
+      "Úsala para investigaciones y subtareas multi-paso que no necesiten tu contexto completo. " +
+      `Tipos disponibles: ${subIds.map((id) => `«${id}»`).join(", ")}. ` +
+      "El subagente no ve el historial previo salvo en el prompt: inclúyelo TODO.";
+    params.properties["subagent_type"].enum = subIds;
+    params.properties["subagent_type"].description = `${subIds.join(" | ")}${subIds.includes("general") ? " (default: general)" : ""}`;
+  }
+  const compatWarnings = [...contextFiles.warnings, ...skillIndex.warnings, ...plugins.warnings, ...configCommands.warnings.map((w) => `commands: ${w}`), ...configAgents.warnings.map((w) => `agents: ${w}`)];
   // default_agent desconocido NO tumba la sesión: aviso + fallback a build
   // (--agent explícito sí es un error). Spec: fallback «build → primer primary visible».
   const defaultAgent = opts.agentId ?? (config["default_agent"] as string | undefined);
@@ -165,7 +182,7 @@ export function buildRuntime(opts: RuntimeOptions): Runtime {
   let currentAgentId = agent.id;
   const agentCtl = {
     current: () => currentAgentId,
-    list: () => allAgents().filter((a) => a.mode !== "subagent").map((a) => a.id),
+    list: () => allAgents().filter((a) => a.mode !== "subagent" && !a.hidden).map((a) => a.id),
     set: (id: string): boolean => {
       let next;
       try { next = findAgent(id); } catch { return false; }
@@ -181,7 +198,9 @@ export function buildRuntime(opts: RuntimeOptions): Runtime {
   // Subagentes: loop anidado, depth 1, sin `task` ni plan-*, en su propia sesión JSONL
   const runSubagent: ToolContext["runSubagent"] = async ({ agentId, prompt, description }) => {
     let subAgent;
-    try { subAgent = findAgent(agentId); } catch { return `Error: subagente desconocido: ${agentId}. Disponibles: general, explore (y los definidos en agents/*)`; }
+    try { subAgent = findAgent(agentId); } catch (err) { return `Error: subagente desconocido: ${agentId}. ${(err as Error).message}`; }
+    const subModel = subAgent.model ? stripModel(subAgent.model) : undefined;
+    const subProvider = subModel ? { ...provider, model: subModel } : provider;
     const label = (description || prompt || "task").replace(/\s+/g, " ").slice(0, 80);
     const child = Session.create(opts.cwd);
     child.setTitle(`task: ${label}`);
@@ -206,7 +225,7 @@ export function buildRuntime(opts: RuntimeOptions): Runtime {
     const subTools = ALL_TOOLS
       .filter((t) => (subAgent.toolAllow ? subAgent.toolAllow.includes(t.name) : true))
       .filter((t) => !["task", "plan-enter", "plan-exit"].includes(t.name));
-    const reason = await runAgentLoop({ provider, permissions: subPermissions, messages: childMessages, tools: subTools, ctx: childCtx, maxSteps: 30, fetchImpl: opts.fetchImpl });
+    const reason = await runAgentLoop({ provider: subProvider, permissions: subPermissions, messages: childMessages, tools: subTools, ctx: childCtx, maxSteps: 30, fetchImpl: opts.fetchImpl });
     for (const m of childMessages.slice(1)) child.appendMessage(m);
     const final = [...childMessages].reverse().find((m) => m.role === "assistant" && m.content)?.content ?? "(sin respuesta final)";
     const truncated = final.length > 4000 ? `${final.slice(0, 4000)}\n…(respuesta truncada; ver sesión ${child.id})` : final;

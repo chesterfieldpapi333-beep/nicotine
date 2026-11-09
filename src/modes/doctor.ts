@@ -2,12 +2,13 @@
 
 import { loadConfig } from "../core/config.js";
 import { parseConfigCommands } from "../compat/config-commands.js";
+import { parseConfigAgents } from "../compat/config-agents.js";
 import { loadContextFiles } from "../compat/context-files.js";
 import { loadSkillIndex } from "../compat/skills.js";
 import { mcpServersFromConfig } from "../compat/mcp/manager.js";
 import { discoverExtensions } from "../ext/loader.js";
 import { discoverPlugins } from "../compat/plugins.js";
-import { findAgent, registerExtraAgents, allAgents } from "../core/agents.js";
+import { findAgent, registerExtraAgents, registerConfigAgents, allAgents } from "../core/agents.js";
 import { PermissionEngine } from "../core/permissions.js";
 import { ALL_TOOLS } from "../tools/index.js";
 import { spawnSync } from "node:child_process";
@@ -20,6 +21,8 @@ export function runDoctor(opts: { cwd: string; configDir?: string; agentId?: str
   try { plugins = discoverPlugins(opts.cwd); }
   catch (err) { plugins = { plugins: [], warnings: [`descubrimiento multi-CLI falló: ${(err as Error).message}`], unsupported: [], mcp: [], commands: [], themes: [], agents: [], hooks: [], hooksSkipped: [], contextFiles: [], skillSources: [] }; }
   registerExtraAgents(plugins.agents);
+  const configAgents = parseConfigAgents(config["agents"]);
+  registerConfigAgents(configAgents.agents);
   const contextFiles = loadContextFiles(opts.cwd, config);
   const skills = loadSkillIndex(opts.cwd, config, { extraSources: plugins.skillSources });
   const engine = new PermissionEngine(rules, policies);
@@ -47,7 +50,15 @@ export function runDoctor(opts: { cwd: string; configDir?: string; agentId?: str
   out.push(`  OPENAI_BASE_URL: ${process.env.OPENAI_BASE_URL ?? "(default api.openai.com)"}`);
   out.push(`  OPENAI_API_KEY:  ${process.env.OPENAI_API_KEY ? "definida" : "NO DEFINIDA (los modos que llaman al modelo fallarán con un error claro)"}`);
   out.push("");
-  out.push(`Agentes: ${allAgents().map((a) => a.id).join(", ")} (seleccionado: ${findAgent(opts.agentId).id})`);
+  let seleccionado = "build";
+  try { seleccionado = findAgent(opts.agentId ?? (config["default_agent"] as string | undefined)).id; }
+  catch (err) { seleccionado = `(desconocido: ${(err as Error).message.split(".")[0]})`; }
+  out.push(`Agentes: ${allAgents().map((a) => a.id + (a.hidden ? " (oculto)" : "")).join(", ")} (seleccionado: ${seleccionado})`);
+  if (configAgents.agents.length) {
+    out.push(`Agentes de config «agents» (${configAgents.agents.length}):`);
+    for (const a of configAgents.agents) out.push(`  ✓ ${a.id}  (${a.mode ?? "primary"})${a.hidden ? " [oculto]" : ""}${a.disabled ? " [disabled]" : ""}  — ${(a.description || "(sin description)").slice(0, 60)}`);
+  }
+  for (const w of configAgents.warnings) out.push(`  ! agents: ${w}`);
   out.push(`Tools (${ALL_TOOLS.length}): ${ALL_TOOLS.map((t) => t.name).join(", ")}`);
   out.push("");
   out.push("Archivos de contexto (en orden de aplicación):");

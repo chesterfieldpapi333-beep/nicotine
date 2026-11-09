@@ -29,11 +29,18 @@ export interface ProviderConfig {
   headers: Record<string, string>;
 }
 
+/** Quita el prefijo vendor/ (informativo) y la variante #… de un string de modelo. */
+export function stripModel(raw: string): string {
+  const noVariant = raw.split("#", 1)[0].trim();
+  const i = noVariant.indexOf("/");
+  return i >= 0 ? noVariant.slice(i + 1) : noVariant;
+}
+
 export function resolveProvider(config: Record<string, unknown>, flagModel?: string): ProviderConfig {
   const raw = flagModel ?? (config["model"] as string | undefined) ?? process.env.VIREO_MODEL ?? process.env.OPENAI_MODEL;
   if (!raw) throw new Error("No hay modelo configurado. Usa --model, config `model` o VIREO_MODEL (ej. openai/gpt-4o-mini).");
   // "vendor/model" → el vendor es informativo; el endpoint es OpenAI-compatible.
-  const model = raw.includes("/") ? raw.slice(raw.indexOf("/") + 1) : raw;
+  const model = stripModel(raw);
   const providerCfg = (config["provider"] ?? {}) as Record<string, unknown>;
   const baseURL = String(providerCfg["baseURL"] ?? process.env.OPENAI_BASE_URL ?? "https://api.openai.com/v1").replace(/\/$/, "");
   const apiKey = String(providerCfg["apiKey"] ?? process.env.OPENAI_API_KEY ?? "");

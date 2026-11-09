@@ -11,11 +11,11 @@ Métricas globales al cierre de Fase 8:
 
 | Métrica | Valor |
 |---|---|
-| Commits de fase | 10 (`14edee4`…cierre de paridad) |
-| Tests | **232/232** (`bun test`, 23 archivos) |
+| Commits de fase | 11 (`14edee4`…agentes desde config) |
+| Tests | **245/245** (`bun test`, 24 archivos) |
 | Typecheck | `tsc --noEmit` limpio (TS 7.0.2, Bun 1.4.4) |
 | Presupuesto core+compat | **4247 líneas** (`src/core` 1796 + `src/compat` 2451) + `src/ext` 267 |
-| Paridad (conteo de filas) | **103 hecho · 9 parcial · 5 falta** (ver `docs/parity.md`) |
+| Paridad (conteo de filas) | **104 hecho · 9 parcial · 4 falta** (ver `docs/parity.md`) |
 | Líneas del repo (src+tests+docs+examples) | ~10 600 |
 | Estrategia de testing en vivo | 100% mock (proveedor OpenAI falso + MCP fake + pty); sin APIs reales |
 
@@ -170,9 +170,38 @@ sin inventar alcance (serve/OAuth/LSP se mantienen fuera).
 - **Sin crecimiento de core**: los cambios viven en `src/compat` (config-commands.ts,
   +~95 LOC) y `src/modes`/`src/ui`; el cap de core (≤1800) se respeta (1796).
 
-**Métricas:** 220 → **232/232** tests. e2e con mock provider: doctor lista comandos
+**Métricas:** 220 → **245/245** tests. e2e con mock provider: doctor lista comandos
 de config con avisos; `--print` con `default_agent` inválido cae a build (exit 0);
 `--agent nope` → exit 1 con mensaje.
+
+### 8+i — Agentes personalizados en config (`agents: {}`)
+
+**Objetivo:** cerrar la última fila «falta» de la sección F/E en condiciones seguras
+(solo datos, nunca ejecución), con la spec oficial verificada.
+
+**Entregado:**
+
+- `src/compat/config-agents.ts`: parsea `agents: {}` desde la config. Soporta
+  `description`, `mode` (primary por defecto para nuevos; override conserva el del
+  built-in), `system` (sustituye la identidad/estilo, conserva entorno + contexto +
+  skills), `model` (usado por subagentes; vendor/ y #variant se descartan al
+  aplicarlo), `permissions` (reglas anexadas tras globales), `hidden`,
+  `disabled`. `steps`, `color`, `request` y campos V1 se ignoran con aviso.
+- Merge canónico de agentes (spec agents#merging): primero capas de config
+  (`deepMerge` ya concatena `permissions` en cualquier nivel), luego
+  built-in < archivo < config; escalares sustituyen; las reglas se ANEXAN;
+  `disabled` elimina (incluso un built-in), `hidden` oculta de tab y del catálogo
+  `task` sin impedir `--agent`.
+- La tool `task` expone el catálogo real de subagentes (`subagent`/`all` no
+  ocultos), y el subagente ejecuta con **su modelo** (verificado con fetch inyectado:
+  padre «mock-model», hijo «helper-x», padre «mock-model»).
+- `--agent` y `default_agent` aceptan agentes de config; `doctor` lista los de config
+  marcando `(oculto)` y `[disabled]`.
+- **Fix latente**: los modelos fijados por comando/subagente pasan por `stripModel`
+  (antes se enviaba «vendor/model» crudo al endpoint). Sin
+  cambios en `src/core/provider.ts` aparte del helper exportado.
+
+**Métricas:** 232 → **245/245** tests. e2e: ver `docs/parity.md` §Verificación.
 
 ## Estado de paridad por sección (ver `docs/parity.md` para el detalle fila a fila)
 
@@ -182,7 +211,7 @@ de config con avisos; `--print` con `default_agent` inválido cae a build (exit 
 | B. Permisos | allow/ask/deny last-match; deny re-evalúa tras allows guardados |
 | C. Config | opencode.json(c) + capas raíz→cwd + `.opencode/`; `tui.json`; `extensions` |
 | D. Core loop | streaming SSE; tool-calls; subagentes depth 1 |
-| E. Sesiones | JSONL, fork, undo/redo, compactación **2 pasos** (poda sin LLM → resumen) |
+| E. Sesiones | JSONL, fork, undo/redo, compactación **2 pasos** (poda sin LLM → resumen); agentes desde config con merge spec (8+i) |
 | F. Comandos | builtins + `/init` + MCP prompts + extensiones + archivo + **`commands: {}` en config** (2026-11) |
 | G. TUI | paridad funcional lograda; ANSI + OpenTUI; temas; leader; `tui.json` separado (scroll_speed sin efecto); sin `onKey` para ext (v1) |
 | H. Sesiones/historial | hecho; `snapshots: false` honrado (no se toman snapshots) |
