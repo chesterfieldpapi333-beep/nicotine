@@ -2,7 +2,7 @@
 
 import { PermissionEngine } from "../core/permissions.js";
 import { loadConfig } from "../core/config.js";
-import { findAgent, BUILTIN_AGENTS } from "../core/agents.js";
+import { findAgent, allAgents, registerExtraAgents } from "../core/agents.js";
 import { Session } from "../core/session.js";
 import { buildSystemPrompt } from "../core/context.js";
 import { EventBus, type TokenUsage, type AgentEvent } from "../core/events.js";
@@ -19,6 +19,9 @@ import type { McpPromptInfo } from "../compat/mcp/client.js";
 import type { AgentTool, ChatMessage, ToolContext } from "../core/types.js";
 import { ALL_TOOLS } from "../tools/index.js";
 import { runAgentLoop } from "../core/loop.js";
+import { discoverPlugins, type PluginsReport } from "../compat/plugins.js";
+import { runHooks } from "../compat/hooks.js";
+import { readFileSync } from "node:fs";
 
 export interface RuntimeOptions {
   cwd: string;
@@ -69,14 +72,33 @@ export interface Runtime {
   mcpClients?: McpRuntime;
   /** Path tal como aparece en `extensions` → capa de origen. */
   extensionOrigins: Record<string, "system" | "global" | "project" | "custom">;
+  /** Reporte del descubrimiento multi-CLI (fase 7). */
+  plugins: PluginsReport;
 }
 
 export function buildRuntime(opts: RuntimeOptions): Runtime {
+  // Descubrimiento multi-CLI (fase 7): SOLO filesystem; nunca lanza y nunca
+  // ejecuta código de terceros (plugins .ts → reporte «no soportado»).
+  let plugins: PluginsReport;
+  try {
+    plugins = discoverPlugins(opts.cwd);
+  } catch (err) {
+    plugins = { plugins: [], warnings: [`descubrimiento multi-CLI falló: ${(err as Error).message}`], unsupported: [], mcp: [], commands: [], themes: [], agents: [], hooks: [], hooksSkipped: [], contextFiles: [], skillSources: [] };
+  }
+  registerExtraAgents(plugins.agents);
   const { config, rules, layers, warnings: configWarnings, mcpOrigins, extensionOrigins } = loadConfig(opts.cwd, { configDir: opts.configDir });
   const savedApprovals = loadProjectApprovals(opts.cwd).map((a) => ({ action: a.action, resource: a.resource, effect: "allow" as const }));
   const contextFiles = loadContextFiles(opts.cwd, config);
-  const skillIndex = loadSkillIndex(opts.cwd, config);
-  const compatWarnings = [...contextFiles.warnings, ...skillIndex.warnings];
+  // contexto extra de plugins de Gemini (contextFileName)
+  let contextBlock = contextFiles.block;
+  for (const cf of plugins.contextFiles.slice(0, 4)) {
+    try {
+      const content = readFileSync(cf.path, "utf8").slice(0, 32 * 1024);
+      contextBlock += `\n\n## ${cf.path} (gemini extension)\n\n${content}`;
+    } catch { /* aviso ya emitido en el descubrimiento */ }
+  }
+  const skillIndex = loadSkillIndex(opts.cwd, config, { extraSources: plugins.skillSources });
+  const compatWarnings = [...contextFiles.warnings, ...skillIndex.warnings, ...plugins.warnings];
   const agent = findAgent(opts.agentId ?? (config["default_agent"] as string | undefined));
   const provider = resolveProvider(config, opts.modelFlag);
 
@@ -112,7 +134,7 @@ export function buildRuntime(opts: RuntimeOptions): Runtime {
     approvals: { save: (action, resource) => saveProjectApproval(opts.cwd, action, resource) },
   };
 
-  const promptOpts = { contextBlock: contextFiles.block, skillBlock: skillIndex.block };
+  const promptOpts = { contextBlock, skillBlock: skillIndex.block };
   const messages: ChatMessage[] = [
     { role: "system", content: buildSystemPrompt({ cwd: opts.cwd, agent, ...promptOpts }) },
     ...session.messages(),
@@ -124,7 +146,7 @@ export function buildRuntime(opts: RuntimeOptions): Runtime {
   let currentAgentId = agent.id;
   const agentCtl = {
     current: () => currentAgentId,
-    list: () => BUILTIN_AGENTS.filter((a) => a.mode === "primary").map((a) => a.id),
+    list: () => allAgents().filter((a) => a.mode !== "subagent").map((a) => a.id),
     set: (id: string): boolean => {
       let next;
       try { next = findAgent(id); } catch { return false; }
@@ -161,7 +183,9 @@ export function buildRuntime(opts: RuntimeOptions): Runtime {
       skills: skillIndex,
     };
     const subPermissions = withSaved(subAgent.permissionRules);
-    const subTools = ALL_TOOLS.filter((t) => !["task", "plan-enter", "plan-exit"].includes(t.name));
+    const subTools = ALL_TOOLS
+      .filter((t) => (subAgent.toolAllow ? subAgent.toolAllow.includes(t.name) : true))
+      .filter((t) => !["task", "plan-enter", "plan-exit"].includes(t.name));
     const reason = await runAgentLoop({ provider, permissions: subPermissions, messages: childMessages, tools: subTools, ctx: childCtx, maxSteps: 30, fetchImpl: opts.fetchImpl });
     for (const m of childMessages.slice(1)) child.appendMessage(m);
     const final = [...childMessages].reverse().find((m) => m.role === "assistant" && m.content)?.content ?? "(sin respuesta final)";
@@ -182,8 +206,45 @@ export function buildRuntime(opts: RuntimeOptions): Runtime {
     mcpOrigins,
     mcp: { servers: [], prompts: [] },
     extensionOrigins,
+    plugins,
   };
   return rt;
+}
+
+/**
+ * Prepara hooks de otras CLIs (fase 7): los de origen PROYECTO piden
+ * confirmación UNA vez por sesión aquí (antes del primer tool call);
+ * los globales (home) se ejecutan sin preguntar. Si el usuario rechaza,
+ * solo los globales quedan activos.
+ */
+export async function prepareHooks(rt: Runtime): Promise<void> {
+  const all = rt.plugins.hooks;
+  const projectHooks = all.filter((h) => h.origin === "project");
+  let enabled = all;
+  if (projectHooks.length) {
+    const sources = [...new Set(projectHooks.map((h) => h.source))].map((s) => `  ${s}`).join("\n");
+    const decision = await rt.ctx.ui.confirm({
+      action: "hooks",
+      resource: `${projectHooks.length} hook(s) de proyecto`,
+      diff: `hooks de PROYECTO (se ejecutarán en CADA llamada a tool):\n${sources}\nSolo acepta si confías en este código.`,
+    });
+    if (decision === "reject") {
+      enabled = all.filter((h) => h.origin === "global");
+      rt.ctx.ui.info("hooks de proyecto: rechazados; NO se ejecutarán");
+    }
+  }
+  const env = { cwd: rt.ctx.cwd, projectDir: rt.ctx.cwd };
+  rt.ctx.hooks = {
+    preTool: async (tool, args) => {
+      const r = await runHooks(enabled, "PreToolUse", tool, args, env);
+      for (const w of r.warnings) rt.ctx.ui.info(w);
+      return r.blocked ? `bloqueado por hook PreToolUse: ${r.reason ?? ""}`.trim() : null;
+    },
+    postTool: async (tool, args) => {
+      const r = await runHooks(enabled, "PostToolUse", tool, args, env);
+      for (const w of r.warnings) rt.ctx.ui.info(w);
+    },
+  };
 }
 
 /**
@@ -197,6 +258,7 @@ export async function prepareMcp(rt: Runtime): Promise<void> {
     mcpOrigins: rt.mcpOrigins,
     ui: rt.ctx.ui,
     cwd: rt.ctx.cwd,
+    extraDefs: rt.plugins.mcp,
   });
   rt.mcpClients = mcp;
   rt.mcp = { servers: mcp.servers, prompts: mcp.prompts };

@@ -9,12 +9,13 @@
 > fácil de aprender y de modificar, compatible con skills/plugins/MCP de otras
 > CLIs (Claude Code, Codex, Gemini CLI, OpenCode, Pi y similares).
 >
-> **Fecha de investigación:** 2026-11-08. **Estado del código:** Fase 6 implementada —
-> Ext API lite (`src/ext/`): on/registerTool/registerCommand/registerShortcut/ui.setSlot/
-> addWidget/setTheme; slots TUI; descubrimiento con compuerta de confianza; extensión de
-> referencia (`examples/extensions/shout.ts`); MCP prompts → comandos dinámicos
-> `/<server>:<prompt>`; aprobaciones «always» persistentes por proyecto.
-> `bun test` → 148/148 verde. `/fusion` diferido (sin spec).
+> **Fecha de investigación:** 2026-11-08. **Estado del código:** Fase 7 implementada —
+> loaders multi-CLI (Claude/Codex/Gemini/OpenCode/Pi): comandos de archivo, agentes de
+> archivo (`task`), hooks PreToolUse/PostToolUse (exit 2 bloquea), MCP multi-origen
+> (`.mcp.json`, gemini settings, codex TOML, extensiones gemini), temas JSON ajenos,
+> compuerta de confianza por origen, doctor completo. Código de terceros: NUNCA se
+> ejecuta (reporte “no soportado”).
+> `bun test` → 170/170 verde. `/fusion` diferido (sin spec).
 > Esta tabla es la guía de las fases 2–8.
 
 ## Leyenda
@@ -151,7 +152,7 @@ OpenCode está en transición v1 → v2. Esto afecta nombres; Vireo decide así:
 | `/init` (crea/actualiza `AGENTS.md` guiado) | hecho — `/init` envía un prompt canned al agente (explora, escribe/fusiona AGENTS.md con la tool write/edit; requiere un proveedor real para el análisis) | `/docs/tui#init`, `/docs/rules` | 3 |
 | `/themes`, `/thinking`, `/export`, `/editor`, `/connect` (API keys), `/exit` (`/quit`,`/q`) | parcial — `/themes`,`/thinking`(informativo),`/exit` en TUI; `/export`,`/editor`,`/connect` falta | `/docs/tui#commands` | 2/3 |
 | `/plan` (entrar/salir de agente plan) | hecho vía tools `plan-enter`/`plan-exit` (el modelo puede pedir el cambio); tab cicla build/plan manualmente | spec `plan-enter/plan-exit` | 3 |
-| Comandos de archivo `commands/*.md` (frontmatter: description, model, agent; `$ARGUMENTS`; argumentos `$1..`/`$NAME`? — **sin verificar sintaxis exacta de args en v2**) | falta | `/docs/commands` | 4 |
+| Comandos de archivo `commands/*.md` (frontmatter: description, model, agent; `$ARGUMENTS`; argumentos `$1..`/`$NAME`) | hecho (fase 7) — `.claude|.opencode/commands/**.md`, `.pi/prompts/*.md`, plugins namespaced `plugin:comando`; `$ARGUMENTS` y `$1..$9`; frontmatter `description`/`argument-hint` (`model`/`agent` ignorados con aviso); en v1 no hay dispatch de slash fuera de la TUI | `/docs/commands` | 4→7 |
 | Comandos de MCP prompts `<server>:<prompt>` | hecho — comandos dinámicos en TUI; args posicionales→orden declarado (required ausente → error de uso); el prompt renderizado se envía como turno del usuario | `/docs/commands` | 5/6 |
 | Comandos custom desde config `commands: {}` | falta | `/docs/config#commands` | 4 |
 
@@ -207,7 +208,7 @@ OpenCode está en transición v1 → v2. Esto afecta nombres; Vireo decide así:
 | **Fallback a initialize:** `protocol: auto` → probe `server/discover`; si falla/timeout → reintenta con handshake legacy (anunciando última versión ≤ 2025-11-25); `legacy` = solo initialize; `2026-07-28` = estricto | hecho — stdio default `legacy`, HTTP default `auto`; escalera initialize 2025-11-25→2025-06-18→2025-03-26→2024-11-05 (solo baja si el servidor rechaza la versión); `2026-07-28` estricto falla limpio | `/docs/mcp-servers#protocol-version` + spec 2026-07-28 | 5 |
 | `server/discover` sonda antes de `tools/list` | hecho (probe manual; si anuncia 2026-07-28 → modo stateless, si no → fallback) | spec 2026-07-28 | 5 |
 | Normalización nombres `<server>_<tool>` (sanear a `[a-zA-Z0-9_-]`) | hecho — colisiones: primera gana + aviso; tools de resources con nombre fijo + `server` enum: `opencode_list_mcp_resources` / `opencode_read_mcp_resource` | `/docs/mcp-servers#names` | 5 |
-| Config multi-origen: OpenCode `mcp` (v2 `mcp.servers`; legacy top-level `mcp.<name>` — **aceptar ambas**, v2 pisa clásica), `.mcp.json` (Claude), Codex TOML, Gemini settings.json | parcial — OpenCode hecho (ambos shapes); Claude/Codex/Gemini vía loaders en fase 7 | docs de cada CLI (ver Fuentes) | 5/7 |
+| Config multi-origen: OpenCode `mcp` (v2 `mcp.servers`; legacy top-level `mcp.<name>` — **aceptar ambas**, v2 pisa clásica), `.mcp.json` (Claude), Codex TOML, Gemini settings.json | hecho — OpenCode (ambos shapes) + `.mcp.json` + gemini settings.json + codex `[mcp_servers]` (toml-lite propio) + `gemini-extension.json` (mcpServers + excludeTools); colisiones: nativa > proyecto (dentro→fuera) > global, primera gana con aviso; proyecto pasa por la misma compuerta | docs de cada CLI (ver Fuentes) | 5/7 |
 | Timeouts (startup/catalog/execution; per-server override) | hecho — defaults 5s/10s/60s; `timeouts: {startup, catalog, execution}` o `startup_timeout_ms`/`catalog_timeout_ms`/`tool_timeout_ms` (o `timeout`) | `/docs/mcp-servers#timeouts` | 5 |
 | Confianza explícita antes de lanzar MCP de proyecto/paquete de terceros (diálogo; `trust` de Gemini **no** se honra en silencio) | hecho — project-origin → `ui.confirm` (una vez por servidor y sesión) con resumen de comando/URL + NOMBRES de env/headers (valores jamás); `--auto` aprueba con aviso; sin TTY rechaza; system/global/custom no preguntan; `doctor` nunca lanza servidores | spec + modelo Gemini `trust` | 5 |
 | OAuth remoto (PKCE, CIMD/DCR) | **fuera de alcance lite v1** (headers + env vars sí) | `/docs/mcp-servers#oauth` | — |
@@ -219,16 +220,16 @@ OpenCode está en transición v1 → v2. Esto afecta nombres; Vireo decide así:
 
 | Loader | Estado | Qué carga | Ref | Fase |
 |---|---|---|---|---|
-| `claude` | falta | Skills `.claude/skills`, commands `.claude/commands/*.md`, agents, `.mcp.json`, hooks de `settings.json` + `hooks/hooks.json` de plugin, `.claude-plugin/plugin.json` (datos: name/description/version/components; **no ejecuta código**) | code.claude.com skills/plugins docs | 7 |
-| `codex` | falta | `[mcp_servers]` TOML, skills `.agents/skills` + `~/.agents/skills`, `AGENTS.md`/`AGENTS.override.md`, `.codex-plugin` (si existe — **sin verificar layout oficial**) | Codex docs/blog | 7 |
-| `gemini` | falta | `mcpServers` de `settings.json` (user `~/.gemini/settings.json` + proyecto `.gemini/settings.json`), `gemini-extension.json` (name/version/mcpServers/contextFileName/excludeTools; `${extensionPath}`), GEMINI.md, comandos TOML/MD? — **sin verificar formato de commands de extensión** | geminicli.com docs | 7 |
-| `opencode` | falta | `.opencode/` del proyecto: `agents|commands|skills|plugins|themes`, `opencode.json(c)`, plugins `.opencode/plugins/*.ts` — **solo datos; código TS ejecutable NO se soporta** → reporte en `doctor` | `/docs/plugins` | 7 |
-| `pi` | falta | `packages` con clave `pi` en `package.json` (`extensions/skills/prompts/themes`), keywords `pi-package`; `~/.pi/agent/`, `.pi/` proyecto; **código de extensión NO se ejecuta** → reporte | github.com/earendil-works/pi | 7 |
-| `agents-dir` | falta | `.agents/skills/**/SKILL.md` genérico (cross-client) | agentskills.io | 4/7 |
-| Hooks (todos los orígenes) | falta | Traducir hooks de comando shell a `before_tool`/`after_tool`; eventos sin equivalente (Notification, Stop, SessionStart…) → omitir con advertencia; `matcher` (regex sobre tool name) → filtro; exit code 2 = bloquear (PreToolUse) | Claude hooks docs | 7 |
-| Variables de ruta normalizadas: `${CLAUDE_PLUGIN_ROOT}`, `${CLAUDE_PROJECT_DIR}`, `${extensionPath}${/}`, `${CLAUDE_SKILL_DIR}` → rutas absolutas del origen | falta | spec + docs | 7 |
-| Namespaces: comandos de plugin `plugin:comando`; colisiones resueltas por precedencia y aviso | falta | Claude plugin docs (namespacing) | 7 |
-| Confianza explícita antes de cargar hooks/MCP/extensiones de proyecto o paquete de terceros | falta | spec; diálogo único por origen | 7 |
+| `claude` | hecho | skills/agents/commands/hooks `.claude/**` (raíz→cwd + `~/.claude`) + plugins `~/.claude/plugins/*` y `.claude/plugins/*` (manifest `plugin.json`; datos; código JAMÁS se ejecuta) + `.mcp.json` + hooks `settings.json|settings.local.json|plugin/hooks/hooks.json` | code.claude.com skills/plugins docs | 7 |
+| `codex` | parcial | `[mcp_servers]` de `~/.codex/config.toml` y `.codex/config.toml` (mini-parser propio `toml-lite.ts`); skills/AGENTS.md ya en fase 4; `.codex-plugin` **sin verificar** → no se carga (reporte en doctor si aparece) | Codex docs/blog | 7 |
+| `gemini` | parcial | `mcpServers` (settings.json user+project) y `gemini-extension.json` (mcpServers + `excludeTools` + `contextFileName` → contexto extra); skills de extensión (`skills/`) como fuel para el scan de skills; GEMINI.md en fase 4; **comandos de extensión NO se cargan** (formato sin verificar; reportados en doctor); skills `.gemini/skills` detrás del flag `compat.geminiSkills` (fase 4) | geminicli.com docs | 7 |
+| `opencode` | hecho | `.opencode/` del proyecto: `commands/*.md`, `agents/*.md`, `themes/*.json`, `skills/`; `opencode.json(c)` nativo; `plugins/*.ts` → reporte «no soportado» en `doctor`, JAMÁS se ejecuta | `/docs/plugins` | 7 |
+| `pi` | parcial | `~/.pi/agent/` y `.pi/` (prompts/*.md → comandos, themes/*.json, agents/*.md, skills/); packages con clave `pi` en node_modules **no se escanean** (v1; aviso en doctor); **código de extensión NO se ejecuta** → reporte | github.com/earendil-works/pi | 7 |
+| `agents-dir` | hecho (fase 4) | `.agents/skills/**/SKILL.md` genérico (cross-client), global y raíz→cwd | agentskills.io | 4 |
+| Hooks (todos los orígenes) | hecho | `PreToolUse` (exit 2 bloquea ANTES del diálogo de permisos; stderr → modelo) y `PostToolUse` (informativo); `matcher` regex; stdin JSON `{tool_name, args}`; `bash -lc`; timeout 5s (frontmatter `timeout`, máx 30); env `CLAUDE_PROJECT_DIR`/`VIREO_PROJECT_DIR`/`CLAUDE_PLUGIN_ROOT`; `type:"command"` únicamente; async y otros tipos/eventos → aviso y omisión; **proyecto → confirmación por sesión** (global ejecuta sin preguntar) | Claude hooks docs | 7 |
+| Variables de ruta normalizadas: `${CLAUDE_PLUGIN_ROOT}`, `${CLAUDE_PROJECT_DIR}`, `${extensionPath}${/}`, `${CLAUDE_SKILL_DIR}` → rutas absolutas del origen | parcial — `CLAUDE_PLUGIN_ROOT|CLAUDE_PLUGIN_DATA|CLAUDE_PROJECT_DIR|VIREO_PROJECT_DIR` (formas `${VAR}` y `$VAR`) expandidas en comandos de hooks; `${extensionPath}${/}` y `${CLAUDE_SKILL_DIR}` sin uso aún (no hay carga de código/skills de plugins que los consuma) | spec + docs | 7 |
+| Namespaces: comandos de plugin `plugin:comando`; colisiones resueltas por precedencia y aviso | hecho — `plugin:comando` (y `plugin:dir:comando` en subdirs); builtins ganan; primera fuente registrada gana con aviso | Claude plugin docs (namespacing) | 7 |
+| Confianza explícita antes de cargar hooks/MCP/extensiones de proyecto o paquete de terceros | hecho — proyecto: MCP una vez por servidor/sesión (igual que nativo); hooks una confirmación por sesión (lista fuentes); datos inertes (skills/comandos/agentes/temas) sin preguntar; código de terceros jamás se ejecuta; global no pregunta; doctor no lanza nada | spec; diálogo único por origen | 7 |
 
 ### L. Archivos de contexto (`src/compat/context-files.ts`)
 
@@ -247,7 +248,7 @@ OpenCode está en transición v1 → v2. Esto afecta nombres; Vireo decide así:
 | `--print` / `-p` (un turno; stdout limpio, chatter en stderr) | hecho | `/docs/cli` run; Pi `-p` | 1 |
 | `--json` (eventos JSONL a stdout) | hecho | spec | 1 |
 | `serve` (HTTP opcional, **apagado por defecto**, expone el mismo flujo de eventos; basic auth por env `VIREO_SERVER_PASSWORD` análogo a `OPENCODE_SERVER_PASSWORD`) | falta | `/docs/server`; Pi `--mode json/rpc` | 3+ |
-| `doctor` (fase 1: capas, reglas allow/ask/deny, modelo, tools, rg, websearch) — fase 4: orígenes de skills y archivos de contexto + avisos de config/compat; reporte completo fase 7 | parcial | spec | 1 (esqueleto) / 4 (skills+contexto) / 7 (completo) |
+| `doctor` (fase 1: capas, reglas allow/ask/deny, modelo, tools, rg, websearch) — fase 4: orígenes de skills y archivos de contexto + avisos de config/compat; fase 7: sección Plugins multi-CLI (plugins, MCP ajeno, comandos/agentes/temas/hooks, unsupported) | hecho (esqueleto 1; completo en 7) | spec | 1 / 4 / 7 |
 | `--model provider/model`, `--agent`, `--continue/-c`, `--session/-s`, `--fork`, `--port/--hostname/--mdns` | parcial — model/agent/continue/session/fork hechos; `--port/--hostname/--mdns` llegan con `serve` | `/docs/cli` | 2/3 |
 | `--auto` (auto-aprueba lo no denegado) | hecho (también salta el diálogo TUI; deny sigue denegado) | `/docs/cli` | 2 |
 | `--version`, `--help` | hecho | convención | 1 |
@@ -262,14 +263,16 @@ OpenCode está en transición v1 → v2. Esto afecta nombres; Vireo decide así:
 - Bun **1.4.4** instalado en `~/.bun/bin` (npm global sin permisos → install script oficial). Node v20.20.2, git 2.47.3.
 - Registry npm accesible: `@modelcontextprotocol/client@2.4.0`, `@modelcontextprotocol/core@2.4.0`, `@modelcontextprotocol/sdk@1.32.2` (legacy).
 - OpenCode docs v1 (docs.opencode.ai) y v2 (opencode.ai/docs) accesibles; difieren en nombres (ver tabla v1/v2).
-- Líneas: `src/core` 1397, `src/compat` 1109 (fase 6) → core+compat = 2506; `src/ext` 267 (API+loader, categoría nueva fuera del binomio core+compat). El objetivo "tiny core" (<1500) quedó muy atrás: decisión pendiente en fase 8 (estrechar presupuesto o factorizar undo/compact a util).
+- Líneas: `src/core` 1424, `src/compat` 2124 (fase 7: multi-CLI + hooks + toml-lite) → core+compat = 3548; `src/ext` 267. El objetivo "tiny core" (<1500) quedó MUY atrás (la fase 7 añadió ~1040): decisión pendiente en fase 8 (estrechar presupuesto o extraer compat a paquete separado — candidato obvio: todo `src/compat`).
 
 - Fase 6 (2026-11-08): 148/148 tests (`bun test`), `tsc --noEmit` limpio; e2e con mock provider (`VIREO_MOCK_SCENARIO=extshout`): extensión de proyecto auto-aprobada con aviso, tool `ext_shout` ejecutada, `turn_end` log; `doctor` lista extensión sin importarla; MCP `prompts/list|get` verificados contra fake server.
+
+- Fase 7 (2026-11-09): 170/170 tests, `tsc` limpio; e2e mock contra demo multi-CLI (`/tmp/mlcli-demo` con `.mcp.json`, `.claude/settings.json`, comandos/agentes .md): compuerta de proyecto MCP+hooks con aviso en `--auto`, hook PreToolUse `exit 2` bloqueando bash end-to-end, doctor lista sección multi-CLI sin conectar nada.
 
 ## Sin verificar / TODOs explícitos
 
 1. ~~API de `@modelcontextprotocol/client@2.4.0`~~ **resuelto por desviación (Fase 5)**: cliente MCP propio sin deps; probe `server/discover` manual + fallback initialize; verificado con fakes stdio/HTTP/SSE.
-2. **Sintaxis de argumentos de file-commands en v2** (`$ARGUMENTS` vs posicionales) — verificar `/docs/commands`. (Comandos personalizados: fase 6+; hoy no hay file-commands en Vireo)
+2. ~~Sintaxis de argumentos de file-commands~~ **resuelto (Fase 7)**: `$ARGUMENTS` crudo + posicionales `$1..$9` (split con comillas); `$NAME` no soportado
 3. **Ruta de skills de Codex**: `.agents/skills` verificado; ¿`~/.codex/skills` existe? no confirmado → no se esc anea salvo flag. (Fase 4)
 4. ~~Ruta de skills de Gemini CLI~~ **resuelto (Fase 4)**: flag `compat.geminiSkills: true` activa `.gemini/skills` + `~/.gemini/skills`; default false (ruta sin verificar). El repo de Gemini no publica la ruta en lo leído.
 5. **Layout de `.codex-plugin/`**: no se encontró manifest oficial → loader `codex` reporta `sin verificar` y carga solo convenciones (skills/mcp/commands) si existen. (Fase 7)
@@ -290,5 +293,5 @@ OpenCode está en transición v1 → v2. Esto afecta nombres; Vireo decide así:
 | 4 | ✔ Skills + context files de todas las CLIs; `doctor` los lista (HTTP catalogs pendientes a hook de init async) |
 | 5 | ✔ MCP stdio/HTTP con probe `server/discover` + fallback legacy (prompts→comandos dinámicos pasan a fase 6) |
 | 6 | ✔ Ext API + slots TUI (`src/ext/`, extensión de referencia `examples/extensions/shout.ts`). **`/fusion` diferido explícitamente** (sin spec; no se inventa comportamiento — decisión del usuario 2026-11-08) |
-| 7 | Loaders plugins claude/codex/gemini/opencode/pi (+ `agents-dir`) |
+| 7 | ✔ Loaders plugins claude/codex/gemini/opencode/pi (+ `agents-dir` en fase 4) + hooks + MCP multi-origen + comandos/agentes/temas de archivo + `/fusion` sigue diferido |
 | 8 | Mejoras: edit fail con "fragmento más parecido", compactación 2 pasos, failover/rotación claves, tool-calls-en-texto, memoria por proyecto, architect/editor |

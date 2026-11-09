@@ -35,6 +35,8 @@ export interface ConnectMcpOptions {
   cwd: string;
   /** "mcp:<nombre>" ya aprobados en esta sesión (para no repetir la pregunta). */
   approved?: Set<string>;
+  /** Servidores leídos de otras CLIs (.mcp.json, gemini/codex, extensiones gemini). */
+  extraDefs?: { name: string; raw: Record<string, unknown>; origin: McpLayerKind; excludeTools?: string[]; source: string }[];
 }
 
 /** Extrae TODAS las definiciones mcp de la config (ambas formas, merged). */
@@ -131,7 +133,20 @@ function describeDef(def: McpServerDef): string {
 }
 
 export async function connectMcpServers(opts: ConnectMcpOptions): Promise<McpRuntime> {
-  const defs = mcpServersFromConfig(opts.config).map(({ name, raw }) => asDef(name, raw, opts.mcpOrigins, opts.cwd));
+  const nativeDefs = mcpServersFromConfig(opts.config).map(({ name, raw }) => ({ name, raw, source: "opencode.json" as string }));
+  const extraDefs = opts.extraDefs ?? [];
+  const mergedRaw: { name: string; raw: Record<string, unknown>; origin: McpLayerKind; excludeTools?: string[] }[] = [];
+  const seenNames = new Set<string>();
+  for (const d of nativeDefs) { seenNames.add(d.name); mergedRaw.push({ name: d.name, raw: d.raw, origin: opts.mcpOrigins[d.name] ?? "project" }); }
+  for (const d of extraDefs) {
+    if (seenNames.has(d.name)) { opts.ui.info(`mcp «${d.name}»: ${d.source} ignorado (ya definido en la config nativa o antes)`); continue; }
+    seenNames.add(d.name);
+    mergedRaw.push({ name: d.name, raw: d.raw, origin: d.origin, excludeTools: d.excludeTools });
+  }
+  const excludesByServer = new Map<string, Set<string>>();
+  for (const d of mergedRaw) if (d.excludeTools?.length) excludesByServer.set(d.name, new Set(d.excludeTools.map((t) => t.toLowerCase())));
+  const originsForAsDef = Object.fromEntries(mergedRaw.map((d) => [d.name, d.origin]));
+  const defs = mergedRaw.map(({ name, raw }) => asDef(name, raw, originsForAsDef, opts.cwd));
   const approved = opts.approved ?? new Set<string>();
   const statuses = new Map<string, McpServerStatus>();
   const clients = new Map<string, McpClient>();
@@ -160,9 +175,13 @@ export async function connectMcpServers(opts: ConnectMcpOptions): Promise<McpRun
       if (prompts?.length) promptEntries.push(...prompts.map((prompt) => ({ server: def.name, prompt })));
       clients.set(def.name, client);
       resourceCapable.push(...(resources !== null ? [def.name] : []));
+      let excluded = 0;
       for (const info of toolInfos) {
+        const ex = excludesByServer.get(def.name);
+        if (ex?.has(info.name.toLowerCase())) { excluded++; continue; }
         tools.push(makeMcpTool(def.name, info.name, info, client));
       }
+      if (excluded) opts.ui.info(`mcp «${def.name}»: ${excluded} tool(s) ocultas por excludeTools`);
       statuses.set(def.name, { name: def.name, origin: def.origin, state: "connected", protocol: negotiated, toolCount: toolInfos.length });
     } catch (err) {
       await client.close().catch(() => {});

@@ -2,12 +2,13 @@
 // Ideal para pipes, CI y para probar el núcleo sin UI.
 
 import { runAgentLoop } from "../core/loop.js";
-import { buildRuntime, persistNewMessages, prepareContext, prepareMcp, type RuntimeOptions } from "./common.js";
+import { buildRuntime, persistNewMessages, prepareContext, prepareMcp, prepareHooks, type RuntimeOptions } from "./common.js";
 import { prepareExtensions } from "../ext/loader.js";
 
 export async function runJson(opts: RuntimeOptions & { prompt: string }): Promise<number> {
   const rt = buildRuntime({ ...opts, attachUi: false });
   await prepareMcp(rt);
+  await prepareHooks(rt);
   await prepareExtensions(rt, { ui: rt.ctx.ui });
   await prepareContext(rt);
   rt.ctx.undo?.beginTurn(opts.prompt.replace(/\s+/g, " ").slice(0, 80));

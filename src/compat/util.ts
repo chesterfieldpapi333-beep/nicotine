@@ -35,3 +35,12 @@ export function isDir(p: string): boolean {
 export function exists(p: string): boolean {
   return existsSync(p);
 }
+
+/** Split de argumentos con comillas simples/dobles (sin escapes anidados). */
+export function splitArgs(s: string): string[] {
+  const out: string[] = [];
+  const re = /"([^"]*)"|'([^']*)'|(\S+)/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(s))) out.push(m[1] ?? m[2] ?? m[3]);
+  return out;
+}

@@ -5,16 +5,21 @@ import { loadContextFiles } from "../compat/context-files.js";
 import { loadSkillIndex } from "../compat/skills.js";
 import { mcpServersFromConfig } from "../compat/mcp/manager.js";
 import { discoverExtensions } from "../ext/loader.js";
+import { discoverPlugins } from "../compat/plugins.js";
+import { findAgent, registerExtraAgents, allAgents } from "../core/agents.js";
 import { PermissionEngine } from "../core/permissions.js";
-import { findAgent, BUILTIN_AGENTS } from "../core/agents.js";
 import { ALL_TOOLS } from "../tools/index.js";
 import { spawnSync } from "node:child_process";
 import { sessionsDir } from "../core/session.js";
 
 export function runDoctor(opts: { cwd: string; configDir?: string; agentId?: string; modelFlag?: string }): number {
   const { config, rules, layers, warnings: configWarnings, mcpOrigins, extensionOrigins } = loadConfig(opts.cwd, { configDir: opts.configDir });
+  let plugins: ReturnType<typeof discoverPlugins>;
+  try { plugins = discoverPlugins(opts.cwd); }
+  catch (err) { plugins = { plugins: [], warnings: [`descubrimiento multi-CLI falló: ${(err as Error).message}`], unsupported: [], mcp: [], commands: [], themes: [], agents: [], hooks: [], hooksSkipped: [], contextFiles: [], skillSources: [] }; }
+  registerExtraAgents(plugins.agents);
   const contextFiles = loadContextFiles(opts.cwd, config);
-  const skills = loadSkillIndex(opts.cwd, config);
+  const skills = loadSkillIndex(opts.cwd, config, { extraSources: plugins.skillSources });
   const engine = new PermissionEngine(rules);
   const out: string[] = [];
   out.push("vireo doctor");
@@ -38,7 +43,7 @@ export function runDoctor(opts: { cwd: string; configDir?: string; agentId?: str
   out.push(`  OPENAI_BASE_URL: ${process.env.OPENAI_BASE_URL ?? "(default api.openai.com)"}`);
   out.push(`  OPENAI_API_KEY:  ${process.env.OPENAI_API_KEY ? "definida" : "NO DEFINIDA (los modos que llaman al modelo fallarán con un error claro)"}`);
   out.push("");
-  out.push(`Agentes built-in: ${BUILTIN_AGENTS.map((a) => a.id).join(", ")} (seleccionado: ${findAgent(opts.agentId).id})`);
+  out.push(`Agentes: ${allAgents().map((a) => a.id).join(", ")} (seleccionado: ${findAgent(opts.agentId).id})`);
   out.push(`Tools (${ALL_TOOLS.length}): ${ALL_TOOLS.map((t) => t.name).join(", ")}`);
   out.push("");
   out.push("Archivos de contexto (en orden de aplicación):");
@@ -77,6 +82,33 @@ export function runDoctor(opts: { cwd: string; configDir?: string; agentId?: str
     out.push("Avisos de config:");
     for (const w of configWarnings) out.push(`  ! ${w}`);
   }
+  // ————— Plugins multi-CLI (solo DATOS; nada se ejecuta) —————
+  out.push("");
+  out.push("Plugins multi-CLI (solo datos — nunca se ejecuta código de terceros):");
+  const pl = plugins.plugins;
+  if (pl.length === 0) out.push("  (ninguno encontrado)");
+  else for (const p of pl) out.push(`  ✓ ${p.kind}  [${p.origin}]  «${p.name}»  — ${p.root}`);
+  if (plugins.unsupported.length) for (const u of plugins.unsupported) out.push(`  ! ${u}`);
+  // MCP de otras CLIs: listado sin conectar
+  out.push(`MCP de otras CLIs (${plugins.mcp.length}${plugins.mcp.length ? ", sin conectar — doctor no los lanza" : ""}):`);
+  for (const m of plugins.mcp) {
+    const t = !m.raw["command"] && (m.raw["url"] || m.raw["httpUrl"]) ? "remote" : "local";
+    out.push(`  ✓ ${m.name}  [${t}, ${m.origin}]  ← ${m.source}${m.origin === "project" ? " — pide confirmación al arrancar" : ""}`);
+  }
+  out.push(`Comandos de archivo (${plugins.commands.length}):`);
+  for (const c of plugins.commands) out.push(`  /${c.name}  [${c.origin}]${c.plugin ? ` (plugin ${c.plugin})` : ""}  ← ${c.source}`);
+  out.push(`Agentes de archivo (${plugins.agents.length}):`);
+  for (const a of plugins.agents) out.push(`  ✓ ${a.id}  (${a.mode})  — ${a.description.slice(0, 60)}`);
+  out.push(`Temas de otras CLIs (${plugins.themes.length}):`);
+  for (const t of plugins.themes) out.push(`  ✓ ${t.name}  [${t.origin}]  ← ${t.source}`);
+  out.push(`Hooks (${plugins.hooks.length}):`);
+  for (const h of plugins.hooks) out.push(`  ✓ ${h.event}${h.matcher ? ` matcher=/${h.matcher.source}/` : ""}  [${h.origin}]  ← ${h.source}`);
+  for (const sk of plugins.hooksSkipped) out.push(`  - omitido ${sk.source}: ${sk.detail}`);
+  if (plugins.mcp.some((m) => m.origin === "project") || plugins.hooks.some((h) => h.origin === "project")) {
+    out.push("  ! MCP/hooks de proyecto: se pedirá confirmación al arrancar (igual que los nativos)");
+  }
+  if (plugins.contextFiles.length) out.push(`Archivos de contexto extra (gemini): ${plugins.contextFiles.map((c) => c.path).join(", ")}`);
+  for (const w of plugins.warnings) out.push(`  ! ${w}`);
   out.push("");
   out.push("Entorno:");
   out.push(`  ripgrep: ${spawnSync("rg", ["--version"], { stdio: "ignore" }).status === 0 ? "sí" : "NO (grep usa fallback JS)"}`);
@@ -84,7 +116,7 @@ export function runDoctor(opts: { cwd: string; configDir?: string; agentId?: str
   out.push(`  sesiones: ${sessionsDir()}`);
   out.push("");
   out.push("Avisos de seguridad: la cookie `ndus` de TeraBox u otras credenciales de terceros nunca deben escribirse en la config ni pegarse en el chat.");
-  out.push("Pendiente (fases siguientes): loaders de plugins (7), memoria/dos-pasos (8).");
+  out.push("Pendiente (fases siguientes): memoria/dos-pasos (8).");
   process.stdout.write(out.join("\n") + "\n");
   return 0;
 }

@@ -97,6 +97,9 @@ function toolMessage(callId: string, content: string): ChatMessage {
 //   allow → ejecuta. Las tools con `preview` exponen un diff para el diálogo.
 export async function executeTool(tool: AgentTool | undefined, args: Record<string, unknown>, opts: LoopOptions, name = "?"): Promise<string> {
   if (!tool) throw new Error(`tool desconocida: "${name}"`);
+  // Hooks PreToolUse (fase 7): bloquean ANTES del diálogo de permisos.
+  const preReason = await opts.ctx.hooks?.preTool?.(tool.name, args).catch((err) => `hook PreToolUse falló: ${(err as Error).message}`);
+  if (typeof preReason === "string" && preReason) return preReason;
   const action = tool.permission.action;
   const resources = tool.permissionResources?.(args) ?? [tool.permission.resource(args)];
   const resource = resources[0];
@@ -129,8 +132,11 @@ export async function executeTool(tool: AgentTool | undefined, args: Record<stri
   if (undo && UNDOABLE_TOOLS.has(tool.name)) {
     try { undo.snapshotPre(tool.name, undoablePaths(tool.name, args, opts.ctx.cwd, resources)); preTaken = true; } catch { /* snapshot falló: se ejecuta sin undo */ }
   }
+  let result: Awaited<ReturnType<typeof tool.run>>;
   try {
-    const result = await tool.run(args, opts.ctx);
+    result = await tool.run(args, opts.ctx);
+    // Hooks PostToolUse: informativos, nunca bloquean.
+    await opts.ctx.hooks?.postTool?.(tool.name, args).catch(() => {});
     if (preTaken) try { undo!.snapshotPost(); } catch { opts.ctx.ui.info("undo: no se pudo guardar el snapshot"); }
     return result.output;
   } catch (err) {

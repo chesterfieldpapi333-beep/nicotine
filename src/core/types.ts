@@ -68,6 +68,11 @@ export interface ToolContext {
   undo?: import("./undo.js").UndoManager;
   /** Índice de skills ya cargado (tool `skill`); ausente en contextos sin compat. */
   skills?: import("../compat/skills.js").SkillIndex;
+  /** Hooks de otras CLIs (fase 7). preTool → razón de bloqueo o null; postTool → void. */
+  hooks?: {
+    preTool?(tool: string, args: Record<string, unknown>): Promise<string | null>;
+    postTool?(tool: string, args: Record<string, unknown>): Promise<void>;
+  };
   /** Persistencia del "always" de permisos, alcance proyecto (XDG data, nunca en el repo). */
   approvals?: { save(action: string, resource: string): void };
 }

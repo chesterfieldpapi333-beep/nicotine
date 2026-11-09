@@ -12,6 +12,8 @@ export interface AgentDef {
   systemAppend?: string;
   /** Reglas EXTRA que se ANEXAN tras las globales (spec: rules append). */
   permissionRules: Rule[];
+  /** Allowlist de tools (vireo) — agentes de archivo con `tools:` en frontmatter. Ausente = todas. */
+  toolAllow?: string[];
 }
 
 export const BUILTIN_AGENTS: AgentDef[] = [
@@ -45,9 +47,22 @@ export const BUILTIN_AGENTS: AgentDef[] = [
   },
 ];
 
+/** Agentes de archivo registrados en runtime (plugins/otros CLI). */
+const EXTRA_AGENTS: AgentDef[] = [];
+
+/** Registra agentes de archivo (idempotente por id). Lo llama el descubrimiento de plugins. */
+export function registerExtraAgents(defs: AgentDef[]): void {
+  for (const d of defs) if (!EXTRA_AGENTS.some((e) => e.id === d.id)) EXTRA_AGENTS.push(d);
+}
+
+/** Limpia los agentes extra (tests). */
+export function clearExtraAgents(): void { EXTRA_AGENTS.length = 0; }
+
+export function allAgents(): AgentDef[] { return [...BUILTIN_AGENTS, ...EXTRA_AGENTS]; }
+
 export function findAgent(id: string | undefined): AgentDef {
   if (!id) return BUILTIN_AGENTS[0];
-  const found = BUILTIN_AGENTS.find((a) => a.id === id);
-  if (!found) throw new Error(`Agente desconocido: ${id}. Disponibles: ${BUILTIN_AGENTS.map((a) => a.id).join(", ")}`);
+  const found = allAgents().find((a) => a.id === id);
+  if (!found) throw new Error(`Agente desconocido: ${id}. Disponibles: ${allAgents().map((a) => a.id).join(", ")}`);
   return found;
 }

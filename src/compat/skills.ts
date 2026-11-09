@@ -53,7 +53,7 @@ export interface SkillIndex {
 
 interface ScanSource { dir: string; source: string; }
 
-export function scanSkillSources(cwd: string, config: Record<string, unknown>, opts: { home?: string } = {}): { sources: ScanSource[]; warnings: string[] } {
+export function scanSkillSources(cwd: string, config: Record<string, unknown>, opts: { home?: string; extraSources?: { dir: string; origin: "global" | "project" }[] } = {}): { sources: ScanSource[]; warnings: string[] } {
   const home = opts.home ?? homedir();
   const compat = (config["compat"] ?? {}) as Record<string, unknown>;
   const gemini = compat["geminiSkills"] === true;
@@ -65,6 +65,10 @@ export function scanSkillSources(cwd: string, config: Record<string, unknown>, o
   sources.push({ dir: join(home, ".agents", "skills"), source: "global · agents" });
   sources.push({ dir: join(home, ".pi", "agent", "skills"), source: "global · pi" });
   if (gemini) sources.push({ dir: join(home, ".gemini", "skills"), source: "global · gemini (sin verificar)" });
+  // 1b) skills de plugins (entre global y proyecto)
+  for (const extra of opts.extraSources ?? []) {
+    sources.push({ dir: extra.dir, source: `plugin · ${extra.dir}` });
+  }
   // 2) proyecto, raíz → cwd (lo más cercano, al final → gana)
   for (const dir of dirsRootToCwd(cwd)) {
     for (const [sub, source] of [
@@ -159,7 +163,7 @@ export function parseSkillFile(path: string, source: string): SkillRecord | { er
   };
 }
 
-export function loadSkillIndex(cwd: string, config: Record<string, unknown>, opts: { home?: string } = {}): SkillIndex {
+export function loadSkillIndex(cwd: string, config: Record<string, unknown>, opts: { home?: string; extraSources?: { dir: string; origin: "global" | "project" }[] } = {}): SkillIndex {
   const { sources, warnings } = scanSkillSources(cwd, config, opts);
   const byId = new Map<string, SkillRecord>();
   let count = 0;

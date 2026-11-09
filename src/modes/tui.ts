@@ -7,7 +7,7 @@ import { buildSystemPrompt } from "../core/context.js";
 import { Session } from "../core/session.js";
 import type { ChatMessage } from "../core/types.js";
 import type { UiHooks } from "../core/types.js";
-import { buildRuntime, persistNewMessages, prepareContext, prepareMcp, compactNow, forkCurrentSession, type RuntimeOptions } from "./common.js";
+import { buildRuntime, persistNewMessages, prepareContext, prepareMcp, prepareHooks, compactNow, forkCurrentSession, type RuntimeOptions } from "./common.js";
 import { loadTuiConfig } from "../ui/tui-config.js";
 import { loadThemes, defaultThemes } from "../ui/theme.js";
 import { TuiApp, type SlashCommand } from "../ui/app.js";
@@ -15,7 +15,9 @@ import { type DisplayMessage } from "../ui/components.js";
 import { createAnsiEngine, type UiEngine } from "../ui/ansi.js";
 import { createOpenTuiEngine } from "../ui/opentui.js";
 import { prepareExtensions } from "../ext/loader.js";
+import { renderCommandBody } from "../compat/file-commands.js";
 import type { UiBridge, ExtAppLike } from "../ext/api.js";
+import { splitArgs } from "../compat/util.js";
 
 export interface TuiOptions extends RuntimeOptions {
   /** Fuerza el motor: "opentui" (defecto) | "ansi". */
@@ -25,9 +27,17 @@ export interface TuiOptions extends RuntimeOptions {
 export async function runTui(opts: TuiOptions): Promise<number> {
   const rt = buildRuntime({ ...opts, attachUi: false });
   await prepareMcp(rt);
+  await prepareHooks(rt);
   const cwd = rt.ctx.cwd;
   const tuiCfg = loadTuiConfig(cwd);
   const themes = loadThemes(cwd);
+  // temas JSON de otras CLIs (opencode/pi/plugins): shape B best-effort.
+  // los que colisionan con un tema ya cargado se descartan (el existente gana).
+  const foreignThemeWarnings: string[] = [];
+  for (const ft of rt.plugins.themes) {
+    if (themes.has(ft.name)) foreignThemeWarnings.push(`tema «${ft.name}» (${ft.source}) ignorado: ya existe`);
+    else themes.set(ft.name, { name: ft.name, tokens: { ...defaultThemes[0].tokens, ...ft.tokens } });
+  }
   let theme = themes.get(tuiCfg.theme) ?? themes.get("vireo-dark") ?? defaultThemes[0];
 
   const cycleAgent = (): string => {
@@ -196,13 +206,6 @@ export async function runTui(opts: TuiOptions): Promise<number> {
   }
 
   // ————— comandos MCP prompts (<server>:<prompt>) —————
-  const splitArgs = (s: string): string[] => {
-    const out: string[] = [];
-    const re = /"([^"]*)"|'([^']*)'|(\S+)/g;
-    let m: RegExpExecArray | null;
-    while ((m = re.exec(s))) out.push(m[1] ?? m[2] ?? m[3]);
-    return out;
-  };
   const mcpPromptCommands: SlashCommand[] = rt.mcp.prompts.map(({ server, prompt }) => ({
     name: `${server}:${prompt.name}`.replace(/[^a-zA-Z0-9_:-]/g, "_"),
     hint: `[MCP ${server}] ${(prompt.description ?? prompt.name).slice(0, 60)}`,
@@ -243,6 +246,12 @@ export async function runTui(opts: TuiOptions): Promise<number> {
     { name: "exit", hint: "salir", run: () => engine.stop() },
   ];
   commands.push(...mcpPromptCommands);
+  // ————— comandos de archivo (fase 7): .claude/commands, .opencode/commands, .pi/prompts, plugins (plugin:name) —————
+  for (const fc of rt.plugins.commands) {
+    if (commands.some((c) => c.name === fc.name)) { app.info(`/${fc.name} (${fc.source}) ignorado: nombre en uso por un builtin`); continue; }
+    commands.push({ name: fc.name, hint: fc.hint, run: (_app, rawArgs) => submitTurn(renderCommandBody(fc, rawArgs ?? "")) });
+  }
+  for (const w of foreignThemeWarnings) app.info(w);
   app.deps.commands = commands;
 
   // ————— extensiones (después de comandos builtin, antes del motor) —————
