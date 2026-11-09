@@ -25,7 +25,7 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { timingSafeEqual } from "node:crypto";
 import { runAgentLoop } from "../core/loop.js";
-import { buildRuntime, persistNewMessages, prepareContext, prepareMcp, prepareHooks, type RuntimeOptions, type Runtime } from "./common.js";
+import { buildRuntime, persistNewMessages, prepareContext, prepareMcp, prepareHooks, prepareUrlContext, type RuntimeOptions, type Runtime } from "./common.js";
 import { prepareExtensions } from "../ext/loader.js";
 import { Session } from "../core/session.js";
 import { closeMcpClients } from "../compat/mcp/manager.js";
@@ -121,6 +121,7 @@ export async function runServe(opts: ServeOptions): Promise<number> {
   await prepareMcp(rt);
   await prepareHooks(rt);
   await prepareExtensions(rt, { ui: rt.ctx.ui });
+  try { await prepareUrlContext(rt); } catch (err) { process.stderr.write(`serve: instrucciones-URL fallaron: ${(err as Error).message}\n`); }
   try { await prepareContext(rt); } catch (err) { process.stderr.write(`serve: compactación falló: ${(err as Error).message}\n`); }
 
   let currentAbort: AbortController | null = null;

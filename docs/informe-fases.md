@@ -348,3 +348,5 @@ desde catálogo local con digest verificado; doctor lista `memory`/architect/pol
   requiere un modelo real; HTTP catalogs exigen digest sha256 índice ↔ disco.
 - Presupuesto core+compat: riesgo de deriva de compat LOC si se añaden loaders sin
   discusión previa (tope blando ~400/archivo + test por loader lo contienen).
+
+- **Fase 10 (2026-11, aprobación «todo»):** `instructions` con URLs (fetch post-arranque, timeout 10s, 32 KiB/8 URLs, solo texto; fallos → aviso y omisión; `prepareUrlContext`); suite **277/277**. repair-env.sh re-añade credential helpers automáticamente.

@@ -79,10 +79,63 @@ describe("loadContextFiles", () => {
     expect(files.filter((f) => f.kind === "instructions").length).toBeGreaterThanOrEqual(3);
   });
 
-  test("instructions: URL se omite con aviso", () => {
-    const { warnings, block } = loadContextFiles(root, { instructions: ["https://example.com/spec.md"] });
-    expect(warnings.some((x) => x.includes("URL"))).toBe(true);
+  test("instructions: URL se recoge para prepareUrlContext (no se descarga en el arranque)", () => {
+    const { warnings, block, urls } = loadContextFiles(root, { instructions: ["https://example.com/spec.md"] });
+    expect(urls).toEqual(["https://example.com/spec.md"]);
     expect(block).not.toContain("example.com");
+    expect(warnings.some((x) => x.includes("URL"))).toBe(false);
+  });
+
+  test("fetchInstructionUrls: descarga, inyecta y respeta timeout/topes", async () => {
+    const { fetchInstructionUrls } = await import("../src/compat/context-files.js");
+    const mk = (body: string, init: { status?: number; type?: string } = {}) =>
+      new Response(body, { status: init.status ?? 200, headers: { "content-type": init.type ?? "text/plain; charset=utf-8" } });
+    // éxito
+    const ok = await fetchInstructionUrls(["https://a.example/spec.md"], { fetchImpl: (async () => mk("# reglas remotas")) as unknown as typeof fetch });
+    expect(ok.blocks).toHaveLength(1);
+    expect(ok.blocks[0]).toContain("instrucciones remotas|reglas remotas".split("|")[1]);
+    expect(ok.warnings).toHaveLength(0);
+    // HTTP error → aviso y omisión
+    const bad = await fetchInstructionUrls(["https://a.example/missing.md"], { fetchImpl: (async () => mk("nope", { status: 404 })) as unknown as typeof fetch });
+    expect(bad.blocks).toHaveLength(0);
+    expect(bad.warnings[0]).toContain("404");
+    // content-type no textual → omitida
+    const bin = await fetchInstructionUrls(["https://a.example/bin.png"], { fetchImpl: (async () => mk("PNGDATA", { type: "image/png" })) as unknown as typeof fetch });
+    expect(bin.blocks).toHaveLength(0);
+    expect(bin.warnings[0]).toContain("content-type");
+    // fetch que lanza (red caída) → aviso, jamás lanza
+    const down = await fetchInstructionUrls(["https://a.example/x.md"], { fetchImpl: (async () => { throw new Error("ECONNREFUSED"); }) as unknown as typeof fetch });
+    expect(down.blocks).toHaveLength(0);
+    expect(down.warnings[0]).toContain("ECONNREFUSED");
+    // timeout (AbortError) → aviso con "timeout"
+    const slow = await fetchInstructionUrls(["https://a.example/slow.md"], { timeoutMs: 20, fetchImpl: ((url, init) => new Promise<Response>((_, reject) => {
+      const signal = (init as RequestInit).signal;
+      signal?.addEventListener("abort", () => { const e = new Error("aborted"); e.name = "AbortError"; reject(e); });
+    })) as unknown as typeof fetch });
+    expect(slow.blocks).toHaveLength(0);
+    expect(slow.warnings[0]).toContain("timeout");
+    // tope 32 KiB
+    const big = "x".repeat(40 * 1024);
+    const capped = await fetchInstructionUrls(["https://a.example/big.md"], { fetchImpl: (async () => mk(big)) as unknown as typeof fetch });
+    expect(capped.blocks[0]).toContain("TRUNCADA");
+    expect(capped.blocks[0].length).toBeLessThan(34 * 1024);
+  });
+
+  test("prepareUrlContext: inyecta bloques en el system prompt (una vez)", async () => {
+    const { buildRuntime, prepareUrlContext, closeMcp } = await import("../src/modes/common.js");
+    const cwd = root;
+    writeFileSync(join(cwd, "opencode.json"), JSON.stringify({ model: "openai/mock-model", provider: { baseURL: "http://127.0.0.1:9/v1", apiKey: "test-key" } }));
+    const rt = buildRuntime({ cwd, auto: false, attachUi: false, modelFlag: "mock-model", fetchImpl: (async () => new Response("{}")) as unknown as typeof fetch });
+    rt.contextFiles.urls = ["https://a.example/remote-rules.md"];
+    rt.fetchImpl = (async () => new Response("# reglas_remotas_marcador", { status: 200, headers: { "content-type": "text/plain" } })) as unknown as typeof fetch;
+    await prepareUrlContext(rt);
+    expect(rt.messages[0].content).toContain("reglas_remotas_marcador");
+    expect(rt.messages[0].content).toContain("Instrucciones remotas");
+    // segunda llamada es no-op (urls vaciada)
+    const before = rt.messages[0].content;
+    await prepareUrlContext(rt);
+    expect(rt.messages[0].content).toBe(before);
+    await closeMcp(rt);
   });
 
   test("instrucciones no-array → aviso y se ignora", () => {

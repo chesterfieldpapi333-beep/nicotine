@@ -12,7 +12,7 @@ import { FlatUi } from "../ui/flat.js";
 import { resolveProvider, type ProviderConfig } from "../core/provider.js";
 import { compactionFromConfig, maybeCompact, estimateTokens, type CompactionConfig } from "../core/compact.js";
 import { UndoManager } from "../core/undo.js";
-import { loadContextFiles, type ContextFilesResult } from "../compat/context-files.js";
+import { loadContextFiles, fetchInstructionUrls, type ContextFilesResult } from "../compat/context-files.js";
 import { loadSkillIndex, type SkillIndex } from "../compat/skills.js";
 import { connectMcpServers, closeMcpClients, type McpRuntime } from "../compat/mcp/manager.js";
 import type { McpServerStatus } from "../compat/mcp/types.js";
@@ -81,6 +81,10 @@ export interface Runtime {
   plugins: PluginsReport;
   /** Comandos custom desde `commands: {}` en config (spec JSON, verificado). */
   configCommands: ConfigCommand[];
+  /** Bloques de instrucciones remotas (URLs de `instructions`); vacío hasta prepareUrlContext. */
+  instructionUrls: { text: string };
+  /** fetch inyectado (tests); lo hereda prepareUrlContext. */
+  fetchImpl?: typeof fetch;
 }
 
 export function buildRuntime(opts: RuntimeOptions): Runtime {
@@ -173,8 +177,11 @@ export function buildRuntime(opts: RuntimeOptions): Runtime {
   };
 
   const promptOpts = { contextBlock, skillBlock: skillIndex.block };
+  const urlExtra = { text: "" };
+  const systemFor = (ag: typeof agent): string =>
+    buildSystemPrompt({ cwd: opts.cwd, agent: ag, contextBlock: promptOpts.contextBlock + urlExtra.text, skillBlock: promptOpts.skillBlock });
   const messages: ChatMessage[] = [
-    { role: "system", content: buildSystemPrompt({ cwd: opts.cwd, agent, ...promptOpts }) },
+    { role: "system", content: systemFor(agent) },
     ...session.messages(),
   ];
 
@@ -191,7 +198,7 @@ export function buildRuntime(opts: RuntimeOptions): Runtime {
       if (next.mode === "subagent") return false;
       currentAgentId = next.id;
       rt.permissions = withSaved(next.permissionRules);
-      rt.messages[0] = { role: "system", content: buildSystemPrompt({ cwd: opts.cwd, agent: next, ...promptOpts }) };
+      rt.messages[0] = { role: "system", content: systemFor(next) };
       return true;
     },
   };
@@ -207,7 +214,7 @@ export function buildRuntime(opts: RuntimeOptions): Runtime {
     const child = Session.create(opts.cwd);
     child.setTitle(`task: ${label}`);
     const childMessages: ChatMessage[] = [
-      { role: "system", content: buildSystemPrompt({ cwd: opts.cwd, agent: subAgent, ...promptOpts }) },
+      { role: "system", content: systemFor(subAgent as typeof agent) },
       { role: "user", content: prompt },
     ];
     const childReadFiles = new Set<string>();
@@ -254,6 +261,8 @@ export function buildRuntime(opts: RuntimeOptions): Runtime {
     extensionOrigins,
     plugins,
     configCommands: configCommands.commands,
+    instructionUrls: urlExtra,
+    fetchImpl: opts.fetchImpl,
   };
   return rt;
 }
@@ -322,6 +331,24 @@ export async function prepareMcp(rt: Runtime): Promise<void> {
 /** Cierra los clientes MCP (llamar al final de la sesión / en tests). */
 export async function closeMcp(rt: Runtime): Promise<void> {
   await closeMcpClients(rt.mcpClients);
+}
+
+/**
+ * Descarga las URLs declaradas en `instructions` (timeout 10s, tope 32 KiB, solo
+ * contenido textual) y las inyecta en el system prompt. Una sola vez por runtime.
+ * Los fallos solo avisan — arrancar no depende de la red.
+ */
+export async function prepareUrlContext(rt: Runtime, fetchImpl?: typeof fetch): Promise<void> {
+  const urls = rt.contextFiles.urls;
+  if (!urls.length) return;
+  const impl = fetchImpl ?? rt.fetchImpl;
+  const { blocks, warnings } = await fetchInstructionUrls(urls, { fetchImpl: impl });
+  for (const w of warnings) rt.ctx.ui.info(`config: ${w}`);
+  rt.contextFiles.urls = [];
+  if (!blocks.length) return;
+  const text = `\n\n# Instrucciones remotas\n\n${blocks.join("\n")}`;
+  rt.instructionUrls.text = text;
+  rt.messages[0] = { role: "system", content: rt.messages[0].content + text };
 }
 
 /** Compacta los mensajes si toca. Llamar justo antes de runAgentLoop. */

@@ -4,7 +4,7 @@
 import { createInterface } from "node:readline/promises";
 import { stdin, stdout, stderr } from "node:process";
 import { runAgentLoop } from "../core/loop.js";
-import { buildRuntime, persistNewMessages, prepareContext, prepareMcp, prepareHooks, type RuntimeOptions } from "./common.js";
+import { buildRuntime, persistNewMessages, prepareContext, prepareMcp, prepareHooks, prepareUrlContext, type RuntimeOptions } from "./common.js";
 import { prepareExtensions } from "../ext/loader.js";
 import { Session } from "../core/session.js";
 
@@ -25,6 +25,7 @@ export async function runRepl(opts: RuntimeOptions): Promise<number> {
       for (const s of Session.list().slice(0, 20)) stderr.write(`${s.id}  ${s.title}\n`);
       continue;
     }
+    await prepareUrlContext(rt);
     await prepareContext(rt);
     rt.ctx.undo?.beginTurn(line.slice(0, 80));
     const startIndex = rt.messages.length;

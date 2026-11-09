@@ -7,7 +7,7 @@ import { buildSystemPrompt } from "../core/context.js";
 import { Session } from "../core/session.js";
 import type { ChatMessage } from "../core/types.js";
 import type { UiHooks } from "../core/types.js";
-import { buildRuntime, persistNewMessages, prepareContext, prepareMcp, prepareHooks, compactNow, forkCurrentSession, type RuntimeOptions } from "./common.js";
+import { buildRuntime, persistNewMessages, prepareContext, prepareMcp, prepareHooks, prepareUrlContext, compactNow, forkCurrentSession, type RuntimeOptions } from "./common.js";
 import { loadTuiConfig } from "../ui/tui-config.js";
 import { loadThemes, defaultThemes } from "../ui/theme.js";
 import { TuiApp, type SlashCommand } from "../ui/app.js";
@@ -98,6 +98,7 @@ export async function runTui(opts: TuiOptions): Promise<number> {
     turnAbort = new AbortController();
     rt.ctx.signal = turnAbort.signal;
     try {
+      await prepareUrlContext(rt); // instrucciones-URL (una sola vez; fallos solo avisan)
       await prepareContext(rt); // compacta si toca, antes de tocar el historial
     } catch (err) {
       app.error(`compactación falló: ${(err as Error).message}`);

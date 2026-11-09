@@ -6,7 +6,8 @@
 //                   CLAUDE.md
 //                   GEMINI.md
 //   fuera del recorrido: entradas de `instructions` (paths o globs; las URLs se
-//   avisan y se ignoran — arrancar no debe depender de la red).
+//   recogen en `urls` — las descarga prepareUrlContext ANTES del primer turno,
+//   con timeout 10s y tope 32 KiB por archivo).
 //   solo cwd:        .vireo/memory.md — MEMORIA DEL PROYECTO (kind "memory"), la
 //   escribe el propio agente con write/edit (con permisos normales); vireo la
 //   carga automáticamente al arrancar. Carga SOLO desde el cwd (un proyecto =
@@ -35,7 +36,11 @@ export interface ContextFilesResult {
   /** Bloque listo para insertar en el system prompt ("" si no hay nada). */
   block: string;
   warnings: string[];
+  /** URLs declaradas en `instructions` (máx MAX_INSTRUCTION_URLS); las descarga prepareUrlContext. */
+  urls: string[];
 }
+
+export const MAX_INSTRUCTION_URLS = 8;
 
 function readCapped(path: string): { text: string; truncated: boolean; bytes: number } | null {
   try {
@@ -73,7 +78,8 @@ export function loadContextFiles(cwd: string, config: Record<string, unknown>): 
     }
   }
 
-  // `instructions`: paths/globs relativos al cwd (o absolutos/~). URLs: aviso y omisión.
+  // `instructions`: paths/globs relativos al cwd (o absolutos/~). URLs: recogidas en `urls`
+  const urls: string[] = [];
   const raw = config["instructions"];
   if (raw !== undefined && !Array.isArray(raw)) {
     warnings.push('config "instructions" debe ser un array de strings; se ignora');
@@ -82,7 +88,10 @@ export function loadContextFiles(cwd: string, config: Record<string, unknown>): 
     for (const item of raw) {
       if (consumed >= MAX_INSTRUCTIONS_FILES) { warnings.push(`instructions: máximo ${MAX_INSTRUCTIONS_FILES} archivos; el resto se ignora`); break; }
       if (typeof item !== "string" || !item.trim()) { warnings.push("instructions: entrada vacía o no-string; se ignora"); continue; }
-      if (isUrl(item)) { warnings.push(`instructions URL omitida (sin fetch en arranque): ${item}`); continue; }
+      if (isUrl(item)) {
+        if (urls.length >= MAX_INSTRUCTION_URLS) { warnings.push(`instructions: máximo ${MAX_INSTRUCTION_URLS} URLs; se ignora ${item}`); continue; }
+        urls.push(item); continue;
+      }
       if (/[*?[\]{}]/.test(item)) { // glob
         try {
           const glob = new Bun.Glob(item);
@@ -120,7 +129,7 @@ export function loadContextFiles(cwd: string, config: Record<string, unknown>): 
     ...files.map((f) => section(f, cwd)),
   ].join("\n").trimEnd() + "\n";
 
-  return { files, block, warnings };
+  return { files, block, warnings, urls };
 
   function mk(path: string, kind: ContextFileKind): ContextFileEntry {
     const bytes = statSync(path).size;
@@ -130,4 +139,39 @@ export function loadContextFiles(cwd: string, config: Record<string, unknown>): 
 
 function isFile(p: string): boolean {
   try { return statSync(p).isFile(); } catch { return false; }
+}
+
+const MAX_URL_BYTES = 32 * 1024;
+
+/**
+ * Descarga las URLs de `instructions` (antes del primer turno, NUNCA en el arranque
+ * síncrono): timeout 10s, tope 32 KiB por recurso, solo texto (text/*, application/json),
+ * máx MAX_INSTRUCTION_URLS. Fallos → aviso y omisión; jamás lanza.
+ */
+export async function fetchInstructionUrls(urls: string[], opts: { fetchImpl?: typeof fetch; timeoutMs?: number } = {}): Promise<{ blocks: string[]; warnings: string[] }> {
+  const fetchImpl = opts.fetchImpl ?? fetch;
+  const timeoutMs = opts.timeoutMs ?? 10_000;
+  const blocks: string[] = [];
+  const warnings: string[] = [];
+  for (const url of urls.slice(0, MAX_INSTRUCTION_URLS)) {
+    try {
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+      let res: Response;
+      try { res = await fetchImpl(url, { signal: ctrl.signal, redirect: "follow", headers: { accept: "text/plain, text/markdown, application/octet-stream, */*" } }); }
+      finally { clearTimeout(timer); }
+      if (!res.ok) { warnings.push(`instructions: HTTP ${res.status} en ${url}; se omite`); continue; }
+      const ctype = (res.headers.get("content-type") ?? "").split(";")[0].trim().toLowerCase();
+      const isText = !ctype || ctype.startsWith("text/") || ctype === "application/json" || ctype === "application/xml" || ctype === "application/octet-stream";
+      if (!isText) { warnings.push(`instructions: content-type no textual (${ctype}) en ${url}; se omite`); continue; }
+      const buf = new Uint8Array(await res.arrayBuffer());
+      const truncated = buf.length > MAX_URL_BYTES;
+      const text = new TextDecoder("utf8").decode(truncated ? buf.subarray(0, MAX_URL_BYTES) : buf);
+      blocks.push(`## ${url} (instructions-url)${truncated ? " — TRUNCADA a 32 KiB" : ""}\n\n${text.trimEnd()}\n`);
+    } catch (err) {
+      const e = err as Error;
+      warnings.push(`instructions: no se pudo descargar ${url}: ${e.name === "AbortError" || e.name === "TimeoutError" ? `timeout (${timeoutMs}ms)` : e.message}; se omite`);
+    }
+  }
+  return { blocks, warnings };
 }

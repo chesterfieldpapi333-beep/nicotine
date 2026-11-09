@@ -1,7 +1,7 @@
 // --print: un turno completo, respuesta a stdout, herramientas/ruido a stderr.
 
 import { runAgentLoop } from "../core/loop.js";
-import { buildRuntime, persistNewMessages, prepareContext, prepareMcp, prepareHooks, type RuntimeOptions } from "./common.js";
+import { buildRuntime, persistNewMessages, prepareContext, prepareMcp, prepareHooks, prepareUrlContext, type RuntimeOptions } from "./common.js";
 import { prepareExtensions } from "../ext/loader.js";
 
 export async function runPrint(opts: RuntimeOptions & { prompt: string }): Promise<number> {
@@ -9,6 +9,7 @@ export async function runPrint(opts: RuntimeOptions & { prompt: string }): Promi
   await prepareMcp(rt);
   await prepareHooks(rt);
   await prepareExtensions(rt, { ui: rt.ctx.ui });
+  await prepareUrlContext(rt); // instrucciones-URL (una sola vez)
   await prepareContext(rt); // compactar antes de empezar, si toca
   rt.ctx.undo?.beginTurn(opts.prompt.replace(/\s+/g, " ").slice(0, 80));
   const startIndex = rt.messages.length;
