@@ -10,6 +10,11 @@ export interface UiEngine {
   start(): Promise<void>;
   /** Termina el engine y restaura la terminal. */
   stop(): void;
+  /**
+   * Suspende la UI, cede la terminal al editor externo ($EDITOR/$VISUAL) y
+   * restaura la TUI al salir. v1: usado por /editor y /export.
+   */
+  withSuspendedUI?<T>(fn: () => Promise<T>): Promise<T>;
 }
 
 export function createAnsiEngine(app: TuiApp): UiEngine {
@@ -59,6 +64,23 @@ export function createAnsiEngine(app: TuiApp): UiEngine {
     resolveDone();
   };
 
+  const withSuspendedUI = async <T>(fn: () => Promise<T>): Promise<T> => {
+    // salir de alt screen, cursor visible, raw off, sin listeners de stdin
+    stdout.write("\x1b[?25h\x1b[?1049l");
+    try { stdin.setRawMode?.(false); } catch { /* no TTY */ }
+    stdin.pause();
+    stdin.removeListener("data", onData);
+    try {
+      return await fn();
+    } finally {
+      stdin.on("data", onData);
+      try { stdin.setRawMode?.(true); } catch { /* no TTY */ }
+      stdin.resume();
+      stdout.write("\x1b[?1049h\x1b[?25l"); // alt screen + cursor oculto
+      flush();
+    }
+  };
+
   return {
     start(): Promise<void> {
       return new Promise<void>((resolve) => {
@@ -73,6 +95,7 @@ export function createAnsiEngine(app: TuiApp): UiEngine {
       });
     },
     stop(): void { cleanup(); },
+    withSuspendedUI,
   };
 }
 

@@ -11,7 +11,7 @@ export type AgentEvent =
   | { type: "todos_updated"; todos: TodoItem[] }
   | { type: "session_saved"; sessionId: string }
   | { type: "compaction"; beforeTokens: number; afterTokens: number; pass?: 1 | 2 }
-  | { type: "provider_retry"; status: number; attempt: number; total: number };
+  | { type: "provider_retry"; status: number; attempt: number; total: number; model?: string; nextModel?: string };
 
 export interface TokenUsage {
   promptTokens?: number;

@@ -19,6 +19,7 @@ import { renderCommandBody } from "../compat/file-commands.js";
 import { stripModel } from "../core/provider.js";
 import { CONNECT_CATALOG, writeAuthEntry } from "../core/auth.js";
 import { exportSessionMarkdown } from "./export-session.js";
+import { editInExternalEditor, openInExternalEditor } from "../ui/external-editor.js";
 import type { UiBridge, ExtAppLike } from "../ext/api.js";
 import { splitArgs } from "../compat/util.js";
 
@@ -231,6 +232,12 @@ export async function runTui(opts: TuiOptions): Promise<number> {
     },
   }));
 
+  // Suspensión de la UI para editores externos (ambos motores la soportan)
+  const suspendUI = async (fn: () => Promise<void>): Promise<void> => {
+    if (!engine.withSuspendedUI) throw new Error("este motor no soporta suspender la UI");
+    return engine.withSuspendedUI(fn);
+  };
+
   // ————— /connect —————
   const runConnect = async () => {
     const ids = CONNECT_CATALOG.map((p) => `${p.id} — ${p.label}`);
@@ -273,10 +280,24 @@ export async function runTui(opts: TuiOptions): Promise<number> {
     { name: "sessions", hint: "listar sesiones", run: () => app.openSessions() },
     { name: "models", hint: "seleccionar modelo (esta sesión)", run: () => void app.openModels() },
     { name: "connect", hint: "añadir un proveedor con API key (auth.json 0600)", run: (_app) => { void runConnect(); } },
-    { name: "export", hint: "exportar la sesión a Markdown", run: (_app) => {
-        try { const r = exportSessionMarkdown(rt); _app.info(`exportado (${r.messages} mensajes) → ${r.path}`); }
-        catch (err) { _app.error(`/export falló: ${(err as Error).message}`); }
-      } },
+    { name: "export", hint: "exportar la sesión a Markdown (abre $EDITOR si está definido)", run: (_app) => { void (async () => {
+        try {
+          const r = exportSessionMarkdown(rt);
+          if (process.env.VISUAL || process.env.EDITOR) {
+            const opened = await openInExternalEditor(r.path, suspendUI);
+            _app.info(opened.ok ? `exportado (${r.messages} mensajes) → ${r.path} (abierto en $EDITOR)` : `exportado a ${r.path}; ${opened.detail}`);
+          } else {
+            _app.info(`exportado (${r.messages} mensajes) → ${r.path}`);
+          }
+        } catch (err) { _app.error(`/export falló: ${(err as Error).message}`); }
+      })(); } },
+    { name: "editor", hint: "abrir el buffer del prompt en $EDITOR", run: (_app) => { void (async () => {
+        const before = app.getEditorText();
+        const res = await editInExternalEditor(before, suspendUI, "vireo");
+        if ("error" in res) { _app.error(res.error); return; }
+        app.setEditorText(res.text.replace(/\n$/, "")); // EOF final informativo del editor
+        _app.info("buffer actualizado desde el editor externo");
+      })(); } },
     { name: "themes", hint: "cambiar tema", run: () => app.openThemes() },
     { name: "agent", hint: "alternar build/plan", run: () => { const id = cycleAgent(); app.info(`agente: ${id}`); } },
     { name: "thinking", hint: "razonamiento del modelo", run: () => app.info("razonamiento visible: se mostrará cuando el proveedor emita `reasoning_content` (la mayoría no lo hace); placeholder en fase 3") },
@@ -343,7 +364,7 @@ export async function runTui(opts: TuiOptions): Promise<number> {
       case "error": app.error(ev.message); break;
       case "todos_updated": app.todosUpdated(ev.todos); break;
       case "session_saved": break;
-      case "provider_retry": app.info(`HTTP ${ev.status} — rotando a la key ${ev.attempt + 1}/${ev.total}`); break;
+      case "provider_retry": app.info(ev.nextModel && ev.nextModel !== ev.model ? `HTTP ${ev.status} — saltando a modelo ${ev.nextModel}` : `HTTP ${ev.status} — reintentando (${ev.attempt}/${ev.total})${ev.model ? ` modelo ${ev.model}` : ""}`); break;
     }
   });
 

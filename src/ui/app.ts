@@ -5,6 +5,7 @@ import { EditorState } from "./editor.js";
 import type { KeyEventLike } from "./key.js";
 import { fgHex, token, reset, bold, dimmed, type Theme } from "./theme.js";
 import { wrapMessage, oneLine, type DisplayMessage } from "./components.js";
+import { applyDiffStyle } from "./diff-style.js";
 import { visibleWidth, stripAnsi, fitAnsi } from "./ansi-wrap.js";
 import { bindingMatches, type TuiConfig } from "./tui-config.js";
 import type { TodoItem } from "../core/events.js";
@@ -150,6 +151,10 @@ export class TuiApp {
     this.render();
   }
   turnStarted(): void { this.streaming = true; this.spinnerStarted = Date.now(); this.render(); }
+  /** Texto actual del buffer del editor (para /editor). */
+  getEditorText(): string { return this.editor.buffer(); }
+  /** Reemplaza el buffer (cursor al final) y repinta. */
+  setEditorText(text: string): void { this.editor.setBuffer(text); this.render(); }
   error(msg: string): void { this.messages.push({ role: "error", text: msg }); this.render(); }
   todosUpdated(todos: TodoItem[]): void { this.todos = todos; this.render(); }
   info(text: string): void { this.messages.push({ role: "system", text }); this.render(); }
@@ -208,7 +213,7 @@ export class TuiApp {
   private messageLines(width: number): string[] {
     const out: string[] = [];
     for (const msg of this.messages) {
-      out.push(...wrapMessage(msg, this.deps.theme, width));
+      out.push(...wrapMessage(msg, this.deps.theme, width, this.deps.tui.diffStyle));
       out.push(""); // respiro entre mensajes
     }
     return out;
@@ -300,7 +305,7 @@ export class TuiApp {
       rows.push(fgHex(token(t, "fg")) + `${d.req.action} → ${d.req.resource}` + reset);
       if (d.req.alwaysPattern) rows.push(dimmed + `siempre guardará: ${d.req.alwaysPattern} (solo este proyecto)` + reset);
       if (d.req.diff) {
-        const diffLines = d.req.diff.split("\n");
+        const diffLines = applyDiffStyle(d.req.diff, this.deps.tui.diffStyle).split("\n");
         const budget = Math.max(2, maxHeight - 5);
         for (const raw of diffLines.slice(0, budget)) {
           const colored = raw.startsWith("+") && !raw.startsWith("+++") ? fgHex(token(t, "diffAdd")) + raw + reset

@@ -27,6 +27,12 @@ export interface ProviderConfig {
    */
   apiKeys?: string[];
   model: string;
+  /**
+   * Modelos alternativos si TODAS las claves fallan con 401/403/429/5xx.
+   * Orden: `provider.fallbackModels: string[]` (config) → `VIREO_MODEL_FALLBACKS`
+   * (env, coma-separados). Mismas reglas de prefijo vendor/ y #variant que `model`.
+   */
+  fallbackModels?: string[];
   headers: Record<string, string>;
 }
 
@@ -53,6 +59,14 @@ export function resolveProvider(config: Record<string, unknown>, flagModel?: str
     for (const k of process.env.OPENAI_API_KEYS.split(",")) { const t = k.trim(); if (t) extra.push(t); }
   }
   const apiKeys = [...new Set([...extra, apiKey].filter(Boolean))];
+  const fallback: string[] = [];
+  if (Array.isArray(providerCfg["fallbackModels"])) {
+    for (const m of providerCfg["fallbackModels"] as unknown[]) if (typeof m === "string" && m.trim()) fallback.push(stripModel(m));
+  }
+  if (process.env.VIREO_MODEL_FALLBACKS) {
+    for (const m of process.env.VIREO_MODEL_FALLBACKS.split(",")) { const t = m.trim(); if (t) fallback.push(stripModel(t)); }
+  }
+  const fallbackModels = [...new Set(fallback.filter((m) => m && m !== model))];
   const headers = (providerCfg["headers"] ?? {}) as Record<string, string>;
   if (!apiKeys.length && !/localhost|127\.0\.0\.1/.test(baseURL)) {
     // Último recurso: auth.json de /connect — SOLO si la baseURL encaja (exacto)
@@ -63,7 +77,7 @@ export function resolveProvider(config: Record<string, unknown>, flagModel?: str
   if (!apiKeys.length && !/localhost|127\.0\.0\.1/.test(baseURL)) {
     throw new Error(`Falta API key para ${baseURL}. Exporta OPENAI_API_KEY (o OPENAI_API_KEYS=lista) o pon provider.apiKey / provider.apiKeys en opencode.json (acepta {env:VAR}) o usa /connect.`);
   }
-  return { baseURL, apiKey: apiKeys[0] ?? "", apiKeys, model, headers };
+  return { baseURL, apiKey: apiKeys[0] ?? "", apiKeys, model, fallbackModels, headers };
 }
 
 export interface StreamChatOptions {
@@ -76,7 +90,7 @@ export interface StreamChatOptions {
   /** Inyectable para tests. */
   fetchImpl?: typeof fetch;
   /** Aviso de rotación de clave (sin exponer la clave). */
-  onRetry?: (info: { attempt: number; status: number; total: number }) => void;
+  onRetry?: (info: { attempt: number; status: number; total: number; model?: string; nextModel?: string }) => void;
 }
 
 export interface StreamChatResult {
@@ -95,29 +109,43 @@ export async function streamChat(opts: StreamChatOptions): Promise<StreamChatRes
 
   const doFetch = opts.fetchImpl ?? fetch;
   const FAILOVER = new Set([401, 403, 429, 500, 502, 503, 504]);
+  const modelChain = [provider.model, ...(provider.fallbackModels ?? [])];
   const pool: string[] = provider.apiKeys?.length ? provider.apiKeys : [provider.apiKey];
   let res: Response | undefined;
-  for (let attempt = 0; attempt < pool.length; attempt++) {
-    res = await doFetch(`${provider.baseURL}/chat/completions`, {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        ...(pool[attempt] ? { authorization: `Bearer ${pool[attempt]}` } : {}),
-        ...provider.headers,
-      },
-      body: JSON.stringify(body),
-      signal: opts.signal,
-    });
-    if (res.ok) break;
-    const status = res.status;
-    const bodyText = await res.text();
-    if (!FAILOVER.has(status) || attempt + 1 >= pool.length) {
-      throw new ProviderError(status, bodyText);
+  let usedModel = provider.model;
+  let lastStatus = 0, totalAttempts = 0;
+  // Cadena completa: model1[key1..keyN] → model2[key1..keyN] → … (máx. 12 peticiones)
+  outer:
+  for (const modelName of modelChain) {
+    for (let attempt = 0; attempt < pool.length; attempt++) {
+      if (totalAttempts >= 12) break outer;
+      totalAttempts++;
+      usedModel = modelName;
+      body["model"] = modelName;
+      res = await doFetch(`${provider.baseURL}/chat/completions`, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          ...(pool[attempt] ? { authorization: `Bearer ${pool[attempt]}` } : {}),
+          ...provider.headers,
+        },
+        body: JSON.stringify(body),
+        signal: opts.signal,
+      });
+      if (res.ok) break outer;
+      const status = res.status;
+      lastStatus = status;
+      const bodyText = await res.text();
+      const isLastKeyOfModel = attempt + 1 >= pool.length;
+      const isLastModel = modelName === modelChain[modelChain.length - 1];
+      if (!FAILOVER.has(status)) throw new ProviderError(status, bodyText); // 400 y demás: no rotar
+      if (isLastKeyOfModel && isLastModel) throw new ProviderError(status, bodyText);
+      // aviso de failover (sin exponer claves); incluye el modelo al que se salta
+      opts.onRetry?.({ attempt: totalAttempts, status, total: Math.min(modelChain.length * pool.length, 12), model: modelName, nextModel: !isLastKeyOfModel ? modelName : modelChain[modelChain.indexOf(modelName) + 1] });
     }
-    // failover a la siguiente clave (401/403/429/5xx); aviso sin exponer claves
-    opts.onRetry?.({ attempt: attempt + 1, status, total: pool.length });
   }
-  if (!res) throw new Error("El proveedor no respondió.");
+  if (!res) throw new ProviderError(lastStatus || 0, "agotadas todas las claves y modelos");
+  if (usedModel !== provider.model) provider.model = usedModel; // failover pega en la sesión (visible en /models)
   if (!res.body) throw new Error("El proveedor no devolvió stream (res.body vacío).");
 
   let text = "";

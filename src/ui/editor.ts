@@ -9,6 +9,13 @@ export class EditorState {
   buffer(): string { return this.lines.join("\n"); }
   isEmpty(): boolean { return this.buffer().trim().length === 0; }
   clear(): void { this.lines = [""]; this.row = 0; this.col = 0; }
+  /** Reemplaza todo el buffer (cursor al final). Tolera CRLF. */
+  setBuffer(text: string): void {
+    const raw = text.replace(/\r\n?/g, "\n");
+    this.lines = raw === "" ? [""] : raw.split("\n");
+    this.row = this.lines.length - 1;
+    this.col = this.lines[this.row].length;
+  }
 
   insert(text: string): void {
     const parts = text.split("\n");

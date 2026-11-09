@@ -3,6 +3,7 @@
 
 import { fgHex, token, reset, bold, dimmed, type Theme } from "./theme.js";
 import { wrapAnsi } from "./ansi-wrap.js";
+import { applyDiffStyle, type DiffStyle } from "./diff-style.js";
 
 export type DisplayRole = "user" | "assistant" | "tool" | "system" | "error";
 
@@ -42,7 +43,7 @@ export function toolOutputLine(theme: Theme, line: string): string {
   return dimmed + "  " + line + reset;
 }
 
-export function wrapMessage(msg: DisplayMessage, theme: Theme, width: number): string[] {
+export function wrapMessage(msg: DisplayMessage, theme: Theme, width: number, diffStyle?: DiffStyle): string[] {
   const out: string[] = [];
   const pushWrapped = (raw: string) => { for (const chunk of wrapAnsi(raw, Math.max(1, width))) out.push(chunk.text); };
   switch (msg.role) {
@@ -51,9 +52,10 @@ export function wrapMessage(msg: DisplayMessage, theme: Theme, width: number): s
     case "tool": {
       pushWrapped(toolStartLine(theme, msg.toolName ?? "tool", oneLine(msg.text, 160)));
       if (msg.output !== undefined) {
-        const lines = msg.output.split("\n").slice(0, 30);
+        const styled = applyDiffStyle(msg.output, diffStyle);
+        const lines = styled.split("\n").slice(0, 30);
         for (const raw of lines) for (const chunk of wrapAnsi(toolOutputLine(theme, raw), Math.max(1, width))) out.push(chunk.text);
-        if (msg.output.split("\n").length > 30) out.push(dimmed + "  …(salida truncada)" + reset);
+        if (styled.split("\n").length > 30) out.push(dimmed + "  …(salida truncada)" + reset);
         if (msg.durationMs !== undefined) out.push(toolEndLine(theme, msg.toolName ?? "tool", !!msg.isError, msg.durationMs));
       }
       break;

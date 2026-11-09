@@ -117,11 +117,11 @@ describe("failover de claves (401/403/429/5xx)", () => {
       if (call < 3) return new Response("rate limited", { status: 429 });
       return new Response(sseOk("ok-final"), { status: 200 });
     }) as unknown as typeof fetch;
-    const retries: { attempt: number; status: number; total: number }[] = [];
+    const retries: { attempt: number; status: number; total: number; model?: string; nextModel?: string }[] = [];
     const res = await streamChat({ provider: providerWith(["k1", "k2", "k3"]), messages: [{ role: "user", content: "hi" }], fetchImpl, onRetry: (i) => retries.push(i) });
     expect(res.message.content).toBe("ok-final");
     expect(seen).toEqual(["Bearer k1", "Bearer k2", "Bearer k3"]);
-    expect(retries).toEqual([{ attempt: 1, status: 429, total: 3 }, { attempt: 2, status: 429, total: 3 }]);
+    expect(retries).toEqual([{ attempt: 1, status: 429, total: 3, model: "m", nextModel: "m" }, { attempt: 2, status: 429, total: 3, model: "m", nextModel: "m" }]);
   });
 
   test("400 no rota (error del cliente no es failover)", async () => {
@@ -276,4 +276,42 @@ describe("policies v2 (hard-deny post-reglas) y PermissionDenied", () => {
 test("estimateTokens > 0 y escala con el contenido", () => {
   expect(estimateTokens([{ role: "user", content: "abcd" }])).toBe(1);
   expect(estimateTokens([{ role: "user", content: big }])).toBeGreaterThan(1000);
+});
+
+describe("failover de modelos (VIREO_MODEL_FALLBACKS / provider.fallbackModels)", () => {
+  test("todas las claves 429 en modelo A → salta a modelo B y tiene éxito", async () => {
+    const calls: { model: string; key: string }[] = [];
+    const fetchImpl = (async (_url: string, init: any) => {
+      const body = JSON.parse(init.body);
+      const key = (init.headers.authorization ?? "").replace("Bearer ", "");
+      calls.push({ model: body.model, key });
+      if (body.model === "modelo-a") return new Response("rate", { status: 429 });
+      return new Response('data: {"choices":[{"delta":{"content":"ok-B"}}]}\ndata: [DONE]\n\n', { status: 200, headers: { "content-type": "text/event-stream" } });
+    }) as unknown as typeof fetch;
+    const provider = { model: "modelo-a", baseURL: "http://127.0.0.1:9/v1", apiKey: "k1", apiKeys: ["k1", "k2"], fallbackModels: ["modelo-b"], headers: {} };
+    const seen: any[] = [];
+    const res = await streamChat({ provider, messages: [{ role: "user", content: "hi" }], fetchImpl, onRetry: (i) => seen.push(i) });
+    expect(res.message.content).toBe("ok-B");
+    expect(calls.map((c) => c.model)).toEqual(["modelo-a", "modelo-a", "modelo-b"]);
+    expect(seen.length).toBe(2);
+    expect(provider.model).toBe("modelo-b"); // failover pega en la sesión
+  });
+
+  test("400 NO rota ni salta al fallback", async () => {
+    const calls: string[] = [];
+    const fetchImpl = (async (_url: string, init: any) => { calls.push(JSON.parse(init.body).model); return new Response("bad request", { status: 400 }); }) as unknown as typeof fetch;
+    const provider = { model: "mal", baseURL: "http://127.0.0.1:9/v1", apiKey: "k1", apiKeys: ["k1", "k2"], fallbackModels: ["bueno"], headers: {} };
+    let caught: any = null;
+    try { await streamChat({ provider, messages: [{ role: "user", content: "hi" }], fetchImpl }); } catch (e) { caught = e; }
+    expect(caught?.name).toBe("ProviderError");
+    expect(calls).toEqual(["mal"]); // una sola petición, ninguna rotación
+  });
+
+  test("cadena agotada → ProviderError con el último status", async () => {
+    const provider = { model: "a", baseURL: "http://127.0.0.1:9/v1", apiKey: "k1", apiKeys: ["k1", "k2"], fallbackModels: ["b"], headers: {} };
+    const fetchImpl = (async () => new Response("boom", { status: 500 })) as unknown as typeof fetch;
+    let caught: any = null;
+    try { await streamChat({ provider, messages: [{ role: "user", content: "hi" }], fetchImpl }); } catch (e) { caught = e; }
+    expect(caught?.status).toBe(500);
+  });
 });

@@ -31,7 +31,7 @@ export class FlatUi implements UiHooks {
           break;
         }
         case "provider_retry":
-          stderr.write(dim(`  · HTTP ${ev.status} — rotando a la key ${ev.attempt + 1}/${ev.total}\n`));
+          stderr.write(dim(`  · HTTP ${ev.status} — ${ev.nextModel && ev.nextModel !== ev.model ? `saltando a modelo ${ev.nextModel}` : `reintentando (${ev.attempt}/${ev.total})`}\n`));
           break;
         case "compaction":
           stderr.write(`  · contexto compactado (${ev.pass === 1 ? "poda sin LLM" : "resumen"}): ${ev.beforeTokens} → ${ev.afterTokens} tokens\n`);

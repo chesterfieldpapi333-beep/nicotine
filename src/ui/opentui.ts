@@ -116,5 +116,15 @@ export function createOpenTuiEngine(app: TuiApp): UiEngine {
       });
     },
     stop(): void { cleanup(); },
+    async withSuspendedUI<T>(fn: () => Promise<T>): Promise<T> {
+      const r = renderer;
+      if (!r) throw new Error("motor OpenTUI no iniciado");
+      try {
+        await r.suspend(); // sale de alt screen / raw mode y restaura la terminal
+        return await fn();
+      } finally {
+        await r.resume().catch(() => {}); // el contenido del buffer se re-renderiza solo
+      }
+    },
   };
 }

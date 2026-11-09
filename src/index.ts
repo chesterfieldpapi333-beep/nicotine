@@ -6,6 +6,7 @@ import { runJson } from "./modes/json.js";
 import { runRepl } from "./modes/repl.js";
 import { runTui } from "./modes/tui.js";
 import { runDoctor } from "./modes/doctor.js";
+import { runServe } from "./modes/serve.js";
 import { loadConfig } from "./core/config.js";
 import { updateCatalogs } from "./compat/skill-catalog.js";
 
@@ -23,6 +24,9 @@ Uso:
 Opciones:
   -p, --print        modo no interactivo (un turno)
       --json         eventos como JSONL
+      serve          servidor HTTP local (apagado por defecto; requiere VIREO_SERVER_PASSWORD)
+      --port <n>     puerto de serve (defecto 4096)
+      --hostname <h> bind de serve (defecto 127.0.0.1)
   -m, --model <id>   modelo (p. ej. openai/gpt-4o-mini); [proveedor/]modelo
       --agent <id>   agente built-in: build | plan | architect | editor
       --auto         auto-aprueba lo que pregunte (deny sigue denegado)
@@ -37,6 +41,10 @@ Entorno:
   VIREO_UI_ENGINE    motor de TUI: opentui (defecto) | ansi (fallback propio)
   VIREO_TUI_CONFIG   ruta alternativa a tui.json(c)
   VIREO_MODEL        modelo por defecto
+  VIREO_SERVER_PASSWORD  contraseña para «vireo serve» (obligatoria)
+
+Fallbacks de modelo: provider.fallbackModels en config o VIREO_MODEL_FALLBACKS
+(coma-separados) — se usan si TODAS las claves fallan con 401/403/429/5xx.
 
 Si stdin no es un TTY, su contenido se añade al prompt entre <stdin>…</stdin>.
 Config: opencode.json(c) — capas: /etc/opencode < ~/.config/opencode < proyecto
@@ -55,6 +63,8 @@ interface Args {
   continueLatest: boolean;
   fork: boolean;
   configDir?: string;
+  port?: number;
+  hostname?: string;
   help: boolean;
   version: boolean;
   positional: string[];
@@ -78,6 +88,8 @@ function parseArgs(argv: string[]): Args {
       case "--continue": case "-c": args.continueLatest = true; break;
       case "--fork": args.fork = true; break;
       case "--config-dir": args.configDir = next(i, a); i++; break;
+      case "--port": { const v = next(i, a); const n = Number(v); if (!Number.isInteger(n) || n < 1 || n > 65535) throw new Error(`--port inválido: ${v}`); args.port = n; i++; break; }
+      case "--hostname": args.hostname = next(i, a); i++; break;
       case "--help": case "-h": args.help = true; break;
       case "--version": args.version = true; break;
       case "doctor": case "serve": case "skills":
@@ -134,8 +146,7 @@ async function main(): Promise<number> {
     return failed ? 1 : 0;
   }
   if (args.command === "serve") {
-    stderr.write("vireo serve llega en una fase posterior (HTTP opcional, apagado por defecto).\n");
-    return 2;
+    return runServe({ cwd, configDir: args.configDir, auto: args.auto, agentId: args.agent, modelFlag: args.model, sessionId: args.sessionId, continueLatest: args.continueLatest, fork: args.fork, port: args.port, hostname: args.hostname });
   }
 
   const stdinText = await readStdinIfPiped();

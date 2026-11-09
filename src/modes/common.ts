@@ -20,6 +20,8 @@ import { loadProjectApprovals, saveProjectApproval } from "../core/approvals.js"
 import type { McpPromptInfo } from "../compat/mcp/client.js";
 import type { AgentTool, ChatMessage, ToolContext } from "../core/types.js";
 import { ALL_TOOLS } from "../tools/index.js";
+import { lspServersFromConfig } from "../compat/lsp.js";
+import { makeLspTool } from "../tools/lsp.js";
 import { runAgentLoop } from "../core/loop.js";
 import { discoverPlugins, type PluginsReport } from "../compat/plugins.js";
 import { parseConfigCommands, type ConfigCommand } from "../compat/config-commands.js";
@@ -233,15 +235,20 @@ export function buildRuntime(opts: RuntimeOptions): Runtime {
   };
   ctx.runSubagent = runSubagent;
 
+  // Tool lsp: SOLO si la config declara servidores (experimental, off por defecto)
+  const lspCfg = lspServersFromConfig(config);
+  const lspTools = lspCfg.defs.length ? [makeLspTool(lspCfg.defs)] : [];
+  const warningsLsp = [...lspCfg.warnings, ...(lspCfg.defs.length ? [`lsp: ${lspCfg.defs.length} servidor(es) configurado(s) — experimental (solo diagnostics)`] : [])];
+
   const rt = {
     config, layers, provider, permissions: withSaved(agent.permissionRules), session, bus, ui, ctx, messages,
-    tools: ALL_TOOLS,
+    tools: [...ALL_TOOLS, ...lspTools],
     usageTotals: { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
     compaction: compactionFromConfig(config),
     agent: agentCtl,
     contextFiles,
     skills: skillIndex,
-    warnings: [...configWarnings, ...compatWarnings],
+    warnings: [...configWarnings, ...compatWarnings, ...warningsLsp],
     mcpOrigins,
     mcp: { servers: [], prompts: [] },
     extensionOrigins,

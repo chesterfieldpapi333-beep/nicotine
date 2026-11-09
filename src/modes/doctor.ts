@@ -15,6 +15,7 @@ import { spawnSync } from "node:child_process";
 import { sessionsDir } from "../core/session.js";
 import { catalogStatus } from "../compat/skill-catalog.js";
 import { readAuth } from "../core/auth.js";
+import { lspServersFromConfig } from "../compat/lsp.js";
 
 export function runDoctor(opts: { cwd: string; configDir?: string; agentId?: string; modelFlag?: string }): number {
   const { config, rules, policies, layers, warnings: configWarnings, mcpOrigins, extensionOrigins } = loadConfig(opts.cwd, { configDir: opts.configDir });
@@ -45,6 +46,9 @@ export function runDoctor(opts: { cwd: string; configDir?: string; agentId?: str
   out.push(`  external_directory * → ${engine.check("external_directory", "/tmp/ejemplo/*").effect} (spec Vireo: ask por defecto)`);
   out.push(`Policies v2 (hard-deny post-reglas): ${policyCount}`);
   out.push(`Auth (/connect): ${Object.keys(readAuth()).length} proveedor(es) — ids libres, claves nunca se muestran`);
+  out.push(`serve: apagado por defecto (${process.env.VIREO_SERVER_PASSWORD ? "VIREO_SERVER_PASSWORD definida" : "falta VIREO_SERVER_PASSWORD"}; arranca con «vireo serve»)`);
+  const lsp = lspServersFromConfig(config);
+  out.push(`lsp: ${lsp.defs.length ? `${lsp.defs.length} servidor(es) — experimental (solo diagnostics): ${lsp.defs.map((d) => d.name).join(", ")}` : "desactivado (sin `lsp` en config)"}`);
   out.push("");
   out.push("Modelo:");
   const model = opts.modelFlag ?? (config["model"] as string | undefined) ?? process.env.VIREO_MODEL ?? process.env.OPENAI_MODEL ?? "(sin configurar)";
