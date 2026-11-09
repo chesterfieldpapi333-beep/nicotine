@@ -62,7 +62,8 @@ export class FlatUi implements UiHooks {
     const rl = createInterface({ input: stdin, output: stderr });
     try {
       for (;;) {
-        const answer = (await rl.question(yellow(`¿Permitir ${req.action} → ${req.resource}? [y=sí / n=no / a=siempre] `))).trim().toLowerCase();
+        const alwaysHint = req.alwaysPattern ? ` / a=siempre (guarda «${req.alwaysPattern}»)` : " / a=siempre";
+        const answer = (await rl.question(yellow(`¿Permitir ${req.action} → ${req.resource}? [y=sí / n=no${alwaysHint}] `))).trim().toLowerCase();
         if (["y", "yes", "si", "sí", "s"].includes(answer)) return "once";
         if (["a", "always", "siempre", "s2"].includes(answer)) return "always";
         if (["n", "no", ""].includes(answer)) return "reject";

@@ -83,7 +83,7 @@ export class TuiApp {
   private handleExtShortcut(key: KeyEventLike): boolean {
     for (const sc of this.extShortcuts) {
       if (sc.ctrl !== key.ctrl) continue;
-      if (sc.alt ? !key.meta : false) continue;
+      if (sc.alt !== !!key.meta) continue; // alt debe coincidir en AMBOS sentidos (shift no se compara)
       if (key.name !== sc.name) continue;
       try { sc.handler(); } catch (err) { this.error(`atajo de extensión falló: ${(err as Error).message}`); }
       return true;
@@ -298,6 +298,7 @@ export class TuiApp {
     if (d.kind === "permission") {
       rows.push(fgHex(token(t, "warning")) + bold + "permiso requerido" + reset);
       rows.push(fgHex(token(t, "fg")) + `${d.req.action} → ${d.req.resource}` + reset);
+      if (d.req.alwaysPattern) rows.push(dimmed + `siempre guardará: ${d.req.alwaysPattern} (solo este proyecto)` + reset);
       if (d.req.diff) {
         const diffLines = d.req.diff.split("\n");
         const budget = Math.max(2, maxHeight - 5);

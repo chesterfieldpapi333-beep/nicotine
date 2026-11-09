@@ -69,3 +69,16 @@ describe("runAgentLoop con proveedor mock", () => {
     expect(toolMsg?.content).toContain("permission denied");
   });
 });
+
+describe("proposeAlwaysPattern", () => {
+  test("read/edit/write/list → carpeta con /*; bash y otros → recurso exacto", async () => {
+    const { proposeAlwaysPattern } = await import("../src/core/loop.js");
+    expect(proposeAlwaysPattern("read", "/tmp/proj/src/a.ts")).toBe("/tmp/proj/src/*");
+    expect(proposeAlwaysPattern("edit", "/tmp/proj/src/a.ts")).toBe("/tmp/proj/src/*");
+    expect(proposeAlwaysPattern("write", "/tmp/proj/src/a.ts")).toBe("/tmp/proj/src/*");
+    expect(proposeAlwaysPattern("list", "/tmp/proj/src/")).toBe("/tmp/proj/src/*");
+    expect(proposeAlwaysPattern("bash", "npm test")).toBe("npm test");
+    expect(proposeAlwaysPattern("bash", "echo a; echo b")).toBe("echo a; echo b");
+    expect(proposeAlwaysPattern("read", "/")).toBe("/"); // sin carpeta padre: recurso exacto
+  });
+});

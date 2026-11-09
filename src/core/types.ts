@@ -86,6 +86,8 @@ export interface PermissionRequest {
   resource: string;
   /** Diff unificado opcional para mostrarlo ANTES de pedir permiso (spec edit/write). */
   diff?: string;
+  /** Patrón que se guardará si el usuario elige «siempre» (carpeta/* para rutas; el recurso exacto si no). Informativo. */
+  alwaysPattern?: string;
 }
 
 export type PermissionDecision = "once" | "always" | "reject";

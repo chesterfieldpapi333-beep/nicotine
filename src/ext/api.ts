@@ -1,6 +1,6 @@
 // API pública de extensiones de Vireo (diseño propio, lite).
 // Una extensión = un módulo .ts/.js con `export default function activate(api)`
-// (o `export function activate(api)`). Se carga en el arranque, DESPUÉS de la
+// (o `export function activate(api)` / `export function setup(api)`). Se carga en el arranque, DESPUÉS de la
 // config y ANTES del primer turno. Errores de una extensión no tumban las demás.
 //
 // Confianza (igual que MCP): extensiones de proyecto o de capas de proyecto

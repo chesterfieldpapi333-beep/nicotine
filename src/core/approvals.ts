@@ -7,7 +7,6 @@
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync, renameSync } from "node:fs";
 import { join } from "node:path";
-import { homedir } from "node:os";
 import { dataHome } from "./session.js";
 
 export interface SavedApproval { action: string; resource: string; savedAt: string }

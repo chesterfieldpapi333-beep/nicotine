@@ -370,3 +370,20 @@ describe("TUI — extensión API (fase 6)", () => {
     expect(ac?.items).toContain("demo:review");
   });
 });
+
+describe("TUI — atajos de extensión: modificadores exactos", () => {
+  test("ctrl+alt+g NO dispara el atajo ctrl+g; alt+g dispara el alt", () => {
+    const { app } = makeApp();
+    let fired = 0;
+    app.registerShortcut({ ctrl: true, alt: false, name: "g" }, () => { fired++; });
+    app.handleKey(key("g", "g", { ctrl: true, meta: true })); // ctrl+alt+g
+    expect(fired).toBe(0);
+    app.handleKey(key("g", "g", { ctrl: true }));               // ctrl+g
+    expect(fired).toBe(1);
+    let altFired = 0;
+    app.registerShortcut({ ctrl: false, alt: true, name: "g" }, () => { altFired++; });
+    app.handleKey(key("g", "g", { meta: true }));               // alt+g
+    expect(altFired).toBe(1);
+    expect(fired).toBe(1); // alt+g no dispara el ctrl+g
+  });
+});

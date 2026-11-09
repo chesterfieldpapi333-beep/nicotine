@@ -79,9 +79,9 @@ export async function runAgentLoop(opts: LoopOptions): Promise<"stop" | "max_ste
   return "max_steps";
 }
 
-// Propuesta de patrón para "allow always": para rutas, la carpeta con /*; para bash, el comando exacto.
-function proposeAlwaysPattern(action: string, resource: string): string {
-  if (action === "edit" || action === "read") {
+// Propuesta de patrón para "allow always": para rutas (read/edit/write/list), la carpeta con /*; para el resto (p. ej. bash), el recurso exacto.
+export function proposeAlwaysPattern(action: string, resource: string): string {
+  if (action === "edit" || action === "read" || action === "write" || action === "list") {
     const i = Math.max(resource.lastIndexOf("/"), resource.lastIndexOf("\\"));
     return i > 0 ? resource.slice(0, i + 1) + "*" : resource;
   }
@@ -110,13 +110,13 @@ export async function executeTool(tool: AgentTool | undefined, args: Record<stri
     // diff antes de pedir permiso (spec para write/edit/apply_patch)
     let diff: string | undefined;
     try { diff = (await tool.preview?.(args, opts.ctx))?.diff; } catch { /* preview falló: se pide sin diff */ }
-    const verdict = await opts.ctx.ui.confirm({ action, resource: resources.join(", "), diff });
+    const patterns = resources.map((r) => proposeAlwaysPattern(action, r));
+    const verdict = await opts.ctx.ui.confirm({ action, resource: resources.join(", "), diff, alwaysPattern: patterns.join(", ") });
     if (verdict === "reject") throw new PermissionDenied(action, resource);
     if (verdict === "always") {
-      for (const r of resources) {
-        const pattern = proposeAlwaysPattern(action, r);
-        opts.permissions.addSavedAllow({ action, resource: pattern, effect: "allow" });
-        opts.ctx.approvals?.save(action, pattern); // proyecto-scoped (XDG), nunca pisa deny (el motor re-evalúa deny)
+      for (const [i, r] of resources.entries()) {
+        opts.permissions.addSavedAllow({ action, resource: patterns[i], effect: "allow" });
+        opts.ctx.approvals?.save(action, patterns[i]); // proyecto-scoped (XDG), nunca pisa deny (el motor re-evalúa deny)
       }
     }
     decision = { effect: "allow" };
