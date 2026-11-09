@@ -213,3 +213,63 @@ describe("modelo de subagentes en config (spec: el subagente usa SU modelo; el p
     clearExtraAgents();
   });
 });
+
+describe("agentes de archivo .md — frontmatter completo (spec agents#markdown)", () => {
+  const write = (p: string, c: string) => { const { mkdirSync: mk, writeFileSync: wf } = require("node:fs"); mk(require("node:path").dirname(p), { recursive: true }); wf(p, c); };
+
+  test("subdirectorio → ID «team/reviewer»; body sustituye identidad; permissions del frontmatter se aplican", async () => {
+    const home = join(tmp, "home-fresh");
+    const project = join(tmp, "proj-md");
+    mkdirSync(project, { recursive: true });
+    write(join(project, ".opencode/agents/team/reviewer.md"), `---
+description: Revisor de diffs
+mode: subagent
+model: openai/helper-x#high
+permissions:
+  - action: edit
+    resource: "*"
+    effect: deny
+  - action: shell
+    resource: "git status *"
+    effect: ask
+hidden: false
+---
+Revisa con rigor. Nunca edites.`);
+    const { scanAgentFiles } = await import("../src/compat/agent-files.js");
+    const r = scanAgentFiles(project, { home });
+    const a = r.agents.find((x) => x.id === "team/reviewer");
+    expect(a, "team/reviewer debe existir con ID con /").toBeDefined();
+    expect(a!.mode).toBe("subagent");
+    expect(a!.model).toBe("openai/helper-x#high");
+    expect(a!.systemPrompt).toContain("Revisa con rigor");
+    expect(a!.systemPrompt).not.toContain("Eres Vireo");
+    expect(a!.permissionRules).toContainEqual({ action: "edit", resource: "*", effect: "deny" });
+    // normalizeAction mapea «shell» → «bash» (alias vireo)
+    expect(a!.permissionRules).toContainEqual({ action: "bash", resource: "git status *", effect: "ask" });
+    expect(r.warnings).toEqual([]);
+  });
+
+  test("name explícito pisa la ruta; disabled/hidden parsean; permissions inline malformada se avisa", async () => {
+    const home = join(tmp, "home-fresh2");
+    const project = join(tmp, "proj-md2");
+    mkdirSync(project, { recursive: true });
+    write(join(project, ".opencode/agents/hidden.md"), `---
+name: Fantasma
+description: oculto
+hidden: true
+disabled: true
+permissions:
+  - action: edit
+    resource: "*"
+    effect: quizas
+---
+soy oculto`);
+    const { scanAgentFiles } = await import("../src/compat/agent-files.js");
+    const r = scanAgentFiles(project, { home });
+    expect(r.agents[0].id).toBe("fantasma"); // sanitize lowercases
+    expect(r.agents[0].hidden).toBe(true);
+    expect(r.agents[0].disabled).toBe(true);
+    expect(r.agents[0].permissionRules).toEqual([]); // effect inválido → omitido
+    expect(r.warnings.some((w) => w.includes("effect desconocido"))).toBe(true);
+  });
+});

@@ -17,6 +17,8 @@ import { createOpenTuiEngine } from "../ui/opentui.js";
 import { prepareExtensions } from "../ext/loader.js";
 import { renderCommandBody } from "../compat/file-commands.js";
 import { stripModel } from "../core/provider.js";
+import { CONNECT_CATALOG, writeAuthEntry } from "../core/auth.js";
+import { exportSessionMarkdown } from "./export-session.js";
 import type { UiBridge, ExtAppLike } from "../ext/api.js";
 import { splitArgs } from "../compat/util.js";
 
@@ -229,12 +231,52 @@ export async function runTui(opts: TuiOptions): Promise<number> {
     },
   }));
 
+  // ————— /connect —————
+  const runConnect = async () => {
+    const ids = CONNECT_CATALOG.map((p) => `${p.id} — ${p.label}`);
+    const picked = await app.askQuestions([{
+      header: "Conectar proveedor",
+      question: "Elige proveedor (1-5) o personalizado (6):",
+      options: [...ids, "personalizado — otra base URL OpenAI-compatible"],
+    }]);
+    if (!picked) { app.info("/connect cancelado"); return; }
+    const idx = CONNECT_CATALOG.findIndex((p) => picked[0]?.startsWith(`${p.id} — `));
+    let baseURL = idx >= 0 ? CONNECT_CATALOG[idx].baseURL : "";
+    let id = idx >= 0 ? CONNECT_CATALOG[idx].id : "custom";
+    if (idx < 0) {
+      const url = await app.askQuestions([{ header: "Base URL", question: "URL base del proveedor (https://…/v1):", options: [] }]);
+      if (!url || !/^https?:\/\/\S+$/.test(url[0] ?? "")) { app.error("/connect cancelado o URL inválida"); return; }
+      baseURL = url[0].replace(/\/$/, "");
+      const name = await app.askQuestions([{ header: "ID", question: "Nombre corto para este proveedor (ej. «ollama»):", options: [] }]);
+      id = (name?.[0] ?? "custom").trim().replace(/[^a-zA-Z0-9_-]/g, "").toLowerCase() || "custom";
+    }
+    const key = await app.askQuestions([{
+      header: `API key «${id}»`,
+      question: "Pega la clave (oculta con «*»; se guarda solo en auth.json con permisos 0600):",
+      options: [],
+      mask: true,
+    }]);
+    const apiKey = key?.[0]?.trim();
+    if (!apiKey) { app.info("/connect cancelado (sin clave)"); return; }
+    try {
+      const { path, replaced } = writeAuthEntry(id, { baseURL, apiKey });
+      app.info(`proveedor «${id}» ${replaced ? "actualizado" : "guardado"} en ${path} (0600). Las nuevas sesiones lo usan cuando config/env no dan clave para esa baseURL.`);
+    } catch (err) {
+      app.error(`/connect falló: ${(err as Error).message}`);
+    }
+  };
+
   // ————— comandos slash / paleta —————
   const commands: SlashCommand[] = [
     { name: "help", hint: "atajos y comandos", run: () => app.openHelp() },
     { name: "new", hint: "nueva sesión", run: () => app.startNewSession() },
     { name: "sessions", hint: "listar sesiones", run: () => app.openSessions() },
     { name: "models", hint: "seleccionar modelo (esta sesión)", run: () => void app.openModels() },
+    { name: "connect", hint: "añadir un proveedor con API key (auth.json 0600)", run: (_app) => { void runConnect(); } },
+    { name: "export", hint: "exportar la sesión a Markdown", run: (_app) => {
+        try { const r = exportSessionMarkdown(rt); _app.info(`exportado (${r.messages} mensajes) → ${r.path}`); }
+        catch (err) { _app.error(`/export falló: ${(err as Error).message}`); }
+      } },
     { name: "themes", hint: "cambiar tema", run: () => app.openThemes() },
     { name: "agent", hint: "alternar build/plan", run: () => { const id = cycleAgent(); app.info(`agente: ${id}`); } },
     { name: "thinking", hint: "razonamiento del modelo", run: () => app.info("razonamiento visible: se mostrará cuando el proveedor emita `reasoning_content` (la mayoría no lo hace); placeholder en fase 3") },

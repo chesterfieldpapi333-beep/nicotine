@@ -104,4 +104,6 @@ export interface QuestionPrompt {
   question: string;
   options: string[];
   multiple?: boolean;
+  /** Oculta el texto tecleado (p. ej. API keys) con «*». */
+  mask?: boolean;
 }

@@ -1,17 +1,20 @@
-// Agentes de archivo (.claude/agents/*.md, .opencode/agents/*.md, .pi/agents/*.md,
-// <plugin>/agents/*.md) → AgentDef de vireo. Markdown + frontmatter:
-//   name?        (def: nombre del archivo)
+// Agentes de archivo (.claude/agents/**/*.md, .opencode/agents/**/*.md, .pi/agents/**/*.md,
+// <plugin>/agents/*.md) → AgentDef de vireo. Markdown + frontmatter (spec agents#markdown):
+//   name?        (def: ruta relativa con "/" — team/reviewer; plugins <plugin>:<dir>/<name>)
 //   description  (REQUERIDA — define cuándo usarlo; sin ella se descarta)
 //   mode?        primary | subagent | all   (def: subagent)
 //   tools?       "Read, Grep" o lista YAML — mapeadas a tools de vireo
-//   model?       ignorado con aviso
-// Cuerpo = systemAppend. IDs namespaced para plugins: <plugin>:<name>.
+//   model?       honrado por subagentes (vendor/ y #variant se descartan al aplicarlo)
+//   permissions? lista de {action, resource, effect} — reglas anexadas tras las globales
+//   hidden? / disabled?  booleanos
+// Cuerpo = systemPrompt (sustituye la identidad/estilo, como `system` en JSON).
 // Nunca ejecutan código; son datos.
 
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
-import { join, basename } from "node:path";
+import { join, basename, relative } from "node:path";
 import { homedir } from "node:os";
 import { parseFrontmatter } from "./yaml-lite.js";
+import { configToRules } from "../core/permissions.js";
 import { dirsRootToCwd } from "./util.js";
 import type { AgentDef } from "../core/agents.js";
 
@@ -38,25 +41,37 @@ export function scanAgentFiles(
   const addDir = (dir: string, origin: "global" | "project", namespace?: string) => {
     let files: string[] = [];
     try { files = listMd(dir); } catch { return; }
-    for (const f of files) addFile(f, origin, namespace);
+    for (const f of files) addFile(f, origin, namespace, dir);
   };
 
-  const addFile = (file: string, _origin: "global" | "project", namespace?: string) => {
+  const addFile = (file: string, _origin: "global" | "project", namespace: string | undefined, root: string) => {
     if (agents.length >= MAX_AGENTS) return;
     let raw: string;
     try { raw = readFileSync(file, "utf8"); } catch { warnings.push(`${file}: ilegible`); return; }
     const parsed = parseFrontmatter(raw);
     if (!parsed.fm) { warnings.push(`${file}: falta frontmatter; agente descartado`); return; }
     const fm = parsed.fm;
-    const baseName = sanitizeName(String(fm["name"] ?? basename(file, ".md"))) || sanitizeName(basename(file, ".md"));
-    if (!baseName) { warnings.push(`${file}: nombre inválido; agente descartado`); return; }
-    const id = namespace ? `${sanitizeName(namespace)}:${baseName}` : baseName;
+    // ID: nombre relativo con "/" para los directorios normales (spec: team/reviewer);
+    // plugins: <plugin>:<dir>/<name>. `name` explícito en frontmatter pisa la ruta.
+    const segs = relSegments(file, root);
+    const baseName = sanitizeName(String(fm["name"] ?? segs.at(-1) ?? basename(file, ".md"))) || sanitizeName(basename(file, ".md"));
+    const pathId = (fm["name"] !== undefined ? baseName : segs.join("/")) || baseName;
+    if (!pathId) { warnings.push(`${file}: nombre inválido; agente descartado`); return; }
+    const id = namespace ? `${sanitizeName(namespace)}:${pathId}` : pathId;
     const description = typeof fm["description"] === "string" ? fm["description"].trim() : "";
     if (!description) { warnings.push(`${file}: falta "description"; agente «${id}» descartado`); return; }
-    if (fm["model"] !== undefined) warnings.push(`${file}: «model» no se honra`);
     const modeRaw = String(fm["mode"] ?? "subagent").toLowerCase();
     const mode = modeRaw === "primary" || modeRaw === "all" || modeRaw === "subagent" ? modeRaw : "subagent";
     if (fm["mode"] !== undefined && modeRaw !== mode) warnings.push(`${file}: modo «${String(fm["mode"])}» inválido; se usa subagent`);
+    const model = typeof fm["model"] === "string" && fm["model"].trim() ? String(fm["model"]).trim() : undefined;
+    const permissionRules: import("../core/permissions.js").Rule[] = [];
+    const perms = fm["permissions"];
+    if (Array.isArray(perms)) {
+      for (const item of perms) {
+        try { permissionRules.push(...configToRules(undefined, [item])); }
+        catch { warnings.push(`${file}: permissions — effect desconocido (se omite): ${JSON.stringify(item)}`); }
+      }
+    } else if (perms !== undefined) warnings.push(`${file}: «permissions» debe ser una lista de {action, resource, effect}; se ignora`);
     const toolsRaw = fm["tools"];
     let toolAllow: string[] | undefined;
     if (toolsRaw !== undefined) {
@@ -71,15 +86,24 @@ export function scanAgentFiles(
       toolAllow = mapped.length ? mapped : undefined;
       if (!mapped.length && names.length) warnings.push(`${file}: ninguna tool reconocida; «${id}» tendrá el set completo (menos task/plan)`);
     }
+    const hidden = fm["hidden"] === true || String(fm["hidden"] ?? "").toLowerCase() === "true" ? true : undefined;
+    const disabled = fm["disabled"] === true || String(fm["disabled"] ?? "").toLowerCase() === "true" ? true : undefined;
+    for (const k of Object.keys(fm)) {
+      if (["name", "description", "mode", "model", "tools", "permissions", "hidden", "disabled"].includes(k)) continue;
+      warnings.push(`${file}: clave desconocida (ignorada): ${k}`);
+    }
     if (seen.has(id)) { warnings.push(`agente «${id}»: ${file} ignorado (ya definido)`); return; }
     seen.add(id);
     agents.push({
       id,
       mode: mode as AgentDef["mode"],
       description: description.slice(0, 512),
-      systemAppend: parsed.body.trim().slice(0, 16 * 1024),
-      permissionRules: [],
+      systemPrompt: parsed.body.trim() ? parsed.body.trim().slice(0, 16 * 1024) : undefined,
+      permissionRules,
       toolAllow,
+      model,
+      hidden,
+      disabled,
     });
   };
 
@@ -94,6 +118,12 @@ export function scanAgentFiles(
   for (const p of opts.plugins ?? []) addDir(join(p.root, "agents"), p.origin, p.name);
   return { agents, warnings };
 }
+
+/** Segmentos de ruta relativos a la raíz del directorio de agentes (para IDs con "/"). */
+const relSegments = (file: string, root: string): string[] => {
+  const rel = relative(root, file).replace(/\\/g, "/").replace(/\.md$/i, "");
+  return rel.split("/").filter(Boolean).map((s) => sanitizeName(s)).filter(Boolean);
+};
 
 const sanitizeName = (s: string) => s.trim().toLowerCase().replace(/[^a-z0-9_-]/g, "-").replace(/^-+|-+$/g, "").slice(0, 64);
 

@@ -203,6 +203,16 @@ de config con avisos; `--print` con `default_agent` inválido cae a build (exit 
 
 **Métricas:** 232 → **245/245** tests. e2e: ver `docs/parity.md` §Verificación.
 
+## Cierre de candidatos menores (2026-11)
+
+Hasta 251/251. Bloque de paridad menor entregado:
+- `/connect`: añade proveedor con API key (catálogo OpenAI-compatible + personalizado); clave oculta, `auth.json` 0600, encaje exacto por baseURL (o default openai), config/env ganan siempre; `doctor` reporta nº de proveedores (nunca la clave).
+- `/export`: sesión actual → Markdown en `$XDG_DATA_HOME/vireo/exports/` (0600; roles usuario/asistente/tool; omite el system prompt). No abre `$EDITOR` en v1.
+- tui.json `scroll_speed`: honrado como paso de PgUp/PgDn (`round(speed×4)` líneas, mínimo 0.001). La rueda de ratón no está cableada en ANSI ni en OpenTUI (honestamente: solo teclado).
+- Agentes `.md`: frontmatter `permissions:` (por entrada, con `normalizeAction`; efecto inválido → aviso + omisión), `hidden`/`disabled`, `body→systemPrompt`, `model` honrado (vendor/ y #variant cortados al pedir), IDs anidados por subdirectorio (`team/reviewer`); `name:` pisa el ID de ruta. `yaml-lite` ahora parsea listas de mapas en bloques.
+- Tests nuevos: `tests/connect-export.test.ts` (4) + 2 en `config-agents.test.ts`.
+- Sigue gateado (sin cambio salvo aprobación explícita): serve HTTP, LSP, OAuth MCP, `/fusion`.
+
 ## Estado de paridad por sección (ver `docs/parity.md` para el detalle fila a fila)
 
 | Sección | Resumen |
@@ -213,7 +223,7 @@ de config con avisos; `--print` con `default_agent` inválido cae a build (exit 
 | D. Core loop | streaming SSE; tool-calls; subagentes depth 1 |
 | E. Sesiones | JSONL, fork, undo/redo, compactación **2 pasos** (poda sin LLM → resumen); agentes desde config con merge spec (8+i) |
 | F. Comandos | builtins + `/init` + MCP prompts + extensiones + archivo + **`commands: {}` en config** (2026-11) |
-| G. TUI | paridad funcional lograda; ANSI + OpenTUI; temas; leader; `tui.json` separado (scroll_speed sin efecto); sin `onKey` para ext (v1) |
+| G. TUI | paridad funcional lograda; ANSI + OpenTUI; temas; leader; `tui.json` separado (`scroll_speed` → PgUp/PgDn); `/export`·`/connect` vivos; sin `onKey` para ext (v1) |
 | H. Sesiones/historial | hecho; `snapshots: false` honrado (no se toman snapshots) |
 | I. Skills | hecho **+ catálogos HTTP** con verificación sha256 (`vireo skills update`; init nunca descarga) |
 | J. MCP | stdio/HTTP stateless+legacy; multi-origen; OAuth fuera de lite |

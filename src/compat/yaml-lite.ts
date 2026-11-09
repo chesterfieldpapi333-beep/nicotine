@@ -1,7 +1,9 @@
-// Frontmatter YAML mínimo: solo lo que necesita SKILL.md (y agents/*.md más adelante).
-// Claves planas + anidamiento por indentación (máx 3 niveles).
-// Sin dependencias; tolerante pero no exotérico: listas inline `[a, b]`,
-// booleanos true/false, números como strings, strings con o sin comillas.
+// Frontmatter YAML mínimo: lo que necesitan SKILL.md y agents/*.md.
+// Claves planas + anidamiento por indentación, y LISTAS DE MAPAS en bloque
+// («permissions:» con ítems «- action: edit» + claves de continuación), que es lo
+// que pide la spec de agentes en .md. Sin dependencias; tolerante en lo plano:
+// listas inline `[a, b]`, booleanos true/false, strings con o sin comillas.
+// No soporta: listas anidadas, flow-maps (excepto [a, b] plana), multilínea (|/>).
 // Devuelve también las claves desconocidas de primer nivel para que el llamante avise.
 
 export interface FrontmatterResult {
@@ -27,27 +29,77 @@ export function parseFrontmatter(raw: string): { fm: Record<string, unknown> | n
   return { fm: fm.data, keys: fm.keys, body };
 }
 
+type Ctx = { indent: number; obj: Record<string, unknown> } | { indent: number; arr: unknown[] };
+const isArr = (c: Ctx): c is { indent: number; arr: unknown[] } => "arr" in c;
+
 function parseYamlish(text: string): FrontmatterResult | null {
-  // Pila de { indent, obj }. Cada línea con clave: valor cuelga del nivel de indentación.
   const root: Record<string, unknown> = {};
-  const stack: { indent: number; obj: Record<string, unknown>; lastKey?: string }[] = [{ indent: -1, obj: root }];
-  for (const rawLine of text.split("\n")) {
-    const line = rawLine.replace(/\s+$/, "");
+  const lines = text.split("\n");
+  const stack: Ctx[] = [{ indent: -1, obj: root }];
+  const top = () => stack[stack.length - 1];
+  const popTo = (indent: number) => { while (stack.length > 1 && top().indent >= indent) stack.pop(); };
+  const nextSignificant = (from: number): { content: string; indent: number } | null => {
+    for (let j = from; j < lines.length; j++) {
+      const l = lines[j].replace(/\s+$/, "");
+      if (!l.trim() || l.trimStart().startsWith("#")) continue;
+      return { content: l.trimStart(), indent: l.length - l.trimStart().length };
+    }
+    return null;
+  };
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].replace(/\s+$/, "");
     if (!line.trim() || line.trimStart().startsWith("#")) continue;
     const indent = line.length - line.trimStart().length;
-    const m = line.trimStart().match(KEY_RE);
+    const content = line.trimStart();
+
+    // ————— elemento de lista: "- …" o "-"
+    if (content === "-" || content.startsWith("- ")) {
+      const itemText = content.slice(1).replace(/^\s+/, "");
+      popTo(indent);
+      const ctx = top();
+      if (!isArr(ctx)) return null; // "- " sin una lista abierta por una clave
+      const m = itemText.match(KEY_RE);
+      if (!itemText) { ctx.arr.push(null); continue; }
+      if (!m) { ctx.arr.push(parseValue(itemText)); continue; }
+      // Ítem mapa: "- action: edit" — las claves de continuación se anexan a este objeto
+      const [, key, rawValue] = m;
+      const value = parseValue(rawValue.trim());
+      const item: Record<string, unknown> = {};
+      ctx.arr.push(item);
+      if (value === UNSET) {
+        // subobjeto anidado dentro del ítem (caso raro): se abre mapa simple
+        const child: Record<string, unknown> = {};
+        item[key] = child;
+        stack.push({ indent, obj: child });
+      } else {
+        item[key] = value;
+        stack.push({ indent, obj: item });
+      }
+      continue;
+    }
+
+    const m = content.match(KEY_RE);
     if (!m) return null;
+    popTo(indent);
+    const ctx = top();
+    if (isArr(ctx)) return null; // clave suelta dentro de una lista
     const [, key, rawValue] = m;
-    while (stack.length > 1 && stack[stack.length - 1].indent >= indent) stack.pop();
-    const parent = stack[stack.length - 1];
     const value = parseValue(rawValue.trim());
     if (value === UNSET) {
-      // clave anidada: el valor real vendrá en las líneas siguientes
-      const child: Record<string, unknown> = {};
-      parent.obj[key] = child;
-      stack.push({ indent, obj: child, lastKey: key });
+      // ¿lista de mapas en bloque, o mapa anidado? depende de la próxima línea significativa
+      const next = nextSignificant(i + 1);
+      if (next && next.content.startsWith("- ") && next.indent > indent) {
+        const arr: unknown[] = [];
+        ctx.obj[key] = arr;
+        stack.push({ indent, arr });
+      } else {
+        const child: Record<string, unknown> = {};
+        ctx.obj[key] = child;
+        stack.push({ indent, obj: child });
+      }
     } else {
-      parent.obj[key] = value;
+      ctx.obj[key] = value;
     }
   }
   return { data: root, keys: Object.keys(root) };

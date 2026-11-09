@@ -1,3 +1,4 @@
+import { matchAuth } from "./auth.js";
 // Proveedor OpenAI-compatible con streaming (chat/completions + SSE).
 // Multiproveedor de verdad (adapters Anthropic/Gemini nativos, Vercel AI SDK)
 // queda fuera del lite v1; cualquier endpoint OpenAI-compatible funciona:
@@ -54,7 +55,13 @@ export function resolveProvider(config: Record<string, unknown>, flagModel?: str
   const apiKeys = [...new Set([...extra, apiKey].filter(Boolean))];
   const headers = (providerCfg["headers"] ?? {}) as Record<string, string>;
   if (!apiKeys.length && !/localhost|127\.0\.0\.1/.test(baseURL)) {
-    throw new Error(`Falta API key para ${baseURL}. Exporta OPENAI_API_KEY (o OPENAI_API_KEYS=lista) o pon provider.apiKey / provider.apiKeys en opencode.json (acepta {env:VAR}).`);
+    // Último recurso: auth.json de /connect — SOLO si la baseURL encaja (exacto)
+    // o es el default de openai. Nunca se registra ni se muestra la clave.
+    const found = matchAuth(baseURL);
+    if (found) apiKeys.push(found.apiKey);
+  }
+  if (!apiKeys.length && !/localhost|127\.0\.0\.1/.test(baseURL)) {
+    throw new Error(`Falta API key para ${baseURL}. Exporta OPENAI_API_KEY (o OPENAI_API_KEYS=lista) o pon provider.apiKey / provider.apiKeys en opencode.json (acepta {env:VAR}) o usa /connect.`);
   }
   return { baseURL, apiKey: apiKeys[0] ?? "", apiKeys, model, headers };
 }

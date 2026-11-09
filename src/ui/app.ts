@@ -319,8 +319,9 @@ export class TuiApp {
       rows.push(fgHex(token(t, "accent")) + bold + `${q.header} (${d.index + 1}/${d.questions.length})` + reset);
       rows.push(q.question);
       if (d.freeMode) {
-        rows.push("respuesta libre:");
-        rows.push("❯ " + d.freeText);
+        const shown = q.mask ? "*".repeat(d.freeText.length) : d.freeText;
+        rows.push(q.mask ? "respuesta libre (oculta):" : "respuesta libre:");
+        rows.push("❯ " + shown);
         this.pendingCursor = { visualRow: rows.length - 1, col: 2 + d.freeText.length };
       } else {
         q.options.forEach((o, i) => rows.push(`  ${i + 1}) ${o}`));
@@ -371,8 +372,9 @@ export class TuiApp {
     // comandos con ctrl+p
     if (key.ctrl && key.name === "p") { this.openCommandPalette(); return; }
     // paginado
-    if (key.name === "pageup") { this.scrollFromBottom = Math.min(this.scrollFromBottom + 10, 10000); this.render(); return; }
-    if (key.name === "pagedown") { this.scrollFromBottom = Math.max(0, this.scrollFromBottom - 10); this.render(); return; }
+    const pageStep = Math.max(1, Math.round(this.deps.tui.scrollSpeed * 4)); // vireo-lite: scrollSpeed 3 → 12 líneas
+    if (key.name === "pageup") { this.scrollFromBottom = Math.min(this.scrollFromBottom + pageStep, 10000); this.render(); return; }
+    if (key.name === "pagedown") { this.scrollFromBottom = Math.max(0, this.scrollFromBottom - pageStep); this.render(); return; }
     // envío / nueva línea
     if (bindingMatches(this.deps.tui.keybinds["input_submit"], false, key)) {
       this.submitEditor();
