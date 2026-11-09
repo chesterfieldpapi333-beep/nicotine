@@ -387,3 +387,29 @@ describe("TUI — atajos de extensión: modificadores exactos", () => {
     expect(fired).toBe(1); // alt+g no dispara el ctrl+g
   });
 });
+
+describe("TUI — rueda del ratón (wheel)", () => {
+  test("wheelup/wheeldown mueven el historial en pasos de scrollSpeed", () => {
+    const { app } = makeApp();
+    // empujar historial para tener algo que scrollear
+    for (let i = 0; i < 40; i++) app.pushUser(`mensaje ${i}`);
+    const base = stripAnsi(app.computeFrame(100, 12).join("\n"));
+    app.handleKey(key("wheelup"));
+    app.handleKey(key("wheelup"));
+    const scrolled = frameText(app, 100, 12);
+    expect(scrolled).toContain("PgDn para bajar"); // indicador de scroll visible
+    app.handleKey(key("wheeldown"));
+    app.handleKey(key("wheeldown"));
+    const back = frameText(app, 100, 12);
+    expect(back).not.toContain("PgDn para bajar");
+    expect(base).toBeDefined();
+  });
+
+  test("scrollLines(0) no explota y acota en [0, 10000]", () => {
+    const { app } = makeApp();
+    app.scrollLines(-99999); // ya en el fondo
+    app.scrollLines(99999);  // tope superior
+    app.scrollLines(0);
+    expect(app.computeFrame(80, 10).length).toBe(10);
+  });
+});

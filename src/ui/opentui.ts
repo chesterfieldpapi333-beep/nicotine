@@ -31,7 +31,16 @@ export async function mountOpenTui(app: TuiApp, renderer: import("@opentui/core"
     try {
       const w = renderer.width, h = renderer.height;
       while (rows.length < h) {
-        const t = new TextRenderable(renderer, { content: "", height: 1, width: "100%" });
+        const t = new TextRenderable(renderer, {
+          content: "", height: 1, width: "100%",
+          onMouseScroll: (event) => {
+            const sc = event.scroll;
+            if (!sc) return;
+            const lines = Math.max(1, Math.min(4, Math.round(Math.abs(sc.delta) || 1))) * app.deps.tui.scrollSpeed;
+            if (sc.direction === "up") app.scrollLines(lines);
+            else if (sc.direction === "down") app.scrollLines(-lines);
+          },
+        });
         renderer.root.add(t);
         rows.push(t);
       }

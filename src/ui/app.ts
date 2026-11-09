@@ -124,6 +124,12 @@ export class TuiApp {
   constructor(public deps: TuiAppDeps) {}
 
   // ————— entradas desde el bus de eventos del agente —————
+  /** Rueda del ratón (y análogos): >0 retrocede en el historial, <0 avanza. */
+  scrollLines(delta: number): void {
+    this.scrollFromBottom = Math.max(0, Math.min(10000, this.scrollFromBottom + delta));
+    this.render();
+  }
+
   pushUser(text: string): void { this.messages.push({ role: "user", text }); this.scrollFromBottom = 0; this.render(); }
   appendAssistantDelta(text: string): void {
     const last = this.messages[this.messages.length - 1];
@@ -378,6 +384,8 @@ export class TuiApp {
     if (key.ctrl && key.name === "p") { this.openCommandPalette(); return; }
     // paginado
     const pageStep = Math.max(1, Math.round(this.deps.tui.scrollSpeed * 4)); // vireo-lite: scrollSpeed 3 → 12 líneas
+    if (key.name === "wheelup") { this.scrollLines(this.deps.tui.scrollSpeed); return; }
+    if (key.name === "wheeldown") { this.scrollLines(-this.deps.tui.scrollSpeed); return; }
     if (key.name === "pageup") { this.scrollFromBottom = Math.min(this.scrollFromBottom + pageStep, 10000); this.render(); return; }
     if (key.name === "pagedown") { this.scrollFromBottom = Math.max(0, this.scrollFromBottom - pageStep); this.render(); return; }
     // envío / nueva línea

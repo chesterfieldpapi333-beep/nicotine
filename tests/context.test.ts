@@ -108,7 +108,7 @@ describe("loadContextFiles", () => {
     expect(down.blocks).toHaveLength(0);
     expect(down.warnings[0]).toContain("ECONNREFUSED");
     // timeout (AbortError) → aviso con "timeout"
-    const slow = await fetchInstructionUrls(["https://a.example/slow.md"], { timeoutMs: 20, fetchImpl: ((url, init) => new Promise<Response>((_, reject) => {
+    const slow = await fetchInstructionUrls(["https://a.example/slow.md"], { timeoutMs: 20, fetchImpl: ((_url: unknown, init: unknown) => new Promise<Response>((_res, reject) => {
       const signal = (init as RequestInit).signal;
       signal?.addEventListener("abort", () => { const e = new Error("aborted"); e.name = "AbortError"; reject(e); });
     })) as unknown as typeof fetch });

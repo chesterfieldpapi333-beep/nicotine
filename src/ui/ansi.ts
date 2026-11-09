@@ -56,6 +56,7 @@ export function createAnsiEngine(app: TuiApp): UiEngine {
   const cleanup = () => {
     if (stopped) return;
     stopped = true;
+    stdout.write("\x1b[?1006l\x1b[?1000l"); // ratón fuera (si estaba activo)
     stdout.write("\x1b[?25h\x1b[?1049l"); // cursor visible + salir de alt screen
     try { stdin.setRawMode?.(false); } catch { /* no TTY */ }
     stdin.removeListener("data", onData);
@@ -66,6 +67,7 @@ export function createAnsiEngine(app: TuiApp): UiEngine {
 
   const withSuspendedUI = async <T>(fn: () => Promise<T>): Promise<T> => {
     // salir de alt screen, cursor visible, raw off, sin listeners de stdin
+    stdout.write("\x1b[?1006l\x1b[?1000l");
     stdout.write("\x1b[?25h\x1b[?1049l");
     try { stdin.setRawMode?.(false); } catch { /* no TTY */ }
     stdin.pause();
@@ -77,6 +79,7 @@ export function createAnsiEngine(app: TuiApp): UiEngine {
       try { stdin.setRawMode?.(true); } catch { /* no TTY */ }
       stdin.resume();
       stdout.write("\x1b[?1049h\x1b[?25l"); // alt screen + cursor oculto
+      if (app.deps.tui.mouse) stdout.write("\x1b[?1000h\x1b[?1006h");
       flush();
     }
   };
@@ -87,6 +90,7 @@ export function createAnsiEngine(app: TuiApp): UiEngine {
         resolveDone = resolve;
         app.requestRender = scheduleFlush;
         stdout.write("\x1b[?1049h\x1b[?25l"); // alt screen + cursor oculto
+        if (app.deps.tui.mouse) stdout.write("\x1b[?1000h\x1b[?1006h"); // rueda SGR (1006) + básicos (1000)
         try { stdin.setRawMode?.(true); } catch { /* stdin no es TTY (pipe): los keys no llegarán */ }
         stdin.resume();
         stdin.on("data", onData);
@@ -157,6 +161,20 @@ export function decodeAnsiKeys(buf: Buffer): KeyEventLike[] {
 
 function decodeCsi(seq: string): KeyEventLike {
   const key = (name: string, ctrl = false, shift = false, meta = false): KeyEventLike => ({ name, ctrl, shift, meta, sequence: "\x1b[" + seq });
+  // ratón SGR (1006): "<btn;x;yM" (press) / "<btn;x;ym" (release). La rueda
+  // llega como botón 64/65 (±4 izq/der) con press (M).
+  const mouse = /^<(\d+);(\d+);(\d+)([mM])$/.exec(seq);
+  if (mouse) {
+    const btn = Number(mouse[1]);
+    const isPress = mouse[4] === "M";
+    const isWheel = (btn & 64) !== 0;
+    if (isPress && isWheel) {
+      const dir = btn & 3; // 0 arriba, 1 abajo, 2 izquierda, 3 derecha
+      if (dir === 0) return key("wheelup");
+      if (dir === 1) return key("wheeldown");
+    }
+    return key("unknown"); // clicks/drag/wheel-h: ignorados (sin selección por ratón)
+  }
   const plain: Record<string, string> = {
     A: "up", B: "down", C: "right", D: "left", H: "home", F: "end", Z: "tab",
   };
