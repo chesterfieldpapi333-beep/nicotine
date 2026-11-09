@@ -31,6 +31,8 @@ Opciones:
       serve          servidor HTTP local (apagado por defecto; requiere VIREO_SERVER_PASSWORD)
       --port <n>     puerto de serve (defecto 4096)
       --hostname <h> bind de serve (defecto 127.0.0.1)
+      --mdns         anuncia el servicio por mDNS/DNS-SD (_vireo._tcp) al arrancar serve
+      --mdns-domain <d> dominio mDNS (defecto vireo.local); implica --mdns
   -m, --model <id>   modelo (p. ej. openai/gpt-4o-mini); [proveedor/]modelo
       --agent <id>   agente built-in: build | plan | architect | editor
       --auto         auto-aprueba lo que pregunte (deny sigue denegado)
@@ -68,6 +70,8 @@ interface Args {
   fork: boolean;
   configDir?: string;
   port?: number;
+  mdns?: boolean;
+  mdnsDomain?: string;
   hostname?: string;
   help: boolean;
   version: boolean;
@@ -94,6 +98,8 @@ function parseArgs(argv: string[]): Args {
       case "--config-dir": args.configDir = next(i, a); i++; break;
       case "--port": { const v = next(i, a); const n = Number(v); if (!Number.isInteger(n) || n < 1 || n > 65535) throw new Error(`--port inválido: ${v}`); args.port = n; i++; break; }
       case "--hostname": args.hostname = next(i, a); i++; break;
+      case "--mdns": args.mdns = true; break;
+      case "--mdns-domain": args.mdnsDomain = next(i, a); args.mdns = true; i++; break;
       case "--help": case "-h": args.help = true; break;
       case "--version": args.version = true; break;
       case "doctor": case "serve": case "skills": case "mcp":
@@ -153,7 +159,7 @@ async function main(): Promise<number> {
     return runMcpAuthCli({ cwd, configDir: args.configDir, positional: args.positional });
   }
   if (args.command === "serve") {
-    return runServe({ cwd, configDir: args.configDir, auto: args.auto, agentId: args.agent, modelFlag: args.model, sessionId: args.sessionId, continueLatest: args.continueLatest, fork: args.fork, port: args.port, hostname: args.hostname });
+    return runServe({ cwd, configDir: args.configDir, auto: args.auto, agentId: args.agent, modelFlag: args.model, sessionId: args.sessionId, continueLatest: args.continueLatest, fork: args.fork, port: args.port, hostname: args.hostname, mdns: args.mdns, mdnsDomain: args.mdnsDomain });
   }
 
   const stdinText = await readStdinIfPiped();

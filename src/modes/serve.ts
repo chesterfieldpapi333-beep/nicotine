@@ -12,7 +12,9 @@
 //     los endpoints, comparación en tiempo constante.
 //   - Permisos fail-closed: los diálogos «ask» se RECHAZAN (paso automático
 //     solo con --auto; deny gana siempre). Un turno a la vez (409 si ocupado).
-//   - Sin mDNS/Bonjour; sin ejecución de nada externo; 1 MiB máx. de body.
+//   - Sin ejecución de nada externo; 1 MiB máx. de body. mDNS/DNS-SD OPCIONAL
+//     (--mdns / --mdns-domain): best-effort, el servicio se anuncia como
+//     _vireo._tcp (vireo.local); si 5353 falla, serve arranca igual.
 //
 //   GET  /health           → { ok: true, version }
 //   GET  /session          → { id, title } de la sesión activa del proceso
@@ -29,10 +31,15 @@ import { buildRuntime, persistNewMessages, prepareContext, prepareMcp, prepareHo
 import { prepareExtensions } from "../ext/loader.js";
 import { Session } from "../core/session.js";
 import { closeMcpClients } from "../compat/mcp/manager.js";
+import { MdnsAnnouncer } from "../compat/mdns.js";
 
 export interface ServeOptions extends RuntimeOptions {
   port?: number;
   hostname?: string;
+  /** Anuncia el servicio por mDNS/DNS-SD tras arrancar (best-effort; nunca rompe serve). */
+  mdns?: boolean;
+  /** Dominio mDNS (defecto vireo.local). Implica mdns=true. */
+  mdnsDomain?: string;
   /** Señal del proceso (SIGINT) para apagado limpio. */
   onListening?: (addr: string) => void;
 }
@@ -204,10 +211,22 @@ export async function runServe(opts: ServeOptions): Promise<number> {
   const effectivePort = typeof addrInfo === "object" && addrInfo ? addrInfo.port : port;
   const addr = `http://${hostname}:${effectivePort}`;
   stderr_banner(addr, loopback, log);
+  let mdns: MdnsAnnouncer | null = null;
+  if (opts.mdns || opts.mdnsDomain) {
+    try {
+      mdns = new MdnsAnnouncer({ httpPort: effectivePort, domain: opts.mdnsDomain ?? "vireo.local", path: "/", logger: (m) => log(m) });
+      const ok = await mdns.start();
+      if (!ok) mdns = null;
+    } catch (err) {
+      log(`mDNS no disponible: ${(err as Error).message}; serve sigue sin anuncio`);
+      mdns = null;
+    }
+  }
   opts.onListening?.(addr);
   // Apagado limpio: SIGINT/SIGTERM → cerrar servidor y clientes MCP
   const shutdown = () => {
     log("apagando…");
+    void mdns?.stop(); // goodbye TTL 0 (best-effort)
     server.close(() => { void closeMcpClients(rt.mcpClients).finally(() => process.exit(0)); });
     setTimeout(() => process.exit(0), 3000).unref();
   };

@@ -349,6 +349,8 @@ desde catálogo local con digest verificado; doctor lista `memory`/architect/pol
 - Presupuesto core+compat: riesgo de deriva de compat LOC si se añaden loaders sin
   discusión previa (tope blando ~400/archivo + test por loader lo contienen).
 
+- **Fase 10d (2026-11, aprobación «todo»):** mDNS/DNS-SD para `serve` (`--mdns`, `--mdns-domain`). Zero-dep (node:dgram + codec DNS propio): PTR/SRV/TXT/A, QU-unicast o multicast, announce ×2, goodbye TTL 0. Best-effort: fallo → aviso, serve arranca igual. Suite 304/304. No verificado contra un resolver mDNS real (sin red multicast en sandbox).
+
 - **Fase 10c (2026-11, aprobación «todo»):** adaptador **Vercel AI SDK** opt-in (`provider.engine: "vercel-ai"` o `VIREO_PROVIDER_ENGINE=vercel-ai`). Import dinámico de `ai` + `@ai-sdk/openai-compatible`; el núcleo sigue con cero deps; sin paquetes, el error dice exactamente qué instalar. Failover del motor fetch replicado (`maxRetries: 0`); conversión OpenAI→ModelMessage probada en seco + contra mock SSE local con los paquetes reales (ai@7.0.166 / @ai-sdk/openai-compatible@3.0.87). El paquete de verdad sale de `package.json`/`bun.lock` tras verificar.
 
 - **Fase 10 (2026-11, aprobación «todo»):** `instructions` con URLs (fetch post-arranque, timeout 10s, 32 KiB/8 URLs, solo texto; fallos → aviso y omisión; `prepareUrlContext`); suite **277/277**. repair-env.sh re-añade credential helpers automáticamente.
