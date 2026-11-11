@@ -208,7 +208,6 @@ describe("vercel-ai — selección de motor y paquetes ausentes", () => {
 const live = process.env.NICOTINE_LIVE_VERCEL_AI === "1";
 (live ? describe : describe.skip)("vercel-ai — integración real (NICOTINE_LIVE_VERCEL_AI=1)", () => {
   test("mock SSE local: streamText real → texto, usage y tool-call", async () => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let ai: any, opc: any;
     try { [ai, opc] = await Promise.all([import("ai" as string), import("@ai-sdk/openai-compatible" as string)]); } catch {
       console.log("paquetes no instalados; bun add ai @ai-sdk/openai-compatible"); return;

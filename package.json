@@ -11,7 +11,8 @@
   "scripts": {
     "test": "bun test",
     "nic": "./bin/nic",
-    "doctor": "./bin/nic doctor"
+    "doctor": "./bin/nic doctor",
+    "check:style": "bun scripts/check-style.ts"
   },
   "engines": {
     "bun": ">=1.1"
