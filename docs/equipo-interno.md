@@ -1,3 +1,5 @@
+> **Nota de honesto naming (2026-11-11):** «Claude» en estos docs es el **nombre del rol del mantenedor** (el asistente que estructura y revisa), no una afirmación sobre qué modelo corre detrás en un momento dado — Arena.ai Agent Mode usa varios modelos (entre ellos familias Claude, ChatGPT, Gemini, Grok, Qwen y Kimi). La función es lo que importa: dirección, specs, revisión y release. Cuando quieras fijar un modelo en particular, se nombra el modelo explícitamente en la spec.
+
 # Equipo Claude + DeepSeek DENTRO de nicotine (modo agéntico)
 
 Reparto vigente (dueño, 2026-11-11): **Claude maestro · DeepSeek worker**. Sin GLM ni Gemini.
