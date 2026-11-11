@@ -4,6 +4,7 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 Versionado: el proyecto aún no sigue semver estricto; cada fase cerrada sube minor.
 
 ## [Sin publicar] — 2026-11-11
+- Docs `docs/equipo-interno.md` + `docs/examples/multi-modelo/agents/`: cómo armar un equipo multi-modelo dentro de nicotine (gateway OpenAI-compatible único, agentes con `model` propio, analista de solo lectura); ejemplos verificados contra `scanAgentFiles`.
 - Equipo multi-modelo documentado (`docs/equipo.md`, `docs/arranque-workers.md`): Claude estructura, DeepSeek/GLM programan, Gemini analiza (solo lectura), Qwen mantiene su cola.
 
 ## [0.2.1] — 2026-11-11
