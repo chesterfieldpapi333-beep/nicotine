@@ -4,6 +4,7 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 Versionado: el proyecto aún no sigue semver estricto; cada fase cerrada sube minor.
 
 ## [Sin publicar] — 2026-11-11
+- Arranque-workers: D1 referencia la spec `docs/design/d1-bash-parser-tests.md`.
 - Docs `docs/arranque-claude.md`: prompt de arranque para el ROL de mantenedor (specs, revisión, merges, releases; lanes L0/L1/L3/L6/L7; invariantes y loop de trabajo).
 - Equipo simplificado a **Claude + DeepSeek** (dueño): GLM/Gemini fuera; `docs/equipo.md`, `docs/equipo-capas.md`, `docs/arranque-workers.md`, `docs/equipo-interno.md` reescritos (L0–L7 con dos roles); ejemplos de agentes reducidos a `deepseek-impl`; prompt único para DeepSeek.
 - Mantenedor: Q1–Q4 marcados ✅ en `docs/qwen-tasks.md` (merge PR #2 `93ba8ce` / PR #3 `2ab5ba8`); addendum en `docs/verification-10f.md`; sumas in-repo regeneradas (196 archivos) tras integrar los PRs.

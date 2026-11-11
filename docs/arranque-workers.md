@@ -50,5 +50,9 @@ unicode/emoji, `rm -rf --no-preserve-root`, encadenados multisegmento (`&&`/`;`/
 un segmento destructivo, tabs/espacios múltiples, flags con valor (`nice -n 5`, `sudo -E`).
 SOLO agregás tests; si un caso falla, reportás — NO arreglás `src/`.
 
+**Spec completa**: `docs/design/d1-bash-parser-tests.md` (nuevo archivo
+`tests/bash-parser-adversarial.test.ts`; incluye casos de caracterización de lo que
+hoy NO se detecta — se reportan, no se arreglan).
+
 **Cómo se cierra tu PR**: Claude re-corre la suite + check-style, lee tu reporte y tu
 diff, y mergea o rechaza con feedback. Iterás sobre la misma rama; nunca `push --force`.
