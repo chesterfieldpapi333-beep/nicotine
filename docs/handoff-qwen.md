@@ -37,7 +37,7 @@ git checkout -b qwen/<tarea>
 
 - Fases 0–11 publicadas (`387ade4`). H0–H8, H1, H2, H5, H6, H7 implementados y pusheados; C2 (refusal-failover) hecho.
 - Pendiente mantener: `docs/plan-implementacion.md`, `docs/parity.md`, `CHANGELOG.md`, `docs/informe-fases.md`.
-- Pendiente construir (NO son tuyas): C3 (action stream UI), C6 (`--solo-bash`), H9 (release in-repo), H10 (informe hardening), Track D/E (máquina del usuario).
+- [Cerrado el mismo día] C3 (`5094bf1`), C6 (`f141fbe`), H9 (release in-repo, tag `v0.2.1`), H10 (`docs/verification-10f.md`) — todos construidos y fusionados; Qwen quedó sin pendientes (Q1–Q4 ✅). Sigue pendiente de la máquina del usuario: Track D/E.
 - Regla de la casa: cada cambio lleva sus docs y tests juntos; un commit por tarea (español, imperativo corto).
 
 ## Tareas asignadas (en orden)
