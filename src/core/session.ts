@@ -56,6 +56,25 @@ export class Session {
     return files.length ? Session.load(files[0].f.replace(/\.jsonl$/, "")) : null;
   }
 
+  /** Lee la cabecera meta/title (cwd + created). Nunca lanza. */
+  static meta(id: string): { cwd?: string; created?: string; title?: string } | null {
+    const path = join(sessionsDir(), `${id}.jsonl`);
+    if (!existsSync(path)) return null;
+    let cwd: string | undefined, created: string | undefined, title: string | undefined;
+    try {
+      for (const line of readFileSync(path, "utf8").split("\n")) {
+        if (!line.trim()) continue;
+        const obj = JSON.parse(line) as Record<string, unknown>;
+        if (obj.type === "meta") {
+          if (typeof obj.cwd === "string") cwd = obj.cwd;
+          if (typeof obj.created === "string") created = obj.created;
+          if (typeof obj.title === "string") title = obj.title;
+        } else if (obj.type === "title" && typeof obj.title === "string") title = obj.title;
+      }
+    } catch { return { cwd, created, title }; }
+    return { cwd, created, title };
+  }
+
   static list(): { id: string; title: string; mtime: number }[] {
     const dir = sessionsDir();
     if (!existsSync(dir)) return [];
@@ -108,15 +127,20 @@ export class Session {
   }
 
   messages(): ChatMessage[] {
+    return this.messagesWithTs().map(({ ts: _ts, ...m }) => m);
+  }
+
+  /** messages() pero conservando el ts de cada línea (para las APIs que llevan time.created). */
+  messagesWithTs(): (ChatMessage & { ts?: number })[] {
     if (!existsSync(this.path)) return [];
-    const out: ChatMessage[] = [];
+    const out: (ChatMessage & { ts?: number })[] = [];
     for (const line of readFileSync(this.path, "utf8").split("\n")) {
       if (!line.trim()) continue;
       try {
-        const obj = JSON.parse(line) as SessionLine & ChatMessage;
+        const obj = JSON.parse(line) as SessionLine & ChatMessage & { ts?: number };
         if (obj.type === "message") {
-          const { role, content, tool_calls, tool_call_id } = obj;
-          out.push({ role, content: content ?? null, ...(tool_calls ? { tool_calls } : {}), ...(tool_call_id ? { tool_call_id } : {}) });
+          const { role, content, tool_calls, tool_call_id, ts } = obj;
+          out.push({ role, content: content ?? null, ...(tool_calls ? { tool_calls } : {}), ...(tool_call_id ? { tool_call_id } : {}), ...(typeof ts === "number" ? { ts } : {}) });
         }
       } catch { /* línea corrupta: se ignora deliberadamente */ }
     }

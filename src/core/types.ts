@@ -13,6 +13,8 @@ export interface ChatMessage {
   content: string | null;
   tool_calls?: ToolCall[];
   tool_call_id?: string;
+  /** ts de persistencia (lo estampa serve/core al persistir; el núcleo lo tolera). */
+  ts?: number;
 }
 
 export interface ToolParameters {

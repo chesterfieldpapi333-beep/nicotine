@@ -1,10 +1,14 @@
 // vireo serve — servidor HTTP OPCIONAL (apagado por defecto; solo arranca con
-// `vireo serve`). Diseño PROPIO mínimo (documentado en docs/parity.md); NO es
-// la API REST de OpenCode. Pensado para scripting local y pruebas de humo.
+// `vireo serve`). Expone DOS capas:
+//   1. API propia mínima (documentada en docs/parity.md) — para scripting.
+//   2. Subconjunto HONESTO de la API REST clásica de opencode (fase 10e,
+//      src/modes/serve-opencode.ts) — para clientes opencode. NO es paridad:
+//      lo no implementado responde 404 con { error } (ver /doc).
 //
 // Reglas duras de seguridad (lucen la revisión):
-//   - REQUIERE VIREO_SERVER_PASSWORD (cualquier bind, loopback incluido).
-//     Sin ella se niega a arrancar.
+//   - REQUIERE VIREO_SERVER_PASSWORD u OPENCODE_SERVER_PASSWORD (cualquier bind,
+//     loopback incluido; la segunda es solo para clientes opencode).
+//     Sin ninguna, se niega a arrancar.
 //   - Sin TLS propio: HTTP en claro. Para exponer fuera de la máquina, pon un
 //     proxy con TLS delante. Bind por defecto 127.0.0.1.
 //   - SIN CORS: ninguna cabecera Access-Control-*; no es una API de navegador.
@@ -16,22 +20,24 @@
 //     (--mdns / --mdns-domain): best-effort, el servicio se anuncia como
 //     _vireo._tcp (vireo.local); si 5353 falla, serve arranca igual.
 //
-//   GET  /health           → { ok: true, version }
-//   GET  /session          → { id, title } de la sesión activa del proceso
-//   GET  /sessions         → [{ id, title, mtime }] (todas las sesiones JSONL)
-//   GET  /session/export   → text/markdown de la sesión actual (no escribe archivo)
-//   POST /session/prompt   { prompt: string } → text/event-stream (SSE) con los
-//                            eventos del núcleo + {"type":"stream_end"...}
-//   POST /session/abort    → { ok: true } (aborta el turno en curso)
+//   API propia:  GET  /health · GET /sessions · GET /session/current ·
+//   GET  /session/export · POST /session/prompt (SSE) · POST /session/abort
+//   Subconjunto opencode (ver /doc): GET|POST /session · GET /session/status ·
+//   /session/{id} (GET/PATCH/DELETE) · /session/{id}/message (GET/POST) …
 
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
-import { timingSafeEqual } from "node:crypto";
 import { runAgentLoop } from "../core/loop.js";
+import type { TokenUsage } from "../core/events.js";
+import type { AgentTool, ChatMessage } from "../core/types.js";
+import type { ProviderConfig } from "../core/provider.js";
 import { buildRuntime, persistNewMessages, prepareContext, prepareMcp, prepareHooks, prepareUrlContext, type RuntimeOptions, type Runtime } from "./common.js";
 import { prepareExtensions } from "../ext/loader.js";
 import { Session } from "../core/session.js";
 import { closeMcpClients } from "../compat/mcp/manager.js";
 import { MdnsAnnouncer } from "../compat/mdns.js";
+import { passOk, send, readBody } from "./serve-http.js";
+import { handleOpenCodeRequest, type OpenCodeContext, type ExecuteTurnArgs, type ExecuteTurnResult } from "./serve-opencode.js";
+import { ocTodos, type OcEvent } from "../compat/opencode-rest.js";
 
 export interface ServeOptions extends RuntimeOptions {
   port?: number;
@@ -45,39 +51,7 @@ export interface ServeOptions extends RuntimeOptions {
 }
 
 const VERSION = "0.1.0";
-const MAX_BODY = 1 << 20;
 const TURN_TIMEOUT_MS = 10 * 60 * 1000;
-
-function passOk(header: string | undefined, password: string): boolean {
-  if (!header?.startsWith("Basic ")) return false;
-  try {
-    const decoded = Buffer.from(header.slice(6), "base64").toString("utf8");
-    const i = decoded.indexOf(":");
-    const pass = i >= 0 ? decoded.slice(i + 1) : ""; // cualquier usuario vale; la clave manda
-    const a = Buffer.from(pass), b = Buffer.from(password);
-    return a.length === b.length && timingSafeEqual(a, b);
-  } catch { return false; }
-}
-
-function send(res: ServerResponse, status: number, body: unknown, type = "application/json"): void {
-  const payload = typeof body === "string" ? body : JSON.stringify(body);
-  res.writeHead(status, { "content-type": type, "cache-control": "no-store" });
-  res.end(payload);
-}
-
-function readBody(req: IncomingMessage): Promise<string> {
-  return new Promise((resolve, reject) => {
-    let size = 0;
-    const chunks: Buffer[] = [];
-    req.on("data", (c: Buffer) => {
-      size += c.length;
-      if (size > MAX_BODY) { reject(new Error("body demasiado grande (máx 1 MiB)")); req.destroy(); return; }
-      chunks.push(c);
-    });
-    req.on("end", () => resolve(Buffer.concat(chunks).toString("utf8")));
-    req.on("error", reject);
-  });
-}
 
 /** Exporta la sesión actual como Markdown (mismo formato que /export, sin archivo). */
 function sessionMarkdown(rt: Runtime): string {
@@ -90,16 +64,34 @@ function sessionMarkdown(rt: Runtime): string {
   return lines.join("\n");
 }
 
-async function runPromptTurn(rt: Runtime, prompt: string, fetchImpl: RuntimeOptions["fetchImpl"], write: (ev: unknown) => void, signal: AbortSignal): Promise<"stop" | "max_steps" | "aborted"> {
-  rt.ctx.signal = signal;
-  const off = rt.bus.on((ev) => write(ev));
+/**
+ * Ejecuta un turno y devuelve el motivo; persiste los mensajes nuevos.
+ * Compartido por POST /session/prompt (SSE crudo) y el subconjunto opencode
+ * (/session/{id}/message…). Estampa `turnTs` en los mensajes del turno antes de
+ * persistir → ids de mensaje estables entre el evento en vivo y la recarga.
+ */
+async function executeTurn(rt: Runtime, fetchImpl: RuntimeOptions["fetchImpl"], args: ExecuteTurnArgs): Promise<ExecuteTurnResult> {
+  rt.ctx.signal = args.signal;
+  const turnTs = args.turnTs;
   const startIndex = rt.messages.length;
-  rt.messages.push({ role: "user", content: prompt });
-  if (rt.messages.filter((m) => m.role === "user").length === 1) rt.session.setTitle(prompt.replace(/\s+/g, " ").slice(0, 80));
-  rt.ctx.undo?.beginTurn(prompt.replace(/\s+/g, " ").slice(0, 80));
+  let usage: TokenUsage | undefined;
+  const offUsage = rt.bus.on((ev) => { if (ev.type === "turn_end" && ev.usage) usage = { ...ev.usage }; });
+  const off = rt.bus.on((ev) => args.onCoreEvent?.(ev));
+  rt.messages.push({ role: "user", content: args.prompt, ts: turnTs });
+  if (rt.messages.filter((m) => m.role === "user").length === 1) rt.session.setTitle(args.prompt.replace(/\s+/g, " ").slice(0, 80));
+  rt.ctx.undo?.beginTurn(args.prompt.replace(/\s+/g, " ").slice(0, 80));
+  const savedSystem = args.systemOverride ? rt.messages[0] : null;
+  if (savedSystem && args.systemOverride) rt.messages[0] = { role: "system", content: args.systemOverride };
   try {
-    return await runAgentLoop({ provider: rt.provider, permissions: rt.permissions, messages: rt.messages, tools: rt.tools, ctx: rt.ctx, fetchImpl });
+    const reason = await runAgentLoop({ provider: args.provider ?? rt.provider, permissions: rt.permissions, messages: rt.messages, tools: args.tools ?? rt.tools, ctx: rt.ctx, fetchImpl });
+    for (let i = startIndex; i < rt.messages.length; i++) {
+      const m = rt.messages[i] as ChatMessage & { ts?: number };
+      if (!m.ts) m.ts = turnTs;
+    }
+    return { reason, usage };
   } finally {
+    if (savedSystem) rt.messages[0] = savedSystem;
+    offUsage();
     off();
     persistNewMessages(rt, startIndex);
     rt.bus.emit({ type: "session_saved", sessionId: rt.session.id });
@@ -107,9 +99,10 @@ async function runPromptTurn(rt: Runtime, prompt: string, fetchImpl: RuntimeOpti
 }
 
 export async function runServe(opts: ServeOptions): Promise<number> {
-  const password = process.env.VIREO_SERVER_PASSWORD;
+  // Auth: VIREO_SERVER_PASSWORD (propia) u OPENCODE_SERVER_PASSWORD (compat con clientes opencode)
+  const password = process.env.VIREO_SERVER_PASSWORD ?? process.env.OPENCODE_SERVER_PASSWORD;
   if (!password) {
-    process.stderr.write("vireo serve: falta VIREO_SERVER_PASSWORD. Por seguridad, serve nunca arranca sin contraseña (auth básica en todos los endpoints).\n");
+    process.stderr.write("vireo serve: falta VIREO_SERVER_PASSWORD (o OPENCODE_SERVER_PASSWORD para clientes opencode). Por seguridad, serve nunca arranca sin contraseña (auth básica en todos los endpoints).\n");
     return 2;
   }
   const hostname = opts.hostname ?? "127.0.0.1";
@@ -133,7 +126,22 @@ export async function runServe(opts: ServeOptions): Promise<number> {
 
   let currentAbort: AbortController | null = null;
   let busy = false;
+  let lastOcTodos: ReturnType<typeof ocTodos> = [];
   const log = (line: string) => process.stderr.write(`[serve] ${line}\n`);
+  // Todos: la última lista emitida por la tool `todowrite` (memoria del proceso)
+  rt.bus.on((ev) => { if (ev.type === "todos_updated") lastOcTodos = ocTodos(ev.todos); });
+  // Clientes SSE del subconjunto opencode (/event y /global/event)
+  const ocClients = new Set<(ev: OcEvent) => void>();
+  const ocCtx: OpenCodeContext = {
+    rt, cwd: opts.cwd, version: VERSION,
+    busy: () => busy,
+    setBusy: (v, abort) => { busy = v; if (abort !== undefined) currentAbort = abort; if (!v) currentAbort = null; },
+    abortCurrent: () => { const had = currentAbort !== null; currentAbort?.abort(); return had; },
+    ocClients,
+    todos: () => lastOcTodos,
+    executeTurn: (args) => executeTurn(rt, opts.fetchImpl, args),
+    turnTimeoutMs: TURN_TIMEOUT_MS,
+  };
 
   const server = createServer(async (req, res) => {
     const started = Date.now();
@@ -148,8 +156,9 @@ export async function runServe(opts: ServeOptions): Promise<number> {
       const url = new URL(req.url ?? "/", "http://localhost");
       const path = url.pathname;
 
+      // ——— API propia (vireo) ———
       if (req.method === "GET" && path === "/health") { send(res, 200, { ok: true, version: VERSION }); finish(200); return; }
-      if (req.method === "GET" && path === "/session") {
+      if (req.method === "GET" && path === "/session/current") {
         const list = Session.list();
         const cur = list.find((s) => s.id === rt.session.id);
         send(res, 200, { id: rt.session.id, title: cur?.title ?? "" });
@@ -166,13 +175,13 @@ export async function runServe(opts: ServeOptions): Promise<number> {
       if (req.method === "POST" && path === "/session/abort") { currentAbort?.abort(); send(res, 200, { ok: true }); finish(200); return; }
       if (req.method === "POST" && path === "/session/prompt") {
         if (busy) { send(res, 409, { error: "turno en curso; inténtalo al terminar o aborta con POST /session/abort" }); finish(409); return; }
+        busy = true; // marca SINCRÓNICA antes de cualquier await (evita dos turnos a la vez)
         let raw: string;
-        try { raw = await readBody(req); } catch (err) { send(res, 413, { error: (err as Error).message }); finish(413); return; }
+        try { raw = await readBody(req); } catch (err) { busy = false; send(res, 413, { error: (err as Error).message }); finish(413); return; }
         let parsed: { prompt?: unknown };
-        try { parsed = JSON.parse(raw || "{}"); } catch { send(res, 400, { error: "JSON inválido" }); finish(400); return; }
+        try { parsed = JSON.parse(raw || "{}"); } catch { busy = false; send(res, 400, { error: "JSON inválido" }); finish(400); return; }
         const prompt = typeof parsed.prompt === "string" ? parsed.prompt.trim() : "";
-        if (!prompt) { send(res, 400, { error: "falta `prompt` (string no vacío)" }); finish(400); return; }
-        busy = true;
+        if (!prompt) { busy = false; send(res, 400, { error: "falta `prompt` (string no vacío)" }); finish(400); return; }
         const turn = new AbortController();
         currentAbort = turn;
         const turnTimer = setTimeout(() => turn.abort(), TURN_TIMEOUT_MS);
@@ -182,7 +191,8 @@ export async function runServe(opts: ServeOptions): Promise<number> {
         log(`prompt recibido (${prompt.length} chars)`);
         let reason: "stop" | "max_steps" | "aborted" = "aborted";
         try {
-          reason = await runPromptTurn(rt, prompt, opts.fetchImpl, writeEvent, turn.signal);
+          const out = await executeTurn(rt, opts.fetchImpl, { prompt, signal: turn.signal, turnTs: Date.now(), onCoreEvent: writeEvent });
+          reason = out.reason;
         } catch (err) {
           writeEvent({ type: "error", message: String((err as Error)?.message ?? err) });
         } finally {
@@ -195,7 +205,11 @@ export async function runServe(opts: ServeOptions): Promise<number> {
         }
         return;
       }
-      send(res, 404, { error: "ruta desconocida" });
+
+      // ——— Subconjunto opencode (honesto, ver /doc) ———
+      if (await handleOpenCodeRequest(ocCtx, req, res, url, finish)) return;
+
+      send(res, 404, { error: "ruta desconocida o no implementada en el subconjunto opencode REST de vireo", method: req.method, path, doc: "/doc" });
       finish(404);
     } catch (err) {
       try { send(res, 500, { error: String((err as Error)?.message ?? err) }); } catch { /* socket muerto */ }
@@ -239,5 +253,6 @@ export async function runServe(opts: ServeOptions): Promise<number> {
 function stderr_banner(addr: string, loopback: boolean, log: (l: string) => void): void {
   log(`escuchando en ${addr} (auth básica; HTTP en claro)`);
   if (!loopback) log("ADVERTENCIA: bind no-loopback sin TLS. Pon un proxy con TLS delante o vuelve a 127.0.0.1.");
-  log("endpoints: GET /health · GET /session · GET /sessions · GET /session/export · POST /session/prompt (SSE) · POST /session/abort");
+  log("API propia: GET /health · GET /sessions · GET /session/current · GET /session/export · POST /session/prompt (SSE) · POST /session/abort");
+  log("Subconjunto opencode (sin paridad; ver /doc): GET|POST /session · /session/{id} (GET/PATCH/DELETE) · /session/{id}/message (GET/POST) · /event (SSE) · /find · /file — resto → 404");
 }

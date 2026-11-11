@@ -14,6 +14,9 @@ import { readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { safeRender, type Component } from "./component.js";
 import type { SlotName } from "../ext/api.js";
+import { fuzzyFilter } from "./fuzzy.js";
+import { walkProject } from "../compat/project-walk.js";
+export { fuzzyFilter } from "./fuzzy.js";
 
 export interface SlashCommand {
   name: string;
@@ -672,47 +675,4 @@ export class TuiApp {
 }
 
 
-const IGNORED_DIRS = new Set([".git", "node_modules", "target", "dist", "build", ".next", ".venv", "__pycache__", ".cache", "out", "coverage"]);
 
-function walkProject(root: string): string[] {
-  const out: string[] = [];
-  const walk = (dir: string, depth: number) => {
-    if (depth > 6 || out.length >= 6000) return;
-    let entries;
-    try { entries = readdirSync(dir, { withFileTypes: true }); } catch { return; }
-    for (const e of entries) {
-      if (out.length >= 6000) return;
-      if (e.name.startsWith(".") && e.name !== ".env.example") continue;
-      const rel = dir === root ? e.name : `${dir.slice(root.length + 1)}/${e.name}`;
-      if (e.isDirectory()) { if (!IGNORED_DIRS.has(e.name)) walk(join(dir, e.name), depth + 1); }
-      else out.push(rel);
-    }
-  };
-  walk(root, 0);
-  return out;
-}
-
-export function fuzzyFilter(items: string[], query: string, limit = 50): string[] {
-  if (!query) return items.slice(0, limit);
-  const q = query.toLowerCase();
-  const scored: { s: string; score: number }[] = [];
-  for (const item of items) {
-    const score = subsequenceScore(item.toLowerCase(), q);
-    if (score >= 0) scored.push({ s: item, score });
-  }
-  scored.sort((a, b) => b.score - a.score);
-  return scored.slice(0, limit).map((x) => x.s);
-}
-
-function subsequenceScore(item: string, q: string): number {
-  let qi = 0, score = 0, lastIdx = -2;
-  for (let i = 0; i < item.length && qi < q.length; i++) {
-    if (item[i] === q[qi]) {
-      score += i === lastIdx + 1 ? 10 : 1;     // bonus por consecutivos
-      if (i === 0 || "/-_.".includes(item[i - 1])) score += 5; // bonus tras separador
-      lastIdx = i;
-      qi++;
-    }
-  }
-  return qi === q.length ? score - item.length * 0.01 : -1;
-}

@@ -64,9 +64,18 @@ describe("vireo serve (integración local)", () => {
     expect(await r200.json()).toMatchObject({ ok: true });
   });
 
-  test("GET /session y /sessions responden con la sesión del proceso", async () => {
-    const s: any = await (await fetch(`http://127.0.0.1:${port}/session`, { headers: authHeader() })).json();
-    expect(typeof s.id).toBe("string");
+  test("GET /session devuelve forma opencode (Array<Session>); GET /session/current devuelve la del proceso", async () => {
+    const arr: any = await (await fetch(`http://127.0.0.1:${port}/session`, { headers: authHeader() })).json();
+    expect(Array.isArray(arr)).toBe(true);
+    expect(arr.length).toBeGreaterThanOrEqual(1);
+    expect(typeof arr[0].id).toBe("string");
+    expect(typeof arr[0].projectID).toBe("string");
+    expect(typeof arr[0].directory).toBe("string");
+    expect(typeof arr[0].version).toBe("string");
+    expect(typeof arr[0].time?.created).toBe("number");
+    const cur: any = await (await fetch(`http://127.0.0.1:${port}/session/current`, { headers: authHeader() })).json();
+    expect(typeof cur.id).toBe("string");
+    expect(typeof cur.title).toBe("string");
     const all: any = await (await fetch(`http://127.0.0.1:${port}/sessions`, { headers: authHeader() })).json();
     expect(Array.isArray(all)).toBe(true);
   });
