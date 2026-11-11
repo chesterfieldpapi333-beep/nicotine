@@ -42,6 +42,8 @@ export async function runAgentLoop(opts: LoopOptions): Promise<"stop" | "max_ste
       onText: (text) => emit({ type: "text_delta", text }),
       fetchImpl: opts.fetchImpl,
       onRetry: (info) => emit({ type: "provider_retry", ...info }),
+      refusalFailover: opts.ctx.refusalFailover === true,
+      onRefusalFailover: ({ from, to }) => emit({ type: "provider_retry", status: 0, attempt: 0, total: 0, model: from, nextModel: to ?? undefined, refusal: true }),
     });
     usage = stepUsage ?? usage;
     // Rescate de tool-calls en texto: solo si el modelo NO emitió tool_calls nativos.

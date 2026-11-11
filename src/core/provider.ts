@@ -103,6 +103,30 @@ export interface StreamChatOptions {
   fetchImpl?: typeof fetch;
   /** Aviso de rotación de clave (sin exponer la clave). */
   onRetry?: (info: { attempt: number; status: number; total: number; model?: string; nextModel?: string }) => void;
+  /** Opt-in (`compat.refusal_failover`): rechazo del proveedor → reintento con el siguiente fallback. Solo routing; jamás prompts de evasión. Bufferiza el texto del intento. */
+  refusalFailover?: boolean;
+  /** Aviso de refusal-failover: de/desde qué modelo saltó. */
+  onRefusalFailover?: (info: { from: string; to: string | null }) => void;
+}
+
+// Detección conservadora de rechazo del proveedor (contenido, no HTTP):
+// lista corta y ambigua-baja, solo respuestas de texto de menos de 1500 chars.
+const REFUSAL_PATTERNS = [
+  /\bi['’]?m sorry.{0,40}can(no|'t|not)\b/i,
+  /\bi cannot (help|assist|provide|comply)\b/i,
+  /\bi can(no|'t|not) (help|assist|provide|comply|fulfill)\b/i,
+  /\bi['’]?m (unable|not able|not allowed) to\b/i,
+  /\b(as an ai (language )?model|against my (programming|guidelines|policies))\b/i,
+  /\b(cannot|can't|won't) (help|assist) (with|you) (this|that|with you)\b/i,
+  /\bno puedo (ayudar|asistir|proporcionar|cumplir)\b/i,
+  /\blo siento.{0,40}no puedo\b/i,
+  /\bno me (es|está) (posible|permitido)\b/i,
+];
+export function looksLikeRefusal(text: string): boolean {
+  const t = text.trim();
+  if (!t || t.length > 1500) return false;
+  if (/```|<tool_call>|\{"name"/.test(t)) return false; // parece tool-call/código, no rechazo
+  return REFUSAL_PATTERNS.some((re) => re.test(t));
 }
 
 export interface StreamChatResult {
@@ -165,6 +189,9 @@ export async function streamChat(opts: StreamChatOptions): Promise<StreamChatRes
   if (usedModel !== provider.model) provider.model = usedModel; // failover pega en la sesión (visible en /models)
   if (!res.body) throw new Error("El proveedor no devolvió stream (res.body vacío).");
 
+  const bufferMode = opts.refusalFailover === true;
+  const forward = (chunk: string) => { if (!bufferMode) opts.onText?.(chunk); };
+
   let text = "";
   const toolCalls = new Map<number, { id: string; name: string; args: string }>();
   let usage: TokenUsage | undefined;
@@ -197,7 +224,7 @@ export async function streamChat(opts: StreamChatOptions): Promise<StreamChatRes
       if (!delta) continue;
       if (typeof delta.content === "string" && delta.content) {
         text += delta.content;
-        opts.onText?.(delta.content);
+        forward(delta.content);
       }
       for (const tc of delta.tool_calls ?? []) {
         const i = tc.index ?? 0;
@@ -209,6 +236,24 @@ export async function streamChat(opts: StreamChatOptions): Promise<StreamChatRes
       }
     }
   }
+
+  // Refusal-failover (opt-in): rechazo detectado y queda un fallback por debajo →
+  // descartar este intento (nada llegó a emitirse) y reintentar con el siguiente modelo.
+  if (bufferMode && toolCalls.size === 0 && looksLikeRefusal(text)) {
+    // provider.model puede haber sido mutado por el failover HTTP: la cadena efectiva es
+    // [usedModel, ...fallbacks] deduplicada (el fallback del que venimos no se repite).
+    const chain = [...new Set([usedModel, ...(provider.fallbackModels ?? [])])];
+    const idx = chain.indexOf(usedModel);
+    const nextModel = idx >= 0 ? chain[idx + 1] : undefined;
+    opts.onRefusalFailover?.({ from: usedModel, to: nextModel ?? null });
+    if (nextModel) {
+      // Mutación en el MISMO objeto: la sesión se "pega" al modelo que respondió (igual que el failover HTTP).
+      provider.model = nextModel;
+      provider.fallbackModels = chain.slice(idx + 2);
+      return streamChat({ ...opts, provider });
+    }
+  }
+  if (bufferMode && text) opts.onText?.(text); // intento final (o no-rechazo): emitir lo bufferizado
 
   const message: ChatMessage = { role: "assistant", content: text || null };
   if (toolCalls.size) {

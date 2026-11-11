@@ -118,6 +118,8 @@ export function buildRuntime(opts: RuntimeOptions): Runtime {
     const digest = vaultDigest(vault);
     if (digest) contextBlock = `${contextBlock}\n\n${digest}`;
   }
+  const compatCfgEarly = config["compat"] as Record<string, unknown> | undefined;
+  const refusalFailover = !!compatCfgEarly && typeof compatCfgEarly === "object" && compatCfgEarly["refusal_failover"] === true;
   const vaultTools = makeVaultTools(vault);
   const configCommands = parseConfigCommands(config["commands"]);
   const configAgents = parseConfigAgents(config["agents"]);
@@ -183,6 +185,7 @@ export function buildRuntime(opts: RuntimeOptions): Runtime {
     undo,
     skills: skillIndex,
     textToolCalls,
+    refusalFailover,
     approvals: { save: (action, resource) => saveProjectApproval(opts.cwd, action, resource) },
   };
 
@@ -240,6 +243,7 @@ export function buildRuntime(opts: RuntimeOptions): Runtime {
       undo, // comparte el gestor: sus ediciones quedan en el mismo undo por turno
       skills: skillIndex,
       textToolCalls,
+      refusalFailover,
     };
     const subPermissions = withSaved(subAgent.permissionRules);
     const subTools = [...ALL_TOOLS, ...vaultTools]

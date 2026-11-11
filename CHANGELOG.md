@@ -4,6 +4,7 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 Versionado: el proyecto aún no sigue semver estricto; cada fase cerrada sube minor.
 
 ## [Sin publicar] — 2026-11-11
+- C2 Refusal-failover (opt-in `compat.refusal_failover`): rechazo del proveedor → reintento con el siguiente `fallbackModels`; bufferiza el intento, nunca emite el texto del rechazo; solo routing, jamás prompts de evasión; motor fetch (vercel-ai lo ignora).
 - Redacción de credenciales al persistir sesiones JSONL (`redactSecrets`).
 - H1: `.editorconfig`, `.gitattributes`, `scripts/check-style.ts` (+`bun run check:style`).
 

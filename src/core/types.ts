@@ -72,6 +72,8 @@ export interface ToolContext {
   skills?: import("../compat/skills.js").SkillIndex;
   /** false desactiva el rescate de tool-calls en texto (config `compat.text_tool_calls: false`). Por defecto activado. */
   textToolCalls?: boolean;
+  /** true activa el refusal-failover (config `compat.refusal_failover: true`): rechazo del proveedor → reintento con el siguiente fallback. Solo routing, sin prompts de evasión. Solo motor fetch; el motor vercel-ai lo ignora. */
+  refusalFailover?: boolean;
   /** Hooks de otras CLIs (fase 7). preTool → razón de bloqueo o null; postTool → void. */
   hooks?: {
     preTool?(tool: string, args: Record<string, unknown>): Promise<string | null>;
