@@ -54,6 +54,7 @@ endpoint OpenAI-compatible sirve (OpenAI, Nous/FreeLLMAPI, Shchiy, Ollama, llama
 |---|---|
 | `nic` | TUI interactiva (por defecto). Headless: `nic -p "…"`, `nic --json` |
 | `nic doctor` | Diagnóstico del entorno (config, provider, permisos, vault, tool-call stats) |
+| `nic doctor --security [--json]` | Chequeos defensivos: permisos de credenciales, secretos en sesiones/config (redactados), umask, .git/config; exit 0/1 |
 | `nic models [--json] [--filter …]` | Lista `/v1/models` del provider con badges tools/censura (heurística conservadora + overrides propios: `nic models override`) |
 | `nic download <url>` | Descarga con reintentos/backoff, límite 128 MiB, sha256 (`nic analyze <archivo>` para inspección local) |
 | `nic policy explain …` | Explicá por qué se permitió/denegó una acción (en construcción, ver `docs/plan-hardening.md`) |
@@ -78,6 +79,8 @@ credenciales nunca llegan al modelo: se filtran o bloquean (fail-closed). Ver
 2. **Sin telemetría** ni red salvo la que el provider/tus tools configuran; `nic doctor` muestra todo lo que carga.
 3. **Credenciales**: fuera del modelo (filtradas en lecturas, rechazadas en escrituras, nunca impresas ni en logs ni en `audit`).
 4. **Sin privilegios**: las tools solo tocan lo que sus reglas permiten; el bucle se detiene ante `ask` sin respuesta.
+
+Modelo y límites: [`docs/threat-model.md`](docs/threat-model.md).
 
 ## Verificación
 

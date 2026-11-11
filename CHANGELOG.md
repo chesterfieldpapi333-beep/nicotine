@@ -19,6 +19,7 @@ Versionado: el proyecto aún no sigue semver estricto; cada fase cerrada sube mi
 
 ### Seguridad
 - vault_search/vault_read/digest: contenido con patrones de credenciales no sale hacia el modelo (fail-closed).
+- `nic doctor --security [--json]`: permisos 0600 de auth/oauth, scan de patrones de credencial en sesiones (conteo redactado), secretos literales en capas de config (solo clave, nunca valor), umask, credenciales en `.git/config`, deny-wins (sonda sintética). Exit 0/1.
 
 ## [0.1.0] — 2026-11-09 (fases 0–10f)
 - Núcleo agéntico, TUI, sesiones, undo, compactación de 2 pasos, subagentes,

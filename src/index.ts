@@ -6,6 +6,7 @@ import { runJson } from "./modes/json.js";
 import { runRepl } from "./modes/repl.js";
 import { runTui } from "./modes/tui.js";
 import { runDoctor } from "./modes/doctor.js";
+import { runDoctorSecurity } from "./modes/doctor-security.js";
 import { runServe } from "./modes/serve.js";
 import { migrateLegacyDataDir } from "./core/migrate.js";
 import { mcpServersFromConfig, asDef } from "./compat/mcp/manager.js";
@@ -25,6 +26,7 @@ Uso:
   nic --print [opciones] [prompt]  un turno; respuesta a stdout
   nic --json  [opciones] [prompt]  eventos JSONL a stdout
   nic doctor [opciones]            diagnóstico
+  nic doctor --security [--json]   seguridad del entorno (exit 0 limpio, 1 hallazgos)
   nic mcp auth <nombre>         autoriza (OAuth 2.1+PKCE) a un servidor MCP remoto
   nic mcp logout <nombre>       olvida el token guardado de un servidor MCP remoto
   nic skills update [url…]      descarga catálogos HTTP de skills (discovery) y los cachea
@@ -113,6 +115,7 @@ function parseArgs(argv: string[]): Args {
       case "--hostname": args.hostname = next(i, a); i++; break;
       case "--mdns": args.mdns = true; break;
       case "--mdns-domain": args.mdnsDomain = next(i, a); args.mdns = true; i++; break;
+      case "--security": args.positional.push("--security"); break;
       case "--help": case "-h": args.help = true; break;
       case "--version": args.version = true; break;
       case "doctor": case "serve": case "skills": case "mcp": case "models": case "download": case "analyze":
@@ -149,6 +152,9 @@ async function main(): Promise<number> {
   const cwd = process.cwd();
 
   if (args.command === "doctor") {
+    if (args.positional.includes("--security")) {
+      return runDoctorSecurity({ cwd, configDir: args.configDir, json: args.json || args.positional.includes("--json") });
+    }
     return runDoctor({ cwd, configDir: args.configDir, agentId: args.agent, modelFlag: args.model });
   }
   if (args.command === "models") {

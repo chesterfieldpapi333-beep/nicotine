@@ -10,8 +10,8 @@
   },
   "scripts": {
     "test": "bun test",
-    "nic": "bun run bin/nic",
-    "doctor": "bun run bin/nic doctor"
+    "nic": "./bin/nic",
+    "doctor": "./bin/nic doctor"
   },
   "engines": {
     "bun": ">=1.1"
