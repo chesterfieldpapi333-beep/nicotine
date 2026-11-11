@@ -64,6 +64,22 @@ export function analyzeBashCommand(command: string): BashAnalysis {
       return { isDangerous: true, reason: "shell ejecutando sustitución de red ($(curl…) o backticks)" };
     }
   }
+  // 2b2) find con borrado, git clean destructor (G3a/G3b del diseño d2)
+  for (const seg of segments) {
+    const { cmd, rest } = unwrap(seg.trim().split(/\s+/));
+    if (cmd === "find") {
+      if (rest.includes("-delete")) return { isDangerous: true, reason: "«find» con -delete" };
+      const execIdx = rest.findIndex((t) => t === "-exec" || t === "-execdir");
+      if (execIdx >= 0 && rest.slice(execIdx + 1).some((t) => t === "rm")) {
+        return { isDangerous: true, reason: "«find» con -exec rm" };
+      }
+    }
+    if (cmd === "git" && rest[0] === "clean") {
+      const hasForce = rest.some((t) => /^-[A-Za-z]*f/.test(t) || t === "--force");
+      const hasDryRun = rest.some((t) => /^(-n|--dry-run)$/.test(t) || /^-[A-Za-z]*n/.test(t));
+      if (hasForce && !hasDryRun) return { isDangerous: true, reason: "«git clean» con borrado forzado" };
+    }
+  }
   // 2c) Comando directamente destructivo (tras quitar wrappers)
   for (let i = 0; i < segments.length; i++) {
     const { cmd } = unwrap(segments[i].trim().split(/\s+/));

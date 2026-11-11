@@ -37,14 +37,23 @@ describe("destructivos con flags peligrosos", () => {
   test("xargs rm detectado (wrapper)", () => {
     expect(analyzeBashCommand("xargs rm -rf .").isDangerous).toBe(true);
   });
-  test("find -exec rm → hueco conocido (caracterización)", () => {
-    expect(analyzeBashCommand("find . -exec rm -rf {} \\;").isDangerous).toBe(false);
+  test("find -exec rm → detectado (G3a)", () => {
+    expect(analyzeBashCommand("find . -exec rm -rf {} \\;").isDangerous).toBe(true);
   });
-  test("find -delete → hueco conocido (caracterización)", () => {
-    expect(analyzeBashCommand("find . -name '*.o' -delete").isDangerous).toBe(false);
+  test("find -execdir rm → detectado (G3a)", () => {
+    expect(analyzeBashCommand("find . -execdir rm {} +").isDangerous).toBe(true);
   });
-  test("git clean -fdx → hueco conocido (caracterización)", () => {
-    expect(analyzeBashCommand("git clean -fdx").isDangerous).toBe(false);
+  test("find -delete → detectado (G3a)", () => {
+    expect(analyzeBashCommand("find . -name '*.o' -delete").isDangerous).toBe(true);
+  });
+  test("git clean -fdx → detectado (G3b)", () => {
+    expect(analyzeBashCommand("git clean -fdx").isDangerous).toBe(true);
+  });
+  test("git clean -f → detectado (G3b)", () => {
+    expect(analyzeBashCommand("git clean -f").isDangerous).toBe(true);
+  });
+  test("git clean -fdn → simulación, sigue seguro (G3b)", () => {
+    expect(analyzeBashCommand("git clean -fdn").isDangerous).toBe(false);
   });
 });
 
