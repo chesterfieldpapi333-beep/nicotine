@@ -1,4 +1,6 @@
-# Checklist del mantenedor — revisión del PR/rama de D1
+# Checklist del mantenedor — revisión del refuerzo sobre D1
+
+> Nota (2026-11-11): D1 lo implementó el mantenedor (`tests/bash-parser-adversarial.test.ts`, 46 casos). Este checklist aplica al refuerzo posterior (arreglar/reforzar/mejorar) que haga la otra sesión detrás.
 
 Se aplica cuando la sesión combinada (prompt Claude+DeepSeek) entregue la rama `worker/deepseek-d1` o equivalente (o push directo a `master` — ver «Riesgo de colisión» abajo).
 

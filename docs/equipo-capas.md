@@ -126,3 +126,5 @@ spec completa en docs/arranque-workers.md.
   de seguridad hasta nueva orden.
 - Todo lo irreversible (push master, tags, borrado de ramas ajenas, permisos) pasa
   por L0 + dueño.
+
+> **Pipeline vigente (dueño, 2026-11-11):** el mantenedor puede implementar L2/L4/L5 directamente para piezas pequeñas spec'd (p. ej. D1); la sesión de refuerzo revisa y mejora detrás con la suite. El reparto L0–L7 no cambia en seguridad: nadie delega ni comparte L0/L6/L7.

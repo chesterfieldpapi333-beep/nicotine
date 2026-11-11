@@ -1,7 +1,6 @@
 # D1 — Tests adversariales para `analyzeBashCommand` (spec L1)
 
-- **Estado**: propuesta; espera OK del dueño antes de delegar a DeepSeek.
-- **Asignación futura**: DeepSeek (worker/deepseek-d1).
+- **Estado**: ✅ implementada por el mantenedor 2026-11-11 (`tests/bash-parser-adversarial.test.ts`, +46 casos). El dueño aprobó el reparto inverso: el mantenedor construye; la sesión de refuerzo revisa/mejora detrás.
 - **Bloqueante**: nada; tarea independiente del resto.
 
 ## Problema

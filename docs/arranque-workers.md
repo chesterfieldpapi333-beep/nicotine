@@ -56,3 +56,5 @@ hoy NO se detecta — se reportan, no se arreglan).
 
 **Cómo se cierra tu PR**: Claude re-corre la suite + check-style, lee tu reporte y tu
 diff, y mergea o rechaza con feedback. Iterás sobre la misma rama; nunca `push --force`.
+
+> **Pipeline vigente:** el mantenedor ahora construye y esta sesión trabaja un paso atrás (arreglar/reforzar/mejorar). El prompt de abajo sigue siendo válido si el dueño devuelve a DeepSeek la implementación; hoy, quien construye frente primero es el mantenedor.

@@ -4,6 +4,7 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 Versionado: el proyecto aún no sigue semver estricto; cada fase cerrada sube minor.
 
 ## [Sin publicar] — 2026-11-11
+- D1 fusionada: `tests/bash-parser-adversarial.test.ts` (+46 casos: heredocs un-segmento, citas mixtas, unicode, wrappers/flags, redirecciones, encadenados — los huecos conocidos documentados como caracterización «congelar ≠ bendecir»). Pipeline vigente: mantenedor construye; la sesión de refuerzo revisa/mejora detrás.
 - Arranque-workers: D1 referencia la spec `docs/design/d1-bash-parser-tests.md`.
 - Docs `docs/arranque-claude.md`: prompt de arranque para el ROL de mantenedor (specs, revisión, merges, releases; lanes L0/L1/L3/L6/L7; invariantes y loop de trabajo).
 - Equipo simplificado a **Claude + DeepSeek** (dueño): GLM/Gemini fuera; `docs/equipo.md`, `docs/equipo-capas.md`, `docs/arranque-workers.md`, `docs/equipo-interno.md` reescritos (L0–L7 con dos roles); ejemplos de agentes reducidos a `deepseek-impl`; prompt único para DeepSeek.
