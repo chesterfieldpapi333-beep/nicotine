@@ -1,173 +1,126 @@
-# Equipo por CAPAS — reparto de responsabilidades en nicotine
+# Equipo por CAPAS — Claude + DeepSeek (nicotine)
 
-Aprobado por el dueño (2026-11-11). Sustituye al reparto por tareas sueltas únicamente
-para quien lo prefiera como guía operativa; la asignación concreta de arranque sigue en
-`docs/arranque-workers.md` y `docs/qwen-tasks.md`. El repo es la única memoria de todos.
+Aprobado 2026-11-11 (dueño). Equipo activo: **Claude + DeepSeek** (Qwen cerró su cola;
+sin GLM ni Gemini). El repo es la única memoria de ambos.
 
-**Idea central**: el trabajo entra por la capa superior necesaria, baja a implementación,
-sube para verificación y cierra con auditoría + merge. Ningún modelo salta capas; nadie
-toca superficie prohibida por más capaz que sea.
+**Idea central**: el trabajo entra por la capa alta necesaria, baja a implementación,
+sube para verificación y cierra con merge. Nadie salta capas.
 
 ```
 Dueño (humano) — decide todo lo irreversible
-  L0 · Claude/mantenedor — dirección, arquitectura, seguridad, merges, releases
-  L1 · Claude + Gemini — diseño técnico y coherencia (antes de código)
+  L0 · Claude — dirección, arquitectura, seguridad, merges, releases
+  L1 · Claude — diseño técnico + auto-contra-revisión (antes de código)
   L2 · DeepSeek — implementación de núcleo (parsers, IO, tipos)
-  L3 · GLM — documentación, docs↔código, consistencia
-  L4 · DeepSeek/GLM — fallos, errores, resiliencia, non-TTY, degradación
-  L5 · GLM (masivos) + DeepSeek (adversariales/fuzz) — tests y matriz de casos
-  L6 · Gemini — análisis adversarial y auditorías (SOLO lectura + informes)
-  L7 · Claude/mantenedor — release e integridad (sumas, SBOM, tags)
+  L3 · Claude — docs y consistencia (redacta o aprueba con datos verificados)
+  L4 · DeepSeek — fallos, errores, resiliencia, non-TTY, degradación
+  L5 · DeepSeek — tests y matriz (normales, borde, adversariales/fuzz)
+  L6 · Claude — revisión adversarial con suite + threat-model (no hay analista aparte)
+  L7 · Claude — release e integridad (sumas, SBOM, tags)
 ```
 
 ## Las capas, una por una
 
 ### L0 — Dirección y decisiones (Claude, con el dueño)
-Alcance (qué se hace y qué NO), invariantes de seguridad, permisos, auth, vault,
-`src/security/*`, `bash-parser`, `loop.ts`, `checkPath`, `tags`, `releases`, merges a
-master. **Nadie más toca esto. Nunca.** Decisión gris → preguntar al dueño.
+Alcance, invariantes de seguridad, permisos, auth, vault, `src/security/*`,
+`bash-parser`, `loop.ts`, `checkPath`, tags, releases, merges a master.
+**DeepSeek nunca toca esto.** Decisión gris → dueño.
 
-### L1 — Diseño y coherencia (Claude redacta; Gemini contra-analiza)
-Toda pieza no trivial empieza con una **spec de diseño** en `docs/design/<tema>.md`:
-problema, no-objetivos, interfaz propuesta, invariantes, archivos que toca/no toca,
-tests esperados, riesgo residual. Gemini revisa la spec ANTES del código (coherencia
-con `docs/`, amenazas T1–T11, estados de `docs/parity.md`). Entregable de Gemini:
-informe en `docs/audits/`. Sin spec aprobada no hay L2/L3.
+### L1 — Diseño y coherencia (Claude)
+Toda pieza no trivial empieza con spec en `docs/design/<tema>.md`: problema, no-objetivos,
+interfaz, invariantes, archivos que toca/no toca, tests esperados, riesgo residual.
+Contra-revisión la hace Claude contra `docs/`, amenazas T1–T11 y estados de parity
+(pensar como el analista ausente): si la spec no sobrevive a la pregunta adversarial,
+no sale a L2. Seed del OK: el dueño puede vetar cualquier spec antes de implementar.
 
 ### L2 — Implementación de núcleo (DeepSeek)
-Código duro: parsers, IO acotado, estructuras, algoritmos correctos, TypeScript strict
-sin `any`, cero deps nuevas. Criterio: correctitud + tipado pedante + límites (bytes,
-tiempo) explícitos. No decide diseño: si la spec está mal o falta, **para y pregunta**.
+Parsers, IO acotado, estructuras, algoritmos correctos, TypeScript strict sin `any`,
+cero deps nuevas, límites (bytes, tiempo) explícitos. No decide diseño: spec mal o
+ambigua → **para y pregunta**.
 
-### L3 — Implementación documental y de consistencia (GLM)
-README, `docs/*`, CHANGELOG, parity, verificación hash↔`git log` de master, ejemplos
-quedaos corriendo. Docs primero observan, después escriben: cada afirmación verificable
-contra el código real (`grep`/`ls`), nunca de memoria. Nada de marketing.
+### L3 — Documentación y consistencia (Claude)
+README, `docs/*`, CHANGELOG, parity, verificación hash↔`git log` de master. Claude
+redacta; si una pieza acotada y verificable se puede delegar a DeepSeek como task L2
+específico, se hace con spec exacta y revisión posterior. Toda afirmación matchea el
+código real. Nada de marketing.
 
-### L4 — Fallos, errores y resiliencia (DeepSeek + GLM)
-Todo camino de error es explícito: mensaje accionable, nunca hang, nunca "silencio OK".
-Reglas: sin TTY pide → rechazo; non-UTF8 → error claro; red timeout → error + sin
+### L4 — Fallos, errores y resiliencia (DeepSeek)
+Caminos de error explícitos: mensaje accionable, nunca hang, nunca silencio OK.
+Reglas: sin TTY pide → rechazo; non-UTF8 → error claro; red timeout → error sin
 corromper estado; `AbortSignal` siempre honrado; desconocido → ask/deny, jamás allow.
-Casos límite con tests. Si un `catch` se traga el error sin log/audit: encontrado bug,
-no parche silencioso — se reporta en el PR.
+Si un `catch` se traga el error sin log/audit: reportar como bug en el PR, no parchear
+en silencio.
 
-### L5 — Tests y matriz de casos (GLM masivos; DeepSeek adversariales)
-Matriz por módulo: normales, borde, adversariales (fuzz/seeds deterministas), permisos
-(deny-wins nunca se rompe), integración loop. Un test por función pública como mínimo
-cuando la spec lo diga. Tests no desactivan seguridad. Fallos detectados → reportados,
-no arreglados en el mismo PR (eso va a L2 con spec).
+### L5 — Tests y matriz de casos (DeepSeek)
+Matriz por módulo: normales, borde, adversariales (fuzz determinista), deny-wins (los
+permisos nunca se rompen), integración de loop. Un test por función pública cuando la
+spec lo diga. Fallos detectados → reportados en el PR, no arreglados ahí (eso va a L2
+con spec).
 
-### L6 — Análisis adversarial (Gemini)
-Auditorías estáticas y cruzadas: threat-model ↔ código, ANSI/OSC en outputs, inyección,
-permisos efectivos, review de PRs normales antes del merge. Severidad
-crítico|alto|medio|bajo|info con evidencia `archivo:línea`. **Jamás edita `src/`.**
-Entrega informes; el mantenedor valida cada hallazgo antes de actuar.
+### L6 — Revisión adversarial (Claude)
+Sin analista dedicado: Claude hace la revisión con la suite, el threat-model, los
+patrones de ataque conocidos (inyección, ANSI/OSC, traversado de rutas, bypass de ask)
+y checklist de deny-wins. Severidad crítico|alto|medio|bajo|info anotada en el reporte
+del merge (o del PR si el rechazo amerita detalle).
 
 ### L7 — Release e integridad (Claude, solo)
-`scripts/verify-release.sh` desde clone limpio, `release/SHA256SUMS` + `SBOM.json`
-in-repo, tags, notas de release, push. Nunca delegado: es git público y reputación.
+`scripts/verify-release.sh`, `release/SHA256SUMS` + `SBOM.json` in-repo, tags, notas,
+push. Nunca delegado.
 
 ## Matriz superficie × capas
 
-| Superficie | L0 | L1 | L2 | L3 | L4 | L5 | L6 (R) | L7 |
+| Superficie | L0 | L1 | L2 | L3 | L4 | L5 | L6 | L7 |
 |---|---|---|---|---|---|---|---|---|
 | `src/core/permissions.ts`, `auth.ts`, `policy.ts`, `redact.ts`, `audit.ts` | ✏️ | review | — | — | — | tests OK | review | tag |
 | `src/security/*`, `src/tools/bash-parser.ts` | ✏️ | review | — | — | bugs reportados | adversariales | review | tag |
-| `src/core/loop.ts`, `src/core/shell-scan.ts` | ✏️/spec | review | spec aprobada | — | errores | integración | review | tag |
-| `src/core/provider*.ts`, `config.ts` | ✏️ | spec | spec aprobada | — | red timeouts | mocks/fetch falso | review | tag |
+| `src/core/loop.ts`, `shell-scan.ts` | ✏️/spec | review | spec aprobada | — | errores | integración | review | tag |
+| `src/core/provider*.ts`, `config.ts` | ✏️ | spec | spec aprobada | — | red timeouts | mocks | review | tag |
 | `src/tools/*` (resto), `src/compat/*` | spec | review | spec aprobada | docs | errores | matriz | review | tag |
-| `src/ui/*`, `src/modes/*` | spec | review | spec aprobada | docs | non-TTY | snapshots/buffer | review | tag |
+| `src/ui/*`, `src/modes/*` | spec | review | spec aprobada | docs | non-TTY | buffer | review | tag |
 | `docs/*`, `README.md` | review | lectura | — | ✏️ | — | — | — | tag |
 | `release/`, tags, push | ✏️ | — | — | — | — | — | — | ✏️ |
-| `docs/audits/*` | lectura | — | — | — | — | — | ✏️ | tag |
+| `docs/design`, `docs/audits` | lectura/✏️ | ✏️ | lectura | lectura | — | — | ✏️ | tag |
 
-✏️ = edita · review = comenta/aprueba · — = no toca · R = solo lectura
+✏️ = edita · review = comenta/aprueba · — = no toca
 
 ## Flujo estándar de una pieza
 
-1. Dueño/mantenedor abre el item (`docs/plan-implementacion.md`, cola o bug).
-2. **L0/L1**: spec en `docs/design/<tema>.md`. Si el riesgo es alto o la spec es vieja,
-   **L6 Gemini** la revisa antes de implementar (pre-review).
-3. **L2/L3/L4/L5** en paralelo cuando el scope es independiente; cada worker en su rama
-   `worker/<modelo>-<id>`; un PR por pieza; cambios fuera de scope = rechazo.
-4. **L6 Gemini** post-audita el diff.
-5. **L0** (mantenedor) re-corre la suite + check-style, lee el reporte, merge o rechazo.
-6. **L7** cuando toque release.
+1. Dueño/Claude abre el item (plan, cola o bug).
+2. **L1**: spec en `docs/design/<tema>.md`; auto-contra-revisión adversarial; el dueño
+   puede vetar.
+3. **L2/L4/L5**: DeepSeek implementa en `worker/deepseek-<id>`; un PR; tests incluidos.
+4. **L6**: Claude post-audita el diff con suite + threat-model.
+5. **L0**: Claude re-corre la suite + check-style; lee el reporte; merge o rechazo con feedback.
+6. **L7**: cuando toque release, Claude solo.
 
-## Prompts por modelo (listos para pegar)
+## Prompt para DeepSeek (pegar en su sesión)
 
-### Claude (L0, L1, L7 — referencia, no se pega en otro chat)
-Soy el mantenedor: escribo specs, apruebo invariantes, reviso y mergeo, corro L7.
-Nada de esto se delega. El dueño decide sobre mí solo en producto/releases.
-
-### DeepSeek (L2 + L4 + L5-deep)
 ```
 Sos DeepSeek (L2/L4/L5) de nicotine — https://github.com/chesterfieldpapi333-beep/nicotine.
 Capa: implementación de núcleo + fallos/resiliencia + tests adversariales.
-MAESTRO: docs/equipo-capas.md — leelo entero; docs/equipo.md; docs/mission-deepseek.md.
+MAESTRO: docs/equipo-capas.md (este archivo) — leelo ENTERO; también docs/equipo.md,
+docs/mission-deepseek.md, docs/threat-model.md.
 
-Setup: clone → cd nicotine → bun install --frozen-lockfile → bun test (408/0/1 skip)
+Setup: clone → cd nicotine → bun install --frozen-lockfile → bun test
 → bun x tsc --noEmit → bun scripts/check-style.ts → git checkout -b worker/deepseek-<id>.
 
-INVARIANTES: TypeScript strict sin `any`; cero deps; cualquier capa L0/L7 intocable
-(permissions, auth, src/security, bash-parser, loop, checkPath, tags); deny-wins;
-non-TTY pide→rechazo; errores accionables; AbortSignal siempre; desconocido→ask/deny.
+INVARIANTES: TypeScript strict sin `any`; cero deps nuevas; superficie L0/L7 intocable
+(permissions, auth, src/security, bash-parser, loop, checkPath, tags, release);
+deny-wins; non-TTY pide→rechazo; errores accionables; AbortSignal siempre;
+desconocido → ask/deny.
 
 ENTREGA: un PR por pieza. Reporte obligatorio:
   Tarea: <id> — <una línea> · Tocado: <archivos> · NO tocado: <archivos>
-  Verificación: bun test (<n>/<f>) · tsc OK|FAIL · check-style OK|FAIL · Dudas/riesgos: …
-Si la spec falta o es ambigua: PARÁ y preguntá. «Hecho» sin tests no es hecho.
-Tu primera asignación: esperá el OK del dueño — candidatas: D1 (tests adversariales
-bash-parser) o L2 de una spec en docs/design/ (si ya existe).
+  Verificación: bun test (<n> pass / <n> fail) · tsc OK|FAIL · check-style OK|FAIL
+  Dudas/riesgos: …
+Spec ambigua o faltante → PARÁ y preguntá. «Hecho» sin tests no es hecho.
+Tu asignación candidata (en espera del OK del dueño): D1 — tests adversariales
+bash-parser (heredocs, comillas mixtas, unicode, encadenados multisegmento);
+spec completa en docs/arranque-workers.md.
 ```
 
-### GLM (L3 + L4-docs + L5-masivo)
-```
-Sos GLM (L3/L4-docs/L5) de nicotine — https://github.com/chesterfieldpapi333-beep/nicotine.
-Capa: documentación de calidad verificable + errores/docs de usuario + matriz masiva de tests.
-MAESTRO: docs/equipo-capas.md — leelo entero; docs/qwen-tasks.md (Q-cola NO es tuya).
+## Escalado
 
-Setup: clone → cd nicotine → bun install --frozen-lockfile → bun test →
-git checkout -b worker/glm-<id>.
-
-REGLAS: español; sin marketing; sin emojis; TODO dato que escribas se verifica con
-grep/ls (hashes vs git log real); cero deps; nunca src/ si la tarea es de docs; nunca
-la superficie de seguridad; ambigüedad → parar y preguntar.
-
-ENTREGA: README/docs/CHANGELOG/parity/verificación hashes/tests masivos según spec.
-Reporte obligatorio del PR (mismo formato que DeepSeek). Tu primera asignación propuesta
-(en espera del OK del dueño): G1 — README «Instalación verificada» + FAQ (spec completa
-en docs/arranque-workers.md).
-```
-
-### Gemini (pre-review L1 + post-auditoría L6)
-```
-Sos Gemini (L1/L6) de nicotine — https://github.com/chesterfieldpapi333-beep/nicotine.
-Capa: diseño (pre-review de specs) y análisis adversarial (post-auditorías). NO programa.
-MAESTRO: docs/equipo-capas.md — leelo entero; docs/threat-model.md; docs/mission-deepseek.md.
-
-Setup: clone → cd nicotine → git checkout -b worker/gemini-<id>.
-PERMITIDO: leer todo; escribir SOLO docs/audits/<tema>.md; NO tocar src/, tests, release,
-config ni git de master.
-
-FORMATO del informe (docs/audits/<tema>.md): (1) alcance y método; (2) tabla/hallazgos
-severidad crítico|alto|medio|bajo|info con evidencia archivo:línea + impacto + fix
-propuesto; (3) qué no pudiste verificar y por qué; (4) resumen ejecutivo ≤10 líneas.
-Severidad honesta: info si es menor; jamás inflás.
-Tu encargo A1 (tras leer docs/): revisión cruzada threat-model T1–T11 ↔ código real.
-```
-
-### Qwen (su cola sigue — ya está medida para L2/L5)
-```
-(Cola Q finalizada 2026-11-11: Q1 discovery, Q2 docs, Q3 tests, Q4 sanitize — mergeada en
-PR #2/#3; Q1–Q4 marcados ✅ en docs/qwen-tasks.md. Qwen en espera de nuevos chips.)
-```
-
-## Escalado y resolución de conflictos
-
-- Un hallazgo L6 bloquea el merge solo si el mantenedor lo valida como real.
-- Ante docs↔código distintos: gana el código; el doc se corrige (L3) o se rechaza el PR.
-- Ante dilema producto/scope: dueño. Ante dilema técnico entre workers: Claude propone,
-  Gemini señala, dueño decide; invariante de seguridad gana hasta nueva orden.
-- Todo lo irreversible (push master, tags, delete de ramas ajenas, cambio de permisos)
-  pasa por L0 + dueño.
+- Claude propone; el dueño decide producto/scope; ante conflicto gana la invariante
+  de seguridad hasta nueva orden.
+- Todo lo irreversible (push master, tags, borrado de ramas ajenas, permisos) pasa
+  por L0 + dueño.

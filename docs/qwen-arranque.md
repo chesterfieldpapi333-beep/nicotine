@@ -1,3 +1,5 @@
+> **Estado: histórico.** La cola Q1–Q4 de Qwen se cerró y fusionó 2026-11-11 (PR #2/#3). Este archivo se conserva como contrato de referencia; no hay tareas activas.
+
 # Qwen Coder en nicotine — pegalo completo al iniciar una sesión
 
 Repo: `https://github.com/chesterfieldpapi333-beep/nicotine` (público; código fuente, sin binarios).

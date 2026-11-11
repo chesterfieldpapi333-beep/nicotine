@@ -1,3 +1,5 @@
+> **Estado: histórico.** La cola Q1–Q4 de Qwen se cerró y fusionó 2026-11-11 (PR #2/#3). Este archivo se conserva como contrato de referencia; no hay tareas activas.
+
 # Prompt de rol — Qwen Coder como worker de nicotine
 
 Pegar esto como primer mensaje en la sesión de Qwen (o abrirlo desde el repo; ambas sirven).
