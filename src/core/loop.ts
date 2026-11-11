@@ -5,6 +5,8 @@ import type { AgentTool, ChatMessage, ToolContext, ToolSchema } from "./types.js
 import { PermissionDenied, expandHome, type PermissionEngine, type CheckResult } from "./permissions.js";
 import { shellSegments } from "./shell-scan.js";
 import { auditEvent } from "./audit.js";
+import { hardPathCheck } from "../security/paths.js";
+import { analyzeBashCommand } from "../tools/bash-parser.js";
 import { parseTextToolCalls } from "./text-tool-calls.js";
 import { streamChat, type ProviderConfig } from "./provider.js";
 import type { TokenUsage } from "./events.js";
@@ -118,8 +120,19 @@ export async function executeTool(tool: AgentTool | undefined, args: Record<stri
   const resources = tool.permissionResources?.(args) ?? [tool.permission.resource(args)];
   const resource = resources[0];
   const isPathAction = ["read", "edit", "list", "write"].includes(action);
+  // Bloqueo duro (sin importar reglas de permiso): rutas sensibles y symlinks no resolubles.
+  if (isPathAction) {
+    for (const r of resources) {
+      const check = hardPathCheck(r, opts.ctx.cwd);
+      if (check.blocked) {
+        auditEvent({ tool: name, action, resource: r, decision: "deny", durationMs: 0, session: opts.ctx.sessionId });
+        throw new PermissionDenied(action, r, check.reason);
+      }
+    }
+  }
   // bash: se analizan los subcomandos (shell-scan) — cada segmento contra las
   // reglas; la combinación deny > ask > allow NUNCA amplía permisos.
+  const forceAskReason = action === "bash" ? analyzeBashCommand(String(args.command ?? "")).reason : undefined;
   const bashSegments = action === "bash" ? shellSegments(String(args.command ?? "")) : [];
   const checkResources = bashSegments.length > 0 ? bashSegments : resources;
   const checkOne = (r: string): CheckResult =>
@@ -127,12 +140,16 @@ export async function executeTool(tool: AgentTool | undefined, args: Record<stri
   // deny > ask > allow para operaciones compuestas
   const results = checkResources.map(checkOne);
   let decision = results.find((r) => r.effect === "deny") ?? results.find((r) => r.effect === "ask") ?? results.find((r) => r.effect === "allow") ?? { effect: "ask" as const };
+  // ask forzado por comando destructivo: gana a cualquier allow configurado
+  if (forceAskReason && decision.effect === "allow") decision = { effect: "ask" };
   if (decision.effect === "ask") {
-    // diff antes de pedir permiso (spec para write/edit/apply_patch)
+    // diff antes de pedir permiso (spec para write/edit/apply_patch); para bash destructivo, advertencia visible
     let diff: string | undefined;
     try { diff = (await tool.preview?.(args, opts.ctx))?.diff; } catch { /* preview falló: se pide sin diff */ }
+    if (forceAskReason) diff = `⚠ DESTRUCTIVO: ${forceAskReason}`;
     const patterns = checkResources.map((r) => proposeAlwaysPattern(action, r));
-    const verdict = await opts.ctx.ui.confirm({ action, resource: resources.join(", "), diff, alwaysPattern: patterns.join(", ") });
+    let verdict = await opts.ctx.ui.confirm({ action, resource: resources.join(", "), diff, alwaysPattern: patterns.join(", ") });
+    if (verdict === "always" && forceAskReason) verdict = "once"; // el destructivo jamás se guarda como «siempre»
     if (verdict === "reject") {
       auditEvent({ tool: name, action, resource, decision: "deny", durationMs: 0, session: opts.ctx.sessionId });
       throw new PermissionDenied(action, resource, "rechazado por el usuario");
