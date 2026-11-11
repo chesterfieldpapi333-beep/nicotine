@@ -1,0 +1,50 @@
+# ============================================================
+#  package.use — USE flags por paquete (a medida)
+# ============================================================
+
+# --- Kernel / firmware ---
+sys-kernel/gentoo-kernel-bin firmware
+sys-kernel/linux-firmware firmware
+
+# --- Escritorio: Plasma (liviano y completo) ---
+kde-plasma/plasma-meta -bluetooth -handbook
+kde-plasma/desktop -bluetooth
+kde-apps/dolphin -handbook
+kde-plasma/kwin -gles2
+kde-plasma/kdeplasma-addons -handbook
+
+# --- Navegador ---
+www-client/firefox -system-cairo -system-harfbuzz -system-icu -system-jpeg -system-libevent -system-libvpx -system-sqlite -system-webp -system-png
+www-client/chromium -system-cairo
+
+# --- Multimedia ---
+media-video/mpv -lua -libass
+media-sound/pipewire -bluetooth
+media-sound/pulseaudio -system-wide
+media-libs/mesa -llvm
+media-libs/libva -vdpau
+media-video/ffmpeg -nvenc -nvdec -vaapi -vdpau
+
+# --- Dev tools (para vireo / bun / git) ---
+dev-lang/nodejs -npm -corepack
+dev-util/git -curl -perl
+dev-lang/rust-bin -rust-src
+dev-db/sqlite -fts5
+dev-python/pip -setuptools
+
+# --- Impresoras / escáner ---
+net-print/cups -usb
+media-gfx/sane-backends -gphoto2
+
+# --- Red ---
+net-misc/networkmanager -modemmanager -nss
+net-wireless/bluez -cups -obex
+
+# --- Sistema ---
+sys-apps/systemd -sysv-utils
+sys-apps/openrc -sysv-utils
+sys-boot/grub -themes
+sys-kernel/installkernel -grub
+app-misc/screen -bell
+app-editors/vim -gui -gtksourceview
+app-editors/nano -debug
