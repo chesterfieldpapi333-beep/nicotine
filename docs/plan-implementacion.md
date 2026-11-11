@@ -23,21 +23,7 @@ verificación (`git status` limpio + fetch anónimo) antes de dar por cerrado un
 
 ## 1. Estado verificado (hoy)
 
-| Pieza | Estado |
-|---|---|
-| Repo público (`master`) | ✅ `origin/master` = `cea7ade4` (fase 11) |
-| Suite de tests | ✅ 344 tests (1 skip: live vercel-ai), `tsc` limpio |
-| `README.md` / `LICENSE` / `.github` | ❌ **no existen** |
-| H0 (threat model + `nic doctor --security`) | ✅ implementado 2026-11-11 (`docs/threat-model.md`, `src/modes/doctor-security.ts`, `tests/doctor-security.test.ts`, 351 tests verdes) |
-| H1 (higiene) | ✅ 2026-11-11 (`.editorconfig`, `.gitattributes`, `scripts/check-style.ts`) |
-| H3 (`--readonly` + `nic policy export|import|explain`) | ✅ 2026-11-11 (`src/core/policy.ts`, `src/modes/policy.ts`, `.nicotine/policy.json` como capa, deny-wins) |
-| H5 (redacción al persistir) | ✅ 2026-11-11 (`src/core/redact.ts`, aplicado en `Session.appendMessage`) |
-| H2/H4/H6/H7/H8/H9/H10 | ❌ pendientes (sin SBOM, límites, audit log, fuzzing, informe) |
-| linaje.md wishlist | ❌ nada implementado (refusal-failover, action stream, repo map, discovery, single-file, watch mode) |
-| Push de `c714a2d` + `4e627b4` | ⏳ autorizado pendiente |
-| `docs/plan-hardening.md` | etapa H0–H10 descrita a nivel boceto; dice «repo privado» (obsoleto: ahora público) |
-| Medición de tokens | ❌ sin baseline (research hecha; herramientas sin instalar) |
-| Reestructura del vault | ⏳ script entregado; lo ejecuta el usuario en Windows |
+> ⚠ **Registro histórico** (fases 11–12, inicio del hardening). La tabla original describía el estado al arrancar; hoy está desactualizada y se archiva como historia. Hechos verificables hoy: repo público en GitHub; `README.md`/`LICENSE.md` presentes (no existe `.github/` — OAuth sin scope `workflow`); hardening H0–H10 fusionado; releases `v0.2.0` y `v0.2.1` con sumas in-repo (`release/SHA256SUMS`); suite verde (1 skip live vercel-ai); `nic doctor` con exit 0 (también con `--security`). Fuentes vivas: `CHANGELOG.md`, `README.md`, `docs/verification-10f.md` (con addenda), `release/SHA256SUMS`. Estado exacto en el momento: `git log --oneline -1 origin/master`.
 
 ## 2. Track A — Cierre de publicación
 

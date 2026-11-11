@@ -95,7 +95,7 @@ Modelo y límites: [`docs/threat-model.md`](docs/threat-model.md).
 
 ```bash
 bun install --frozen-lockfile
-bun test          # 409 tests; 1 skip (integración live vercel-ai)
+bun test          # toda la suite; 1 skip (integración live vercel-ai)
 bun x tsc --noEmit
 bun scripts/check-style.ts
 ./scripts/verify-release.sh   # instala limpio, corre todo y verifica release/ in-repo

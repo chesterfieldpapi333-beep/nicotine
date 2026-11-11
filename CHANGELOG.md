@@ -4,6 +4,7 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 Versionado: el proyecto aún no sigue semver estricto; cada fase cerrada sube minor.
 
 ## [Sin publicar] — 2026-11-11
+- Higiene de claims (refuerzo detrás): README sin conteo fijo de tests; CHANGELOG sin conteo fijo de sumas; `plan-implementacion.md` — tabla de estado viva archivada como registro histórico (hechos vivos → README/CHANGELOG/sumas); `cea7ade4` (hash fantasma) eliminado.
 - D2 G2: `shell-scan` extrae cuerpos de heredoc ANTES de segmentar — el `rm` dentro del heredoc ya no lo oculta (ni lo inventa); comandos tras el heredoc sí se detectan; ante cierre no encontrado, fallback al comportamiento anterior. Falso negativo estructural de D1 corregido.
 - D2 (parcial): detección de `find … -delete`, `find … -exec[dir] rm`, y `git clean` con fuerza sin `-n` (simula) → ask; ambos aprobados por el dueño (OK «sí a todo», 2026-11-11).
 - D2 (parcial): `exec` añadido a los wrappers de `bash-parser` (G4) y `.git` añadido al bloqueo de redirecciones incl. prefijo `./` (G1); invariantes intactos (solo ensancha `ask`).
@@ -13,7 +14,7 @@ Versionado: el proyecto aún no sigue semver estricto; cada fase cerrada sube mi
 - Arranque-workers: D1 referencia la spec `docs/design/d1-bash-parser-tests.md`.
 - Docs `docs/arranque-claude.md`: prompt de arranque para el ROL de mantenedor (specs, revisión, merges, releases; lanes L0/L1/L3/L6/L7; invariantes y loop de trabajo).
 - Equipo simplificado a **Claude + DeepSeek** (dueño): GLM/Gemini fuera; `docs/equipo.md`, `docs/equipo-capas.md`, `docs/arranque-workers.md`, `docs/equipo-interno.md` reescritos (L0–L7 con dos roles); ejemplos de agentes reducidos a `deepseek-impl`; prompt único para DeepSeek.
-- Mantenedor: Q1–Q4 marcados ✅ en `docs/qwen-tasks.md` (merge PR #2 `93ba8ce` / PR #3 `2ab5ba8`); addendum en `docs/verification-10f.md`; sumas in-repo regeneradas (196 archivos) tras integrar los PRs.
+- Mantenedor: Q1–Q4 marcados ✅ en `docs/qwen-tasks.md` (merge PR #2 `93ba8ce` / PR #3 `2ab5ba8`); addendum en `docs/verification-10f.md`; sumas in-repo regeneradas tras integrar los PRs (196 en ese momento).
 - Docs `docs/equipo-capas.md`: equipo multi-modelo repartido por CAPAS (L0 dirección → L1 diseño → L2/L4 DeepSeek implementación+resiliencia → L3/L5 GLM documentación+tests masivos → L6 Gemini adversarial → L7 release) + matriz superficie×capas y prompts listos para pegar.
 - Docs `docs/equipo-interno.md` + `docs/examples/multi-modelo/agents/`: cómo armar un equipo multi-modelo dentro de nicotine (gateway OpenAI-compatible único, agentes con `model` propio, analista de solo lectura); ejemplos verificados contra `scanAgentFiles`.
 - Equipo multi-modelo documentado (`docs/equipo.md`, `docs/arranque-workers.md`): Claude estructura, DeepSeek/GLM programan, Gemini analiza (solo lectura), Qwen mantiene su cola.
