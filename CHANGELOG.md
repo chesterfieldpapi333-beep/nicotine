@@ -4,6 +4,8 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 Versionado: el proyecto aún no sigue semver estricto; cada fase cerrada sube minor.
 
 ## [Sin publicar] — 2026-11-11
+- Arranque de la sesión de refuerzo (`docs/arranque-refuerzo.md`): revisa/mejora **detrás** del mantenedor (auditar lo fusionado, ampliar tests, proponer specs — jamás tocar `src/` sin spec).
+- Propuesta L1 `docs/design/d2-bash-parser-gaps.md`: cerrar los huecos de D1 (G4 `exec` wrapper · G1 `.git` en redirecciones · G2 heredoc→segmentos · G3 `find -delete`/`git clean` con OK del dueño). Nada implementado aún.
 - D1 fusionada: `tests/bash-parser-adversarial.test.ts` (+46 casos: heredocs un-segmento, citas mixtas, unicode, wrappers/flags, redirecciones, encadenados — los huecos conocidos documentados como caracterización «congelar ≠ bendecir»). Pipeline vigente: mantenedor construye; la sesión de refuerzo revisa/mejora detrás.
 - Arranque-workers: D1 referencia la spec `docs/design/d1-bash-parser-tests.md`.
 - Docs `docs/arranque-claude.md`: prompt de arranque para el ROL de mantenedor (specs, revisión, merges, releases; lanes L0/L1/L3/L6/L7; invariantes y loop de trabajo).
