@@ -191,30 +191,34 @@ describe("UndoManager — bordes (Q3)", () => {
     }
     const manifest = JSON.parse(readFileSync(manifestPath(id), "utf8")) as { seq: number; records: { turn: number; dir?: string }[] };
     expect(manifest.seq).toBe(31);
-    // El turno 1 ya perdió sus imágenes en disco (la poda corre en memoria)…
-    const oldest = manifest.records.find((r) => r.turn === 1);
-    expect(oldest?.dir).toBeDefined();
-    expect(existsSync(join(filesPath(id), oldest!.dir!))).toBe(false);
-    // …y los turnos conservados siguen completos.
-    const kept = manifest.records.filter((r) => r.turn > 1);
-    expect(kept.every((r) => existsSync(join(filesPath(id), r.dir!)))).toBe(true);
+    expect([...new Set(manifest.records.map((r) => r.turn))]).toEqual(Array.from({ length: 30 }, (_, i) => i + 2));
+    // toda referencia del manifest existe en disco…
+    expect(manifest.records.every((r) => r.dir && existsSync(join(filesPath(id), r.dir)))).toBe(true);
+    // …y las imágenes del turno podado ya no están
+    expect(readdirSync(filesPath(id)).some((d) => d.startsWith("1-"))).toBe(false);
   });
 
-  test("deuda: el manifest en disco puede citar imágenes ya podadas", async () => {
-    // save() persiste ANTES de prune(): una instancia nueva carga el manifest sin podar.
+  test("el manifest en disco nunca cita imágenes podadas, tampoco al recargar", async () => {
     const { UndoManager } = await import("../src/core/undo.js");
     const id = newId();
     const undo = new UndoManager(id);
     for (let i = 1; i <= 31; i++) {
       undo.beginTurn(`turno ${i}`);
-      undo.snapshotPre("write", [join(tmp, `deuda-${i}.txt`)]);
-      writeFileSync(join(tmp, `deuda-${i}.txt`), `v${i}\n`);
+      undo.snapshotPre("write", [join(tmp, `inv-${i}.txt`)]);
+      writeFileSync(join(tmp, `inv-${i}.txt`), `v${i}\n`);
       undo.snapshotPost();
     }
     const reloaded = new UndoManager(id);
-    expect(reloaded.canUndo()).toBe(true);
     const manifest = JSON.parse(readFileSync(manifestPath(id), "utf8")) as { records: { turn: number; dir?: string }[] };
-    expect(manifest.records.some((r) => r.turn === 1)).toBe(true);
+    expect(manifest.records.some((r) => r.turn === 1)).toBe(false);
+    expect(manifest.records.every((r) => r.dir && existsSync(join(filesPath(id), r.dir)))).toBe(true);
+    // los 30 turnos conservados se deshacen; el podado queda fuera de alcance (no lanza)
+    let hechos = 0;
+    for (let i = 0; i < 31; i++) if (reloaded.undo().ok) hechos++;
+    expect(hechos).toBe(30);
+    expect(reloaded.undo().ok).toBe(false);
+    expect(existsSync(join(tmp, "inv-31.txt"))).toBe(false);
+    expect(existsSync(join(tmp, "inv-1.txt"))).toBe(true);
   });
 
   test("archivo > 2 MB: no se respalda y undo lo omite con nota", async () => {
