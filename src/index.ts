@@ -16,7 +16,7 @@ import { runModelsList, runModelsOverride, runModelsOverrides } from "./modes/mo
 import { runDownload } from "./modes/download.js";
 import { runAnalyze } from "./modes/analyze.js";
 
-const VERSION = "0.1.0";
+const VERSION = "0.2.0";
 
 const HELP = `nic (nicotine) — agente de código CLI ligero (lite)
 

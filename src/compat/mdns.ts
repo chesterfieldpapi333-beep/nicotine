@@ -189,7 +189,7 @@ export class MdnsAnnouncer {
   }
 
   private txtRecord(ttl: number): Rr {
-    return { name: this.names.instanceFqdn, type: TYPE.TXT, cacheFlush: true, ttl, rdata: txtRdata({ path: this.o.path ?? "/", api: "nicotine-serve-1", version: "0.1.0" }) };
+    return { name: this.names.instanceFqdn, type: TYPE.TXT, cacheFlush: true, ttl, rdata: txtRdata({ path: this.o.path ?? "/", api: "nicotine-serve-1", version: "0.2.0" }) };
   }
   private srvRecord(ttl: number): Rr {
     return { name: this.names.instanceFqdn, type: TYPE.SRV, cacheFlush: true, ttl, rdata: srvRdata(this.o.httpPort, this.names.targetFqdn) };

@@ -222,7 +222,7 @@ export async function diagnosticsFor(def: LspServerDef, absPath: string, cwd: st
       processId: process.pid,
       rootUri: pathToFileURL(findRoot(def, cwd)).href,
       capabilities: { textDocument: { publishDiagnostics: {} } },
-      clientInfo: { name: "nicotine", version: "0.1.0" },
+      clientInfo: { name: "nicotine", version: "0.2.0" },
     }, Math.min(timeoutMs, 8000));
     session.send("initialized", {});
     const text = readFileSync(absPath, "utf8");
