@@ -8,6 +8,7 @@ import { runTui } from "./modes/tui.js";
 import { runDoctor } from "./modes/doctor.js";
 import { runDoctorSecurity } from "./modes/doctor-security.js";
 import { runPolicy } from "./modes/policy.js";
+import { runAudit } from "./modes/audit.js";
 import { runServe } from "./modes/serve.js";
 import { migrateLegacyDataDir } from "./core/migrate.js";
 import { mcpServersFromConfig, asDef } from "./compat/mcp/manager.js";
@@ -31,6 +32,7 @@ Uso:
   nic policy export [--readonly] [-o archivo]   reglas efectivas con origen
   nic policy import <archivo> [--yes]          valida y aplica política del proyecto (.nicotine/policy.json)
   nic policy explain <action> <resource> [--readonly] [--json]   por qué se permitió/denegó
+  nic audit export [-o archivo]      vuelca el JSONL de auditoría (NICOTINE_AUDIT=1 la activa)
   nic mcp auth <nombre>         autoriza (OAuth 2.1+PKCE) a un servidor MCP remoto
   nic mcp logout <nombre>       olvida el token guardado de un servidor MCP remoto
   nic skills update [url…]      descarga catálogos HTTP de skills (discovery) y los cachea
@@ -125,7 +127,7 @@ function parseArgs(argv: string[]): Args {
       case "--readonly": args.readonly = true; break;
       case "--help": case "-h": args.help = true; break;
       case "--version": args.version = true; break;
-      case "doctor": case "serve": case "skills": case "mcp": case "models": case "download": case "analyze": case "policy":
+      case "doctor": case "serve": case "skills": case "mcp": case "models": case "download": case "analyze": case "policy": case "audit":
         if (!args.command) { args.command = a; break; }
         args.positional.push(a); break;
       case "--": args.positional.push(...argv.slice(i + 1)); i = argv.length; break;
@@ -163,6 +165,9 @@ async function main(): Promise<number> {
       return runDoctorSecurity({ cwd, configDir: args.configDir, json: args.json || args.positional.includes("--json") });
     }
     return runDoctor({ cwd, configDir: args.configDir, agentId: args.agent, modelFlag: args.model });
+  }
+  if (args.command === "audit") {
+    return runAudit({ cwd, positional: args.positional });
   }
   if (args.command === "policy") {
     return runPolicy({ cwd, configDir: args.configDir, positional: args.positional, readonly: args.readonly, json: args.json || args.positional.includes("--json") });

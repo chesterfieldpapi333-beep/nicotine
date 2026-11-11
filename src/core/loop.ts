@@ -4,6 +4,7 @@
 import type { AgentTool, ChatMessage, ToolContext, ToolSchema } from "./types.js";
 import { PermissionDenied, expandHome, type PermissionEngine, type CheckResult } from "./permissions.js";
 import { shellSegments } from "./shell-scan.js";
+import { auditEvent } from "./audit.js";
 import { parseTextToolCalls } from "./text-tool-calls.js";
 import { streamChat, type ProviderConfig } from "./provider.js";
 import type { TokenUsage } from "./events.js";
@@ -130,7 +131,10 @@ export async function executeTool(tool: AgentTool | undefined, args: Record<stri
     try { diff = (await tool.preview?.(args, opts.ctx))?.diff; } catch { /* preview falló: se pide sin diff */ }
     const patterns = checkResources.map((r) => proposeAlwaysPattern(action, r));
     const verdict = await opts.ctx.ui.confirm({ action, resource: resources.join(", "), diff, alwaysPattern: patterns.join(", ") });
-    if (verdict === "reject") throw new PermissionDenied(action, resource, "rechazado por el usuario");
+    if (verdict === "reject") {
+      auditEvent({ tool: name, action, resource, decision: "deny", durationMs: 0, session: opts.ctx.sessionId });
+      throw new PermissionDenied(action, resource, "rechazado por el usuario");
+    }
     if (verdict === "always") {
       for (const [i, r] of checkResources.entries()) {
         opts.permissions.addSavedAllow({ action, resource: patterns[i], effect: "allow" });
@@ -140,6 +144,7 @@ export async function executeTool(tool: AgentTool | undefined, args: Record<stri
     decision = { effect: "allow" };
   }
   if (decision.effect === "deny") {
+    auditEvent({ tool: name, action, resource, decision: "deny", durationMs: 0, session: opts.ctx.sessionId });
     const detail = decision.policy
       ? `policy v2 «${decision.rule?.resource}»`
       : decision.rule
@@ -155,14 +160,17 @@ export async function executeTool(tool: AgentTool | undefined, args: Record<stri
     try { undo.snapshotPre(tool.name, undoablePaths(tool.name, args, opts.ctx.cwd, resources)); preTaken = true; } catch { /* snapshot falló: se ejecuta sin undo */ }
   }
   let result: Awaited<ReturnType<typeof tool.run>>;
+  const toolStarted = Date.now();
   try {
     result = await tool.run(args, opts.ctx);
     // Hooks PostToolUse: informativos, nunca bloquean.
     await opts.ctx.hooks?.postTool?.(tool.name, args).catch(() => {});
     if (preTaken) try { undo!.snapshotPost(); } catch { opts.ctx.ui.info("undo: no se pudo guardar el snapshot"); }
+    auditEvent({ tool: name, action, resource, decision: "allow", durationMs: Date.now() - toolStarted, session: opts.ctx.sessionId });
     return result.output;
   } catch (err) {
     if (preTaken) try { undo!.snapshotPost(); } catch { /* sin snapshot; el error original manda */ }
+    auditEvent({ tool: name, action, resource, decision: "error", durationMs: Date.now() - toolStarted, session: opts.ctx.sessionId });
     throw err;
   }
 }
