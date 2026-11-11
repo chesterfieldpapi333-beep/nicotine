@@ -49,7 +49,7 @@
 | C6 — `--solo-bash` minimal | hecho | f141fbe | bash+readonly; sin vault/MCP/LSP |
 | Misión DeepSeek adaptada (paths+bash-parser) | hecho | cdf4a34 | bloqueo duro de rutas; ask forzado en destructivos |
 | H9 — release in-repo (v0.2.0) | hecho | (tag v0.2.0) | este doc + `docs/release.md` |
-| H10 — informe final | pendiente | — | — |
+| H10 — informe final | hecho | a30fd7e (fix incluido) | `docs/verification-10f.md`; hallazgo readonly corregido |
 
 Notas: el bloqueo duro de rutas (`~/.ssh|aws|gnupg`, `.git`) y el análisis destructivo de bash vienen de la misión DeepSeek (adaptada), no de la numeración original H* — quedaron fusionados donde encajan.
 
