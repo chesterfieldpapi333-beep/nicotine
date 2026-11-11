@@ -8,7 +8,7 @@ Se aplica cuando la sesión combinada (prompt Claude+DeepSeek) entregue la rama 
 
 ## B. Verificación ejecutada por el mantenedor (no vale el reporte del worker)
 1. `bun install --frozen-lockfile`
-2. `bun test` completo — ต้องo 471+ pass, 0 fail (D1 suma casos).
+2. `bun test` completo — 471+ pass, 0 fail (D1 suma casos).
 3. `bun x tsc --noEmit` limpio.
 4. `bun scripts/check-style.ts`.
 5. `git status --porcelain release/` vacío contra las sumas **del commit mergeado** (si el worker regeneró sums, contrastarlas; si no lo hizo y cambió archivos trackeados, regenerarlas yo mismo con `./scripts/verify-release.sh` y commitearlas en el merge).
