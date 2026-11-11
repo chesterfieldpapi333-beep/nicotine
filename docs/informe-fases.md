@@ -1,6 +1,6 @@
 # Informe de fases — nicotine
 
-**Fecha:** 2026-11-09 · **Versión:** nicotine 0.1.0 · **Estado:** Fases 0–7 publicadas en `master` (`7576162 → 5368ddd`); **Fases 0–11 implementadas y verificadas** (último commit en este informe).
+**Fecha:** 2026-11-11 · **Versión:** nicotine 0.2.0 · **Estado:** Fases 0–7 publicadas en `master` (`7576162 → 5368ddd`); **Fases 0–11 implementadas y verificadas** (último commit en este informe).
 
 **nicotine** es un agente de código CLI *lite*, compatible con el formato `opencode.json(c)`,
 que lee skills/plugins/MCP de Claude Code, Codex, Gemini CLI, OpenCode y Pi. Motor propio

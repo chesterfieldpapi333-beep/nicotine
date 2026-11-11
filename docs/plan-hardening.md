@@ -1,8 +1,8 @@
 # Plan de endurecimiento — nicotine
 
 **Fecha:** 2026-11-11 · **Autor:** mantenedor · **Alcance aprobado:** SOLO endurecer `nic`
-(sin portar `dlx`, sin nuevas features por ahora) · **Release:** repo privado, sin binarios
-públicos firmados · **Estilo:** comentarios mínimos y no cosméticos.
+(sin portar `dlx`; features por decisión explícita) · **Release:** código público, sin
+binarios publicados ni releases firmados (SHA-256/SBOM solo in-repo) · **Estilo:** comentarios mínimos y no cosméticos.
 
 Este plan no promete «inexpugnable» ni «libre de errores»: ningún sistema lo es. Promete
 propiedades verificables: perímetro más chico, menos privilegios, secretos que no se
@@ -149,10 +149,12 @@ Entregables
 - Rotación en disco: `$XDG_STATE_HOME/nicotine/audit.jsonl` (o bajo data-home si no hay
   STATE), límite de tamaño configurable, append-only.
 
-## Fase H9 — Release privado y documentación (½ día)
+## Fase H9 — Publicación de código (repo abierto, sin binarios) (½ día)
 
 Entregables
-- `docs/release.md` cerrado; tag `v0.2.0`; `git push --tags`.
+- `docs/release.md` cerrado con guía de verificación desde el clone (sums SHA-256
+  in-repo generadas por H2); tag `v0.2.0` en el repo; **sin** binarios, **sin** releases
+  firmados, **sin** npm/winget; la publicación es el código fuente.
 - `docs/parity.md` actualizado con sección «Endurecimiento (H0–H10)» y tabla de estados.
 - `docs/informe-fases.md` con métricas antes/después (tests, deps, líneas de src).
 - Checklist de verificación en README ausente: crear README mínimo si se decide (preguntar).
