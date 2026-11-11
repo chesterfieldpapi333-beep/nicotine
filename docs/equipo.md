@@ -1,5 +1,7 @@
 # Equipo multi-modelo — quién hace qué en nicotine
 
+> **Versión por capas:** para el reparto por responsabilidades (L0–L7: dirección → diseño → implementación → fallos → tests → adversarial → release) ver [`docs/equipo-capas.md`](./equipo-capas.md).
+
 Pipeline aprobado 2026-11-11 (dueño): **Claude estructura · DeepSeek y GLM programan ·
 Gemini analiza · Qwen implementa su cola**. El dueño supervisa; la palabra final del dueño
 gana siempre. El repo es la **única memoria compartida** de todos los modelos.
