@@ -37,7 +37,7 @@ amenazas, controles y — sobre todo — **límites**: lo que nicotine no proteg
 | # | Amenaza | Control existente / previsto | Límite |
 |---|---|---|---|
 | T1 | Exfiltración de secreto pegado en sesión hacia el proveedor | Redacción de secretos en salidas y logs (H5); filtros del vault; `read` de `.env` → `ask` | El usuario puede pegar claves en el chat; no se puede impedir, solo advertir y no propagarlas a archivos/logs |
-| T2 | Tool hostil: `bash` arbitrario | Permisos deny-wins; `--readonly` (H3); allowlist de env en hijos (H4); salidas truncadas (H4) | La tool `bash` con permiso `allow` **ejecuta cualquier cosa**: nicotine no analiza semánticamente el comando |
+| T2 | Tool hostil: `bash` arbitrario | Permisos deny-wins; `--readonly` (H3); allowlist de env en hijos (H4); salidas truncadas (H4); análisis destructivo `analyzeBashCommand` → ask forzado (misión DeepSeek adaptada); `rm`/`chmod`/`curl\|sh` fuerza ask siempre | El análisis es heurística de primer nivel: pipe-a-shell local (`cat s \| sh`) y encadenados no-red no se detectan; un `allow` de bash sigue permitiendo lo que el analizador no flagea |
 | T3 | Secreto en `sessions/*.jsonl` / logs | Scan en `nic doctor --security` (H0); redact (H5); auditoría sin secretos (H8) | Si el secreto ya está persistido en disco antes de H5, el scan lo detecta pero no lo borra |
 | T4 | Plugin/extensión maliciosa | Sólo datos en `doctor`; import/ejecución solo tras confirmación del usuario; deny-wins | Un plugin aprobado por el usuario ejecuta JS con tu UID: sin sandbox |
 | T5 | Config hostil de proyecto | Confirmación de MCP/extensiones de proyecto; capas listadas; deny-wins | `opencode.jsonc` con `instructions` maliciosas entra al prompt: mitigación parcial (permisos) |
@@ -45,6 +45,7 @@ amenazas, controles y — sobre todo — **límites**: lo que nicotine no proteg
 | T7 | Parser roto / entrada patológica (JSONC, regex, tool-calls en texto) | Parsers acotados, sin `eval`; fuzzing lite (H7); límite de bytes por salida de tool (H4) | Bugs en parsers siempre son posibles: H7 reduce, no elimina |
 | T8 | Secreto en historial git local / `.git/config` | Scan en `doctor --security` (URLs con credenciales en `.git/config`) | No reescribe historia: usar `git filter-repo` si se detecta |
 | T9 | Fuga vía MCP remoto (datos → servidor tercero) | MCP remotos listados; origin de proyecto pide confirmación; deny-wins sobre sus tools | Todo lo que el agente envíe a su provider queda bajo política del provider (retención, training): nicotine no puede cambiar eso |
+| T11 | Output de tool con ANSI/OSC malicioso (secuestro de pantalla/portapapeles OSC 52) | Mitigado: `sanitizeForTUI` (`src/security/sanitize.ts`) se aplica antes de imprimir en `src/ui/flat.ts`, `src/ui/app.ts`, `src/ui/components.ts` y `src/modes/tui.ts`; elimina movimiento/borrado/OSC/DCS/C0-C1 y conserva solo SGR básico | Residual aceptado: `--json` no se sanea (salida para máquinas, no para terminal) y una secuencia partida entre deltas pierde el color (nunca el control) |
 | T10 | Cadena de suministro (dependencias) | `bun.lock` pinado; `verify-release.sh` con sumas in-repo (H2); SBOM (H2); revisión manual (H6) | Sin firmas de terceros; `@opentui/core` opcional es dependencia confiada, no auditada |
 
 ## 4. Controles transversales y verificación
