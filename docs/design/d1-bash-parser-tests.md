@@ -20,9 +20,10 @@ tests, un refactor futuro del parser puede romper la detección en silencio.
 
 ## Alcance
 
-> **Verificación previa (mantenedor, 2026-11-11):** cada veredicto esperado de esta
-spec fue confirmado ejecutando `analyzeBashCommand` sobre el comando exacto
-(`bun -e` scratch script, no commiteado). 38/38 casos confirman la implementación actual.
+> **Verificación previa (mantenedor, 2026-11-11):** cada veredicto esperado listado en
+> esta spec fue confirmado ejecutando `analyzeBashCommand` sobre el comando exacto
+> (script scratch en `/tmp`, no commiteado). Si un veredicto diverge de la
+> implementación al testear, el caso es «caracterización» — reportar, no arreglar.
 
 Crear **`tests/bash-parser-adversarial.test.ts`** (nuevo, para no chocar con el archivo
 existente) con, como mínimo, estos grupos:
