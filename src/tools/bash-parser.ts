@@ -13,8 +13,8 @@ const DESTRUCTIVE = new Set([
 ]);
 const SHELLS = new Set(["sh", "bash", "zsh", "dash", "ksh"]);
 const DOWNLOADERS = new Set(["curl", "wget"]);
-const WRAPPERS = new Set(["sudo", "doas", "command", "builtin", "env", "xargs", "nice", "ionice", "nohup", "time"]);
-const REDIRECT_SENSITIVE = /(^|\s)(>>|>|&>|\|\s*(sudo\s+)?tee)\s*["']?(~?\/|\$HOME\/)?(\.ssh\b|\.aws\b|\.gnupg\b|etc\b|dev\/(sd|nvme|hd|mmcblk)|boot\b)/i;
+const WRAPPERS = new Set(["sudo", "doas", "command", "builtin", "env", "xargs", "nice", "ionice", "nohup", "time", "exec"]);
+const REDIRECT_SENSITIVE = /(^|\s)(>>|>|&>|\|\s*(sudo\s+)?tee)\s*["']?(~?\/|\$HOME\/|\.\/)?(\.ssh\b|\.aws\b|\.gnupg\b|\.git\b|etc\b|dev\/(sd|nvme|hd|mmcblk)|boot\b)/i;
 
 /** Quita wrappers iniciales (sudo, env A=B, nice, …) y devuelve el comando real. */
 function unwrap(tokens: string[]): { cmd: string; rest: string[] } {
