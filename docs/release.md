@@ -3,8 +3,8 @@
 > **Nota 2026-11-11:** el tag `v0.2.0` apunta a `2c377d7`. Tras cortarlo, la verificación
 > H10 encontró un bug (`--readonly` + ruta fuera del proyecto caía en `ask` en vez de
 > `deny`); está corregido en `a30fd7e` y master quedó en `bd7ee01` con sumas regeneradas.
-> **Esperar tag `v0.2.1`** (recomendado) o mover `v0.2.0` — decisión del dueño; este doc
-> describe el procedimiento, no sanciona una release concreta.
+> **Resuelto:** `v0.2.1` (2026-11-11) apunta al master con el fix; `v0.2.0` se mantiene como
+> historia (pre-fix). Este doc describe el procedimiento para cualquiera de las dos.
 
 **Qué es:** la publicación es el **código fuente**. No hay binarios, ni firmas, ni
 releases en npm/winget, ni checksums publicados fuera del repo. Quien clona, verifica.

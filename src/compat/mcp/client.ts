@@ -36,7 +36,7 @@ export interface McpPromptInfo {
   arguments?: { name: string; description?: string; required?: boolean }[];
 }
 
-const CLIENT_INFO = { name: "nicotine", version: "0.2.0" };
+const CLIENT_INFO = { name: "nicotine", version: "0.2.1" };
 const PROTOCOL_2026 = "2026-07-28";
 const LEGACY_LADDER = ["2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05"];
 

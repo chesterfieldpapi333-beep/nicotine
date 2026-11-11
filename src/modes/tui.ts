@@ -380,7 +380,7 @@ export async function runTui(opts: TuiOptions): Promise<number> {
 
   // ————— arranque de la UI —————
   if (opts.sessionId || opts.continueLatest) app.setHistory(displayHistory(rt.messages.slice(1)));
-  app.info(`nicotine 0.2.0 — sesión ${rt.session.id} · ${rt.provider.model} · esc aborta · ctrl+p comandos`);
+  app.info(`nicotine 0.2.1 — sesión ${rt.session.id} · ${rt.provider.model} · esc aborta · ctrl+p comandos`);
 
   const engineName = (opts.engine ?? envAlias("UI_ENGINE") ?? "opentui").toLowerCase();
   let engine: UiEngine;
