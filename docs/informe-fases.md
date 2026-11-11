@@ -21,6 +21,51 @@ Métricas globales al cierre de Fase 8:
 
 ---
 
+## Hardening (H0–H10) — 2026-11-11
+
+**Alcance:** endurecimiento defensivo sobre las fases 0–11 ya publicadas (plan en
+`docs/plan-hardening.md`), más C2/C3/C6 y la misión DeepSeek adaptada
+(`docs/mission-deepseek.md`). Nada de esto amplía permisos: deny-wins y fail-closed siguen
+siendo invariantes, y `serve` sigue apagado por defecto.
+
+**Métricas antes/después** (medición el 2026-11-11; detalle en `docs/verification-10f.md`):
+
+| Métrica | Antes (fase 11, `387ade4`) | Después (H10, `bd7ee01`) |
+|---|---|---|
+| Tests | **344** (baseline de `docs/plan-implementacion.md`) | **408 pasan**, 409 totales, 1 skip (live vercel-ai) |
+| Archivos de test | 36 | 47 |
+| Typecheck | limpio | limpio (`bun x tsc --noEmit`, TS 7.0.2) |
+| Estilo | revisión manual | `bun scripts/check-style.ts` verde (LF, sin trailing, newline final, sin tabs) |
+| Dependencias | 0 de runtime de agentes + `@opentui/core` opcional | igual, con pinning exacto y sin lifecycle scripts (`docs/dependencies.md`) |
+
+> El plan estimaba 398 tests al cierre del hardening; la medición real sobre `bd7ee01` es 408
+> (409 con el skip). Se documenta el valor medido, no la estimación.
+
+**Por fase** (hashes verificados contra `git log` de `master`):
+
+| Fase | Commit | Aporte |
+|---|---|---|
+| H0 | `d72c7eb` | `docs/threat-model.md` + `nic doctor --security` (exit 0/1, `--json`, nunca imprime secretos) |
+| H1 | `b655059`, `1daf98d` | `.editorconfig`, `.gitattributes`, `scripts/check-style.ts` |
+| H2 | `6e03604` | verificación desde clon limpio: `scripts/verify-release.sh`, `scripts/sbom.ts` |
+| H3 | `6bce2a7`, `1daf98d` | `redactSecrets` al persistir sesiones JSONL; `nic policy export|import|explain` |
+| H4 | `7aa1c92` | salida de tools acotada (50 KiB por defecto, máx. 4 MiB) y log completo en 0600 |
+| H5 | `1daf98d`, `6bce2a7` | `--readonly` no relajable e invariante deny-wins con sonda en doctor |
+| H6 | `a868066` | pinning exacto, `packageManager`, lockfile congelado, sin lifecycle scripts |
+| H7 | `f625424` | fuzzing lite determinista de jsonc, shell-scan, text-tool-calls, apply_patch, matchPattern, redact |
+| H8 | `7aa1c92` | auditoría opt-in `NICOTINE_AUDIT=1` en JSONL rotado + `nic audit export` |
+| H9 | `2c377d7`, `3a28b5d` | `release/SHA256SUMS` + `release/SBOM.json` in-repo y `docs/release.md` (tag `v0.2.0`) |
+| H10 | `a30fd7e`, `bd7ee01` | verificación final; corrige deny-wins entre `external_directory` y la acción en `checkPath` |
+| C2 | `07e3f55` | refusal-failover opt-in: solo routing, nunca emite el texto del rechazo |
+| C3 | `5094bf1` | «semantic action stream» en el footer (toggle `ui.action_stream`) |
+| C6 | `f141fbe` | perfil «minimal» `--solo-bash` (bash + solo-lectura) |
+| Misión DeepSeek | `cdf4a34` | bloqueo duro de rutas (`src/security/paths.ts`) y ask forzado en bash destructivo (`src/tools/bash-parser.ts`) |
+
+**Pendiente declarado:** sanitización ANSI de la salida del modelo y de la tool `bash`
+(tarea Q4 del worker), y los tests de áreas flacas (Q3).
+
+---
+
 ## 0 — Investigación de paridad (`14edee4`, con Fase 1)
 
 **Objetivo:** documento guía con la paridad OpenCode *lite*, sección por sección (A–N).
