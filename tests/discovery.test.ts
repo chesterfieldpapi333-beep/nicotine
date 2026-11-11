@@ -56,6 +56,15 @@ describe("discoverClis — solo disco", () => {
     expect(res.missing).toEqual(["jq", "rg", "curl"]);
   });
 
+  test("rama Windows: usa PATHEXT y no exige bit de ejecución", () => {
+    writeFileSync(join(binA, "git.EXE"), "");       // en Windows un .EXE es ejecutable sin +x
+    const win = discoverClis({ pathEnv: binA, platform: "win32", pathExt: ".EXE", names: ["git", "gh"] });
+    expect(win.found).toEqual([{ name: "git", path: join(binA, "git.EXE") }]);
+    expect(win.missing).toEqual(["gh"]);
+    // el mismo archivo en POSIX, sin +x, no se detecta
+    expect(discoverClis({ pathEnv: binA, platform: "linux", names: ["git"] }).found).toEqual([]);
+  });
+
   test("PATH vacío: nada encontrado y ninguna excepción", () => {
     const res = discoverClis({ pathEnv: "", names: ["git", "bun"] });
     expect(res.searchedDirs).toBe(0);
@@ -118,5 +127,39 @@ describe("probeCliVersion — opt-in, acotado y sin colgarse", () => {
     expect(cleanVersionLine("cli 1.0 sk-abcdefghijklmnop\nresto")).toBe("cli 1.0 sk-***");
     expect(cleanVersionLine("\n")).toBe(VERSION_UNAVAILABLE);
     expect(cleanVersionLine(undefined)).toBe(VERSION_UNAVAILABLE);
+  });
+});
+
+describe("doctor — sin ejecución por defecto (P1)", () => {
+  const withEnv = (env: Record<string, string | undefined>, fn: () => void) => {
+    const saved: Record<string, string | undefined> = {};
+    for (const k of Object.keys(env)) { saved[k] = process.env[k]; if (env[k] === undefined) delete process.env[k]; else process.env[k] = env[k]; }
+    try { fn(); } finally {
+      for (const k of Object.keys(saved)) { if (saved[k] === undefined) delete process.env[k]; else process.env[k] = saved[k]; }
+    }
+  };
+
+  test("el sondeo de ripgrep es por disco: no ejecuta `rg`", async () => {
+    const base = mkdtempSync(join(tmpdir(), "nicotine-doctor-"));
+    const bin = join(base, "bin");
+    const home = join(base, "home");
+    mkdirSync(bin);
+    mkdirSync(home);
+    const marca = join(base, "ejecutado");
+    const rg = join(bin, "rg");
+    writeFileSync(rg, `#!/bin/sh\ntouch "${marca}"\nexit 0\n`);
+    chmodSync(rg, 0o755);
+
+    const { runDoctor } = await import("../src/modes/doctor.js");
+    let out = "";
+    const orig = process.stdout.write;
+    withEnv({ PATH: `${bin}:/usr/local/bin:/usr/bin:/bin`, HOME: home, XDG_DATA_HOME: join(base, "data") }, () => {
+      process.stdout.write = ((c: unknown) => { out += String(c); return true; }) as typeof process.stdout.write;
+      try { runDoctor({ cwd: base }); } finally { process.stdout.write = orig; }
+    });
+
+    expect(out).toContain(`ripgrep: sí (${rg})`);
+    expect(existsSync(marca)).toBe(false);
+    rmSync(base, { recursive: true, force: true });
   });
 });
