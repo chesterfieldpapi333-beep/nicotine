@@ -3,6 +3,9 @@
 Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 Versionado: el proyecto aún no sigue semver estricto; cada fase cerrada sube minor.
 
+## [Sin publicar] — 2026-11-11
+- Equipo multi-modelo documentado (`docs/equipo.md`, `docs/arranque-workers.md`): Claude estructura, DeepSeek/GLM programan, Gemini analiza (solo lectura), Qwen mantiene su cola.
+
 ## [0.2.1] — 2026-11-11
 
 ### Corregido / añadido (hardening fusionado)
