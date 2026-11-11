@@ -29,7 +29,10 @@ verificación (`git status` limpio + fetch anónimo) antes de dar por cerrado un
 | Suite de tests | ✅ 344 tests (1 skip: live vercel-ai), `tsc` limpio |
 | `README.md` / `LICENSE` / `.github` | ❌ **no existen** |
 | H0 (threat model + `nic doctor --security`) | ✅ implementado 2026-11-11 (`docs/threat-model.md`, `src/modes/doctor-security.ts`, `tests/doctor-security.test.ts`, 351 tests verdes) |
-| H1–H10 (resto del hardening) | ❌ nada implementado (sin redacción, política export/import, sandbox, audit log, fuzzing, SBOM) |
+| H1 (higiene) | ✅ 2026-11-11 (`.editorconfig`, `.gitattributes`, `scripts/check-style.ts`) |
+| H3 (`--readonly` + `nic policy export|import|explain`) | ✅ 2026-11-11 (`src/core/policy.ts`, `src/modes/policy.ts`, `.nicotine/policy.json` como capa, deny-wins) |
+| H5 (redacción al persistir) | ✅ 2026-11-11 (`src/core/redact.ts`, aplicado en `Session.appendMessage`) |
+| H2/H4/H6/H7/H8/H9/H10 | ❌ pendientes (sin SBOM, límites, audit log, fuzzing, informe) |
 | linaje.md wishlist | ❌ nada implementado (refusal-failover, action stream, repo map, discovery, single-file, watch mode) |
 | Push de `c714a2d` + `4e627b4` | ⏳ autorizado pendiente |
 | `docs/plan-hardening.md` | etapa H0–H10 descrita a nivel boceto; dice «repo privado» (obsoleto: ahora público) |

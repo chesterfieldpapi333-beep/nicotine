@@ -57,8 +57,9 @@ endpoint OpenAI-compatible sirve (OpenAI, Nous/FreeLLMAPI, Shchiy, Ollama, llama
 | `nic doctor --security [--json]` | Chequeos defensivos: permisos de credenciales, secretos en sesiones/config (redactados), umask, .git/config; exit 0/1 |
 | `nic models [--json] [--filter …]` | Lista `/v1/models` del provider con badges tools/censura (heurística conservadora + overrides propios: `nic models override`) |
 | `nic download <url>` | Descarga con reintentos/backoff, límite 128 MiB, sha256 (`nic analyze <archivo>` para inspección local) |
-| `nic policy explain …` | Explicá por qué se permitió/denegó una acción (en construcción, ver `docs/plan-hardening.md`) |
-| `nic --readonly` | Sin escrituras: todas las tools de modificación → deny (en construcción) |
+| `nic policy export [--readonly]` / `nic policy import <archivo>` | Exporta/importa la política efectiva (defaults→config→`.nicotine/policy.json`→CLI), versionada, deny-wins |
+| `nic policy explain <action> <resource> [--json]` | Por qué se permitió/denegó (regla ganadora, origen, reglas cercanas) |
+| `nic --readonly` | Sin escrituras: edit/bash/vault-write → deny global (deny-wins, no relajable) |
 | `nic serve` | API HTTP compatible OpenCode (**apagada por defecto**; requiere password) |
 
 ## Memoria persistente (vault de Obsidian)
@@ -75,10 +76,10 @@ credenciales nunca llegan al modelo: se filtran o bloquean (fail-closed). Ver
 
 ## Seguridad (en 4 bullets)
 
-1. **Permisos** allow/ask/deny por `action`/`resource`; deny-wins; sin regla → ask (fail-closed).
+1. **Permisos** allow/ask/deny por `action`/`resource`; deny gana siempre. Default `allow` (última regla gana) salvo `read *.env`/`external_directory` (ask); `--readonly` fuerza edit/bash/vault-write → deny. Sin TTY una regla `ask` rechaza; en TTY preguntá.
 2. **Sin telemetría** ni red salvo la que el provider/tus tools configuran; `nic doctor` muestra todo lo que carga.
 3. **Credenciales**: fuera del modelo (filtradas en lecturas, rechazadas en escrituras, nunca impresas ni en logs ni en `audit`).
-4. **Sin privilegios**: las tools solo tocan lo que sus reglas permiten; el bucle se detiene ante `ask` sin respuesta.
+4. **Sin privilegios**: las tools solo tocan lo que sus reglas permiten; una regla `ask` en modo no interactivo se rechaza (no se auto-aprueba; `--auto` es opt-in explícito).
 
 Modelo y límites: [`docs/threat-model.md`](docs/threat-model.md).
 

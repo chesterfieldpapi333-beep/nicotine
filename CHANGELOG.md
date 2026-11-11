@@ -3,6 +3,10 @@
 Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 Versionado: el proyecto aún no sigue semver estricto; cada fase cerrada sube minor.
 
+## [Sin publicar] — 2026-11-11
+- Redacción de credenciales al persistir sesiones JSONL (`redactSecrets`).
+- H1: `.editorconfig`, `.gitattributes`, `scripts/check-style.ts` (+`bun run check:style`).
+
 ## [0.2.0] — 2026-11-11
 
 ### Añadido
@@ -19,6 +23,7 @@ Versionado: el proyecto aún no sigue semver estricto; cada fase cerrada sube mi
 
 ### Seguridad
 - vault_search/vault_read/digest: contenido con patrones de credenciales no sale hacia el modelo (fail-closed).
+- `nic policy export|import|explain` + `--readonly`: política efectiva versionada (defaults→config→`.nicotine/policy.json`→CLI), deny-wins, export con origen de cada regla; `--readonly` deniega edit/bash/vault-write de forma no relajable.
 - `nic doctor --security [--json]`: permisos 0600 de auth/oauth, scan de patrones de credencial en sesiones (conteo redactado), secretos literales en capas de config (solo clave, nunca valor), umask, credenciales en `.git/config`, deny-wins (sonda sintética). Exit 0/1.
 
 ## [0.1.0] — 2026-11-09 (fases 0–10f)

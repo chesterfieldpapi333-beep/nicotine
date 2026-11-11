@@ -7,6 +7,7 @@ import { runRepl } from "./modes/repl.js";
 import { runTui } from "./modes/tui.js";
 import { runDoctor } from "./modes/doctor.js";
 import { runDoctorSecurity } from "./modes/doctor-security.js";
+import { runPolicy } from "./modes/policy.js";
 import { runServe } from "./modes/serve.js";
 import { migrateLegacyDataDir } from "./core/migrate.js";
 import { mcpServersFromConfig, asDef } from "./compat/mcp/manager.js";
@@ -27,6 +28,9 @@ Uso:
   nic --json  [opciones] [prompt]  eventos JSONL a stdout
   nic doctor [opciones]            diagnóstico
   nic doctor --security [--json]   seguridad del entorno (exit 0 limpio, 1 hallazgos)
+  nic policy export [--readonly] [-o archivo]   reglas efectivas con origen
+  nic policy import <archivo> [--yes]          valida y aplica política del proyecto (.nicotine/policy.json)
+  nic policy explain <action> <resource> [--readonly] [--json]   por qué se permitió/denegó
   nic mcp auth <nombre>         autoriza (OAuth 2.1+PKCE) a un servidor MCP remoto
   nic mcp logout <nombre>       olvida el token guardado de un servidor MCP remoto
   nic skills update [url…]      descarga catálogos HTTP de skills (discovery) y los cachea
@@ -39,6 +43,7 @@ Uso:
 Opciones:
   -p, --print        modo no interactivo (un turno)
       --json         eventos como JSONL
+      --readonly     sin escrituras: edit/bash/vault-write → deny (deny-wins, no relajable)
       serve          servidor HTTP local (apagado por defecto; requiere NICOTINE_SERVER_PASSWORD)
       --port <n>     puerto de serve (defecto 4096)
       --hostname <h> bind de serve (defecto 127.0.0.1)
@@ -90,11 +95,12 @@ interface Args {
   hostname?: string;
   help: boolean;
   version: boolean;
+  readonly: boolean;
   positional: string[];
 }
 
 function parseArgs(argv: string[]): Args {
-  const args: Args = { print: false, json: false, auto: false, continueLatest: false, fork: false, help: false, version: false, positional: [] };
+  const args: Args = { print: false, json: false, auto: false, continueLatest: false, fork: false, help: false, version: false, readonly: false, positional: [] };
   const next = (i: number, flag: string) => {
     if (i + 1 >= argv.length) throw new Error(`falta valor para ${flag}`);
     return argv[i + 1];
@@ -116,9 +122,10 @@ function parseArgs(argv: string[]): Args {
       case "--mdns": args.mdns = true; break;
       case "--mdns-domain": args.mdnsDomain = next(i, a); args.mdns = true; i++; break;
       case "--security": args.positional.push("--security"); break;
+      case "--readonly": args.readonly = true; break;
       case "--help": case "-h": args.help = true; break;
       case "--version": args.version = true; break;
-      case "doctor": case "serve": case "skills": case "mcp": case "models": case "download": case "analyze":
+      case "doctor": case "serve": case "skills": case "mcp": case "models": case "download": case "analyze": case "policy":
         if (!args.command) { args.command = a; break; }
         args.positional.push(a); break;
       case "--": args.positional.push(...argv.slice(i + 1)); i = argv.length; break;
@@ -156,6 +163,9 @@ async function main(): Promise<number> {
       return runDoctorSecurity({ cwd, configDir: args.configDir, json: args.json || args.positional.includes("--json") });
     }
     return runDoctor({ cwd, configDir: args.configDir, agentId: args.agent, modelFlag: args.model });
+  }
+  if (args.command === "policy") {
+    return runPolicy({ cwd, configDir: args.configDir, positional: args.positional, readonly: args.readonly, json: args.json || args.positional.includes("--json") });
   }
   if (args.command === "models") {
     if (args.positional[0] === "override") return runModelsOverride(args.positional.slice(1));
@@ -218,7 +228,7 @@ async function main(): Promise<number> {
   const abort = new AbortController();
   process.on("SIGINT", () => abort.abort());
 
-  const base = { cwd, configDir: args.configDir, auto: args.auto, agentId: args.agent, modelFlag: args.model, sessionId: args.sessionId, continueLatest: args.continueLatest, fork: args.fork, signal: abort.signal };
+  const base = { cwd, configDir: args.configDir, auto: args.auto, agentId: args.agent, modelFlag: args.model, sessionId: args.sessionId, continueLatest: args.continueLatest, fork: args.fork, signal: abort.signal, readonly: args.readonly };
 
   try {
     if (args.json) {

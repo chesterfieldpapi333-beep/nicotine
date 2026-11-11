@@ -57,6 +57,14 @@ export function matchPattern(pattern: string, value: string): boolean {
   return new RegExp(`^${re}$`).test(v);
 }
 
+// Reglas de --readonly (CLI): denegación global de acciones que modifican.
+// deny-wins las hace imposibles de relajar desde config o agentes.
+export const READONLY_RULES: Rule[] = [
+  { action: "edit", resource: "*", effect: "deny" }, // write/apply_patch/patch normalizan a edit
+  { action: "bash", resource: "*", effect: "deny" },
+  { action: "vault", resource: "write:*", effect: "deny" },
+];
+
 export interface CheckResult { effect: Effect; rule?: Rule; /** true si lo impide una policy v2 (hard-deny post-reglas). */ policy?: boolean }
 
 export interface Policy { action: string; resource: string }

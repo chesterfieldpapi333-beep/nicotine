@@ -50,7 +50,7 @@ amenazas, controles y — sobre todo — **límites**: lo que nicotine no proteg
 ## 4. Controles transversales y verificación
 
 - **deny-wins**: si cualquier regla aplica `deny`, el efecto es deny (probe sintética en tests).
-- **fail-closed**: sin regla → `ask`; vault bloquea lectura/escritura con credenciales; `serve` sin password → no arranca; `--readonly` (H3) → escritura deny global.
+- **fail-closed donde importa**: deny gana siempre (incl. vs allows guardados); `ask` en non-TTY → rechazo; vault bloquea lectura/escritura con credenciales; `serve` sin password → no arranca; `--readonly` → escritura deny global; sin regla aplicable gana la última regla (defaults: allow, con ask en `*.env` y `external_directory`).
 - **mínimo privilegio**: `doctor` no ejecuta nada (ni MCP, ni plugins, ni extensiones); sólo lista.
 - **observabilidad sin secretos**: stats de tool-calls en texto anonimizadas; auditoría (H8) sin cuerpos ni claves; nada sale de la máquina (sin telemetría).
 

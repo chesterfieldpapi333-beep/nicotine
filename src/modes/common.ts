@@ -1,6 +1,6 @@
 // Arranque común de todos los modos: config → permisos → sesión → contexto.
 
-import { PermissionEngine } from "../core/permissions.js";
+import { PermissionEngine, READONLY_RULES } from "../core/permissions.js";
 import { loadConfig } from "../core/config.js";
 import { findAgent, allAgents, registerExtraAgents, registerConfigAgents } from "../core/agents.js";
 import { parseConfigAgents } from "../compat/config-agents.js";
@@ -44,6 +44,8 @@ export interface RuntimeOptions {
   signal?: AbortSignal;
   /** Bifurca la sesión cargada (--fork): conserva historial, session id nuevo. */
   fork?: boolean;
+  /** false/undefined = normal; true = edit/bash/vault-write denegados (deny-wins). */
+  readonly?: boolean;
   /** fetch inyectable (tests / serve). Los subagentes lo heredan. */
   fetchImpl?: typeof fetch;
 }
@@ -193,8 +195,9 @@ export function buildRuntime(opts: RuntimeOptions): Runtime {
     ...session.messages(),
   ];
 
+  const effectiveRules = opts.readonly ? [...rules, ...READONLY_RULES] : rules;
   const withSaved = (agentRules: import("../core/permissions.js").Rule[]) =>
-    new PermissionEngine([...rules, ...savedApprovals, ...agentRules], policies);
+    new PermissionEngine([...effectiveRules, ...savedApprovals, ...agentRules], policies);
 
   let currentAgentId = agent.id;
   const agentCtl = {
