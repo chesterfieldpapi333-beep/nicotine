@@ -24,6 +24,7 @@ import { exportSessionMarkdown } from "./export-session.js";
 import { editInExternalEditor, openInExternalEditor } from "../ui/external-editor.js";
 import type { UiBridge, ExtAppLike } from "../ext/api.js";
 import { splitArgs } from "../compat/util.js";
+import { sanitizeForTUI } from "../security/sanitize.js";
 
 export interface TuiOptions extends RuntimeOptions {
   /** Fuerza el motor: "opentui" (defecto) | "ansi". */
@@ -363,9 +364,10 @@ export async function runTui(opts: TuiOptions): Promise<number> {
   // ————— bus de eventos → widgets —————
   rt.bus.on((ev) => {
     switch (ev.type) {
-      case "text_delta": app.appendAssistantDelta(ev.text); break;
+      // Texto del modelo y salida de tools: dato no confiable, se limpia al entrar.
+      case "text_delta": app.appendAssistantDelta(sanitizeForTUI(ev.text)); break;
       case "tool_start": app.toolStart(ev.id, ev.name, ev.args); break;
-      case "tool_end": app.toolEnd(ev.id, ev.name, ev.output, ev.isError, ev.durationMs); break;
+      case "tool_end": app.toolEnd(ev.id, ev.name, sanitizeForTUI(ev.output), ev.isError, ev.durationMs); break;
       case "turn_end": {
         if (ev.usage?.totalTokens) rt.usageTotals.totalTokens = (rt.usageTotals.totalTokens ?? 0) + ev.usage.totalTokens;
         app.turnEnd(ev.reason, rt.usageTotals.totalTokens);
@@ -417,9 +419,9 @@ export async function runTui(opts: TuiOptions): Promise<number> {
 function displayHistory(messages: ChatMessage[]): DisplayMessage[] {
   const out: DisplayMessage[] = [];
   for (const m of messages) {
-    if (m.role === "user") out.push({ role: "user", text: String(m.content ?? "") });
-    else if (m.role === "assistant") out.push({ role: "assistant", text: String(m.content ?? "") });
-    else if (m.role === "tool") out.push({ role: "tool", text: "resultado de herramienta", toolName: "tool", output: String(m.content ?? "") });
+    if (m.role === "user") out.push({ role: "user", text: sanitizeForTUI(String(m.content ?? "")) });
+    else if (m.role === "assistant") out.push({ role: "assistant", text: sanitizeForTUI(String(m.content ?? "")) });
+    else if (m.role === "tool") out.push({ role: "tool", text: "resultado de herramienta", toolName: "tool", output: sanitizeForTUI(String(m.content ?? "")) });
     // system y otros: no se muestran
   }
   return out;

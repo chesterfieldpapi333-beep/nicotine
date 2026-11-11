@@ -39,6 +39,10 @@ Versionado: el proyecto aún no sigue semver estricto; cada fase cerrada sube mi
   (rm/dd/mkfs/chmod/chown/…), `curl|wget | sh|bash`, sustitución de red en shells,
   redirecciones a rutas sensibles → **ask forzado** (gana a allow; «always» degrada a «once»).
 - Redacción de credenciales al persistir sesiones JSONL (`redactSecrets`, H3/H5).
+- Sanitización ANSI de salida no confiable (`src/security/sanitize.ts`): el texto del
+  modelo y la salida de tools se limpian antes de imprimir (se descartan movimiento de
+  cursor, borrado, OSC —incl. 52 portapapeles—, DCS/SOS/PM/APC y controles C0/C1;
+  solo sobrevive SGR básico).
 - Límites de recursos (H4): salida de tools acotada (50 KiB por defecto,
   `NICOTINE_MAX_TOOL_OUTPUT_BYTES` o `tools.bash.maxOutputBytes`, máx. 4 MiB) y el completo
   en archivo temporal 0600.
