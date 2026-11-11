@@ -134,3 +134,90 @@ describe("mdns — anunciador sobre unicast (puerto efímero)", () => {
     await expect(ann.stop()).resolves.toBeUndefined(); // stop idempotente
   });
 });
+
+describe("mdns — codec: errores esperados (Q3)", () => {
+  test("encodeName rechaza etiqueta vacía y etiqueta de más de 63 bytes", () => {
+    expect(() => encodeName("a..b")).toThrow(/vacía/);
+    expect(() => encodeName(`${"x".repeat(64)}.local`)).toThrow(/demasiado larga/);
+  });
+
+  test("decodeName sigue punteros de compresión y deja el offset al final del puntero", () => {
+    const head = encodeName("local.");
+    const buf = Buffer.concat([head, Buffer.from([1, 0x61, 0xc0, 0x00])]);
+    const { name, offset } = decodeName(buf, head.length);
+    expect(name).toBe("a.local.");
+    expect(offset).toBe(buf.length);
+  });
+
+  test("decodeName: puntero circular, puntero truncado y etiqueta truncada no cuelgan", () => {
+    expect(() => decodeName(Buffer.from([0xc0, 0x00]), 0)).toThrow(/profundo/);
+    expect(() => decodeName(Buffer.from([0xc0]), 0)).toThrow(/puntero DNS truncado/);
+    expect(() => decodeName(Buffer.from([5, 0x61, 0x62]), 0)).toThrow(/etiqueta DNS truncada/);
+  });
+
+  test("parseDnsMessage: mensaje corto o pregunta truncada", () => {
+    expect(() => parseDnsMessage(Buffer.alloc(4))).toThrow(/truncado/);
+    const q = craftQuery("x.local.", 12);
+    expect(() => parseDnsMessage(q.subarray(0, q.length - 2))).toThrow(/truncada/);
+  });
+});
+
+describe("mdns — buildResponseFor sin red (Q3)", () => {
+  const ann = (extra: Record<string, unknown> = {}) =>
+    new MdnsAnnouncer({ httpPort: 4096, multicast: false, bindAddress: "127.0.0.1", hostIPv4: "10.1.2.3", instanceLabel: "inst", hostLabel: "host", logger: () => {}, ...extra });
+
+  test("ignora respuestas (QR=1), mensajes sin preguntas y paquetes basura", () => {
+    const a = ann();
+    const header = (flags: number, qd: number) => Buffer.concat([u16(0), u16(flags), u16(qd), u16(0), u16(0), u16(0)]);
+    expect(a.buildResponseFor(header(0x8400, 0))).toBeNull();
+    expect(a.buildResponseFor(header(0, 0))).toBeNull();
+    expect(a.buildResponseFor(Buffer.alloc(3))).toBeNull();
+  });
+
+  test("ignora preguntas de clase no-IN", () => {
+    const a = ann();
+    const q = Buffer.concat([u16(0), u16(0), u16(1), u16(0), u16(0), u16(0), encodeName("_services._dns-sd._udp.local."), u16(12), u16(3)]);
+    expect(a.buildResponseFor(q)).toBeNull();
+  });
+
+  test("consulta ANY por la instancia → SRV con el puerto y TXT con path/api", () => {
+    const a = ann({ httpPort: 4321, path: "/salud" });
+    const resp = a.buildResponseFor(craftQuery(a.names.instanceFqdn, 255));
+    expect(resp).not.toBeNull();
+    const { answers } = parseAnswers(resp!);
+    expect(answers.map((x) => x.type).sort()).toEqual([16, 33]);
+    expect(answers.find((x) => x.type === 33)!.rdata.readUInt16BE(4)).toBe(4321);
+    const txt = answers.find((x) => x.type === 16)!.rdata.toString("utf8");
+    expect(txt).toContain("path=/salud");
+    expect(txt).toContain("api=nicotine-serve-1");
+  });
+
+  test("consulta PTR por el servicio → PTR + additionals SRV/TXT/A", () => {
+    const a = ann();
+    const { answers, additionals } = parseAnswers(a.buildResponseFor(craftQuery(a.names.serviceFqdn, 12))!);
+    expect(answers.map((x) => x.type)).toEqual([12]);
+    expect(additionals.map((x) => x.type).sort()).toEqual([1, 16, 33]);
+  });
+
+  test("el registro A usa hostIPv4 y cae a 127.0.0.1 si es inválido", () => {
+    const ok = ann();
+    const a1 = parseAnswers(ok.buildResponseFor(craftQuery(ok.names.targetFqdn, 1))!).answers.find((x) => x.type === 1)!;
+    expect([...a1.rdata]).toEqual([10, 1, 2, 3]);
+    const bad = ann({ hostIPv4: "no-es-una-ip" });
+    const a2 = parseAnswers(bad.buildResponseFor(craftQuery(bad.names.targetFqdn, 1))!).answers.find((x) => x.type === 1)!;
+    expect([...a2.rdata]).toEqual([127, 0, 0, 1]);
+  });
+
+  test("ttl configurable se refleja en la respuesta", () => {
+    const a = ann({ ttl: 30 });
+    const { answers } = parseAnswers(a.buildResponseFor(craftQuery(a.names.serviceFqdn, 12))!);
+    expect(answers[0].ttl).toBe(30);
+  });
+
+  test("dominio y serviceType con punto final se normalizan en los nombres", () => {
+    const a = ann({ domain: "lan.local.", serviceType: "_nicotine._udp." });
+    expect(a.names.serviceFqdn).toBe("_nicotine._udp.lan.local.");
+    expect(a.names.instanceFqdn).toBe("inst._nicotine._udp.lan.local.");
+    expect(a.names.targetFqdn).toBe("host.lan.local.");
+  });
+});
