@@ -4,6 +4,7 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 Versionado: el proyecto aún no sigue semver estricto; cada fase cerrada sube minor.
 
 ## [Sin publicar] — 2026-11-11
+- C3 «semantic action stream»: etiqueta de fase en el footer derivada de tool_start («analizando …», «editando <archivo>…», «ejecutando comando «…»»); toggle `ui.action_stream` en tui.json(c) (defecto: activado). El historial de tools no cambia.
 - C6 perfil «minimal» `--solo-bash`: solo la tool `bash` + solo-lectura (read/glob/grep/webfetch); también restringe vault y LSP en runtime; pruebas de filtro.
 - Bloqueo duro de rutas sensibles en tools de archivo (`src/security/paths.ts`): realpath/nearest-existing, symlink irresoluble fail-closed, `~/.ssh|aws|gnupg` y cualquier `.git` bloqueados sin importar reglas.
 - Análisis estático de bash (`src/tools/bash-parser.ts`): destructivos (rm/dd/mkfs/chmod/chown/…), `curl|wget | sh|bash`, sustitución de red en shells, redirecciones a rutas sensibles → **ask forzado** (gana a allow; «always» degradar a «once»).

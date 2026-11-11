@@ -105,7 +105,7 @@ Decisión previa (ya tomada): solo lo honesto y medible. Ordenado por valor/cost
 | ID | Feature | Detalle | Esfuerzo |
 |---|---|---|---|
 | C2 ✅ implementado 2026-11-11 | **Refusal-failover** | Ante patrón de rechazo del proveedor (lista conservadora + umbral de confianza), reintenta con el siguiente proveedor configurado en `fallbackModels`; opt-in (`compat.refusal_failover: true`); **sin** contenido de bypass, sin prompts de evasión; solo routing. Tests con mocks: 3 proveedores, 2º responde rechazo → 3º responde ok | 1–2 días |
-| C3 | **Semantic action stream** | TUI: etiqueta de fase en footer («analizando…», «editando …», «ejecutando comando…») derivada de tool_start (read/write/bash/search); reemplaza ruido, no oculta info; toggle `ui.action_stream` | ½–1 día |
+| C3 ✅ 2026-11-11 | **Semantic action stream** | TUI: etiqueta de fase en footer («analizando…», «editando …», «ejecutando comando…») derivada de tool_start (read/write/bash/search); reemplaza ruido, no oculta info; toggle `ui.action_stream` | ½–1 día |
 | C5 | **Agent discovery** (solo lectura informativa) | `nic doctor` / `nic models`: detecta CLIs en PATH (git, gh, codex, claude, opencode, pi, aider…) y las lista con versión si responde a `--version`; nunca ejecuta nada sin pedirlo | ½ día |
 | C6 | **Single-file / bash-only mode** | `--solo-bash`: expone SOLO la tool `bash` + tools de solo-lectura (read/glob/grep/webfetch); perfil «minimal» estilo markov/mini-swe-agent; tests: solo se envían esas tools al provider | ½ día |
 

@@ -8,6 +8,7 @@ import { wrapMessage, oneLine, type DisplayMessage } from "./components.js";
 import { applyDiffStyle } from "./diff-style.js";
 import { visibleWidth, stripAnsi, fitAnsi } from "./ansi-wrap.js";
 import { bindingMatches, type TuiConfig } from "./tui-config.js";
+import { actionLabelFor } from "./action-stream.js";
 import type { TodoItem } from "../core/events.js";
 import type { PermissionRequest, PermissionDecision, QuestionPrompt } from "../core/types.js";
 import { readdirSync, statSync } from "node:fs";
@@ -123,6 +124,7 @@ export class TuiApp {
   private fileCache: string[] | null = null;
   private _cursor = { row: 0, col: 0 };
   private spinnerStarted = 0;
+  private phaseLabel: string | null = null;
   requestRender: () => void = () => {};
 
   constructor(public deps: TuiAppDeps) {}
@@ -142,10 +144,12 @@ export class TuiApp {
     this.render();
   }
   toolStart(id: string, name: string, args: Record<string, unknown>): void {
+    if (this.deps.tui.ui.actionStream) this.phaseLabel = actionLabelFor(name, args);
     this.messages.push({ role: "tool", text: args ? JSON.stringify(args) : "", toolName: name });
     this.render();
   }
   toolEnd(_id: string, name: string, output: string, isError: boolean, durationMs: number): void {
+    this.phaseLabel = null;
     for (let i = this.messages.length - 1; i >= 0; i--) {
       const m = this.messages[i];
       if (m.role === "tool" && m.toolName === name && m.output === undefined) {
@@ -156,6 +160,7 @@ export class TuiApp {
   }
   turnEnd(reason: string, totalTokens?: number): void {
     this.streaming = false;
+    this.phaseLabel = null;
     if (totalTokens) this.tokens = totalTokens;
     if (reason === "max_steps") this.messages.push({ role: "error", text: "se alcanzó el máximo de pasos" });
     this.render();
@@ -284,7 +289,11 @@ export class TuiApp {
 
   private footerLine(width: number): string {
     const t = this.deps.theme;
-    const state = this.streaming ? `${fgHex(token(t, "accent"))}pensando… ${Math.floor((Date.now() - this.spinnerStarted) / 1000)}s${reset}` : dimmed + "listo" + reset;
+    const state = !this.streaming
+      ? dimmed + "listo" + reset
+      : this.phaseLabel
+        ? `${fgHex(token(t, "accent"))}${this.phaseLabel}…${reset}`
+        : `${fgHex(token(t, "accent"))}pensando… ${Math.floor((Date.now() - this.spinnerStarted) / 1000)}s${reset}`;
     const hints = dimmed + "tab agente · ctrl+p comandos · ctrl+x atajos · esc abortar" + reset;
     const right = this.tokens > 0 ? dimmed + `${this.tokens} tok` + reset : "";
     const left = `${state}${dimmed}  ·  ${hints}${reset}`;

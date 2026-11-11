@@ -10,7 +10,7 @@ import type { KeyEventLike } from "../src/ui/key.js";
 const tui: TuiConfig = {
   theme: "nicotine-dark", leaderTimeout: 2000, keybinds: { ...DEFAULT_KEYBINDS },
   scrollSpeed: 3, diffStyle: "auto", mouse: false,
-  cursor: { style: "block", blinking: false }, layers: [],
+  cursor: { style: "block", blinking: false }, ui: { actionStream: true }, layers: [],
 };
 
 function makeApp() {

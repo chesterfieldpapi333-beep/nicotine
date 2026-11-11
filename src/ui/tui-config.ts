@@ -17,6 +17,7 @@ export interface TuiConfig {
   diffStyle: "auto" | "stacked";
   mouse: boolean;
   cursor: { style: "block" | "line" | "underline" | "default"; blinking: boolean };
+  ui: { actionStream: boolean };
   layers: string[];
 }
 
@@ -45,7 +46,7 @@ export const DEFAULT_KEYBINDS: Record<string, string> = {
   messages_page_down: "pagedown",
 };
 
-const KNOWN_KEYS = new Set(["$schema", "theme", "leader_timeout", "keybinds", "scroll_speed", "scroll_acceleration", "diff_style", "mouse", "cursor", "attention"]);
+const KNOWN_KEYS = new Set(["$schema", "theme", "leader_timeout", "keybinds", "scroll_speed", "scroll_acceleration", "diff_style", "mouse", "cursor", "attention", "ui"]);
 
 function readLayer(path: string): Record<string, unknown> | null {
   if (!existsSync(path)) return null;
@@ -90,6 +91,7 @@ export function loadTuiConfig(cwd: string): TuiConfig {
     if (binding === "none" || binding === "false") keybinds[action] = ""; // desactivado
   }
 
+  const ui = (merged["ui"] ?? {}) as { action_stream?: unknown };
   const cursor = (merged["cursor"] ?? {}) as { style?: string; blinking?: boolean };
   return {
     theme: typeof merged["theme"] === "string" ? merged["theme"] : "nicotine-dark",
@@ -102,6 +104,7 @@ export function loadTuiConfig(cwd: string): TuiConfig {
       style: (["block", "line", "underline", "default"].includes(String(cursor.style)) ? cursor.style : "block") as TuiConfig["cursor"]["style"],
       blinking: cursor.blinking !== false,
     },
+    ui: { actionStream: ui.action_stream !== false },
     layers: layers.map((l) => l.path),
   };
 }
