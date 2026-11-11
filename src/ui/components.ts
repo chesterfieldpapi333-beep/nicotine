@@ -1,6 +1,7 @@
 // Modelo de mensajes para la vista y renderizado de tarjetas de tool.
 // (Componentes puros: reciben ancho + tema; no tocan estado global.)
 
+import { sanitizeForTUI } from "../security/sanitize.js";
 import { fgHex, token, reset, bold, dimmed, type Theme } from "./theme.js";
 import { wrapAnsi } from "./ansi-wrap.js";
 import { applyDiffStyle, type DiffStyle } from "./diff-style.js";
@@ -47,12 +48,12 @@ export function wrapMessage(msg: DisplayMessage, theme: Theme, width: number, di
   const out: string[] = [];
   const pushWrapped = (raw: string) => { for (const chunk of wrapAnsi(raw, Math.max(1, width))) out.push(chunk.text); };
   switch (msg.role) {
-    case "user": pushWrapped(userLine(theme, msg.text)); break;
-    case "assistant": for (const raw of assistantLines(msg.text)) pushWrapped(raw); break;
+    case "user": pushWrapped(userLine(theme, sanitizeForTUI(msg.text))); break;
+    case "assistant": for (const raw of assistantLines(sanitizeForTUI(msg.text))) pushWrapped(raw); break;
     case "tool": {
-      pushWrapped(toolStartLine(theme, msg.toolName ?? "tool", oneLine(msg.text, 160)));
+      pushWrapped(toolStartLine(theme, msg.toolName ?? "tool", oneLine(sanitizeForTUI(msg.text), 160)));
       if (msg.output !== undefined) {
-        const styled = applyDiffStyle(msg.output, diffStyle);
+        const styled = applyDiffStyle(sanitizeForTUI(msg.output), diffStyle);
         const lines = styled.split("\n").slice(0, 30);
         for (const raw of lines) for (const chunk of wrapAnsi(toolOutputLine(theme, raw), Math.max(1, width))) out.push(chunk.text);
         if (styled.split("\n").length > 30) out.push(dimmed + "  …(salida truncada)" + reset);
@@ -60,8 +61,8 @@ export function wrapMessage(msg: DisplayMessage, theme: Theme, width: number, di
       }
       break;
     }
-    case "system": pushWrapped(dimmed + "· " + msg.text + reset); break;
-    case "error": pushWrapped(fgHex(token(theme, "error")) + "error: " + msg.text + reset); break;
+    case "system": pushWrapped(dimmed + "· " + sanitizeForTUI(msg.text) + reset); break;
+    case "error": pushWrapped(fgHex(token(theme, "error")) + "error: " + sanitizeForTUI(msg.text) + reset); break;
   }
   return out;
 }

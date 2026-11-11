@@ -8,6 +8,7 @@ import { stdin, stdout, stderr } from "node:process";
 const isTTY = !!stdin.isTTY && !!stderr.isTTY;
 import type { EventBus } from "../core/events.js";
 import type { PermissionDecision, PermissionRequest, QuestionPrompt, UiHooks } from "../core/types.js";
+import { sanitizeForTUI } from "../security/sanitize.js";
 
 const useColor = !process.env.NO_COLOR && isTTY;
 const c = (code: string) => (s: string) => (useColor ? `[${code}m${s}[0m` : s);
@@ -20,14 +21,15 @@ export class FlatUi implements UiHooks {
     bus.on((ev) => {
       switch (ev.type) {
         case "text_delta":
-          stdout.write(ev.text);
+          // El texto del modelo es dato no confiable: se limpia antes de imprimir.
+          stdout.write(sanitizeForTUI(ev.text));
           break;
         case "tool_start":
-          stderr.write(dim(`\n→ ${ev.name}(${oneLine(JSON.stringify(ev.args), 200)})\n`));
+          stderr.write(dim(`\n→ ${ev.name}(${oneLine(sanitizeForTUI(JSON.stringify(ev.args)), 200)})\n`));
           break;
         case "tool_end": {
           const status = ev.isError ? red("error") : green("ok");
-          stderr.write(dim(`← ${ev.name} ${status} ${ev.durationMs}ms\n`) + truncateLines(ev.output, 10).map((l) => dim("  " + l) + "\n").join(""));
+          stderr.write(dim(`← ${ev.name} ${status} ${ev.durationMs}ms\n`) + truncateLines(sanitizeForTUI(ev.output), 10).map((l) => dim("  " + l) + "\n").join(""));
           break;
         }
         case "provider_retry":

@@ -6,6 +6,13 @@ Versionado: el proyecto aún no sigue semver estricto; cada fase cerrada sube mi
 ## [Sin publicar] — 2026-11-11
 - Docs `docs/equipo-interno.md` + `docs/examples/multi-modelo/agents/`: cómo armar un equipo multi-modelo dentro de nicotine (gateway OpenAI-compatible único, agentes con `model` propio, analista de solo lectura); ejemplos verificados contra `scanAgentFiles`.
 - Equipo multi-modelo documentado (`docs/equipo.md`, `docs/arranque-workers.md`): Claude estructura, DeepSeek/GLM programan, Gemini analiza (solo lectura), Qwen mantiene su cola.
+- C5 `nic doctor`: sección «CLIs en PATH» con las CLIs detectadas en disco y `--versions` opt-in
+  (ejecuta `--version` con timeout 2 s, primera línea ≤120 chars, sin secretos).
+- Sanitización ANSI de salida no confiable (`src/security/sanitize.ts`): el texto del modelo y la
+  salida de las tools se limpian antes de imprimir (fuera movimiento de cursor, borrado, OSC —incl. 52
+  portapapeles—, DCS/SOS/PM/APC y controles C0/C1; solo sobrevive SGR básico).
+- `undo`: el manifest se poda **antes** de escribirse y la escritura es atómica (`manifest.json.tmp` +
+  `renameSync`), así nunca cita imágenes ya borradas ni se pierde por un corte a mitad de escritura.
 
 ## [0.2.1] — 2026-11-11
 
@@ -18,6 +25,11 @@ Versionado: el proyecto aún no sigue semver estricto; cada fase cerrada sube mi
 - C2 Refusal-failover (opt-in `compat.refusal_failover`): rechazo del proveedor → reintento con el siguiente `fallbackModels`; bufferiza el intento, nunca emite el texto del rechazo; solo routing, jamás prompts de evasión; motor fetch (vercel-ai lo ignora).
 - Redacción de credenciales al persistir sesiones JSONL (`redactSecrets`).
 - H1: `.editorconfig`, `.gitattributes`, `scripts/check-style.ts` (+`bun run check:style`).
+- H2: verificación de release in-repo (`scripts/verify-release.sh`, `scripts/sbom.ts`) con
+  `release/SHA256SUMS` y `release/SBOM.json` generados en el repo; sin publicar binarios.
+- H7: fuzzing lite determinista de parsers (jsonc, shell-scan, text-tool-calls, apply_patch,
+  matchPattern, redact) con PRNG sembrado.
+- H9: release in-repo documentada (`docs/release.md`, tags `v0.2.0` y `v0.2.1`).
 
 ## [0.2.0] — 2026-11-11
 
@@ -42,5 +54,6 @@ Versionado: el proyecto aún no sigue semver estricto; cada fase cerrada sube mi
 - Núcleo agéntico, TUI, sesiones, undo, compactación de 2 pasos, subagentes,
   skills multi-CLI, MCP, plugins lite, loaders multi-CLI, rename `vireo`→`nicotine`.
 
+[0.2.1]: https://github.com/chesterfieldpapi333-beep/nicotine/releases/tag/v0.2.1
 [0.2.0]: https://github.com/chesterfieldpapi333-beep/nicotine/releases/tag/v0.2.0
 [0.1.0]: https://github.com/chesterfieldpapi333-beep/nicotine/releases/tag/v0.1.0

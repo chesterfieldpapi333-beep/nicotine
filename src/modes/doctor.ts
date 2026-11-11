@@ -22,8 +22,9 @@ import { resolveVault } from "../compat/obsidian-vault.js";
 import { dataHome } from "../core/session.js";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { KNOWN_CLIS, discoverClis, probeCliVersion } from "../compat/discovery.js";
 
-export function runDoctor(opts: { cwd: string; configDir?: string; agentId?: string; modelFlag?: string }): number {
+export function runDoctor(opts: { cwd: string; configDir?: string; agentId?: string; modelFlag?: string; versions?: boolean }): number {
   const { config, rules, policies, layers, warnings: configWarnings, mcpOrigins, extensionOrigins } = loadConfig(opts.cwd, { configDir: opts.configDir });
   let plugins: ReturnType<typeof discoverPlugins>;
   try { plugins = discoverPlugins(opts.cwd); }
@@ -172,6 +173,16 @@ export function runDoctor(opts: { cwd: string; configDir?: string; agentId?: str
   out.push(`  ripgrep: ${spawnSync("rg", ["--version"], { stdio: "ignore" }).status === 0 ? "sí" : "NO (grep usa fallback JS)"}`);
   out.push(`  websearch: ${envAlias("SEARXNG_URL") ? "searxng" : process.env.EXA_API_KEY ? "exa" : "sin backend (configura NICOTINE_SEARXNG_URL o EXA_API_KEY)"}`);
   out.push(`  sesiones: ${sessionsDir()}`);
+  out.push("");
+  // CLIs en PATH: solo disco. `--versions` es lo único que ejecuta algo (opt-in).
+  const clis = discoverClis();
+  out.push(`CLIs en PATH (${clis.found.length} de ${KNOWN_CLIS.length} detectadas${opts.versions ? "; --versions: se ejecuta «--version» con timeout 2 s" : "; sin ejecutar nada — usa --versions para ver versiones"}):`);
+  const cliPaths = new Map(clis.found.map((f) => [f.name, f.path]));
+  for (const name of KNOWN_CLIS) {
+    const binPath = cliPaths.get(name);
+    if (!binPath) { out.push(`  ✗ ${name}  (no encontrada)`); continue; }
+    out.push(`  ✓ ${name}  ${binPath}${opts.versions ? `  — ${probeCliVersion(binPath)}` : ""}`);
+  }
   out.push("");
   out.push("Avisos de seguridad: la cookie `ndus` de TeraBox u otras credenciales de terceros nunca deben escribirse en la config ni pegarse en el chat.");
   process.stdout.write(out.join("\n") + "\n");

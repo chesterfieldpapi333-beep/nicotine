@@ -11,7 +11,7 @@
 // Así, aunque el usuario haya editado archivos después del turno del agente,
 // su versión nunca se pierde.
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync, rmSync, statSync, copyFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync, renameSync, rmSync, statSync, copyFileSync } from "node:fs";
 import { dataHome } from "./session.js";
 import { join, relative, resolve, dirname, isAbsolute } from "node:path";
 
@@ -76,21 +76,35 @@ export class UndoManager {
     return { seq: 0, records: [] };
   }
 
+  // Orden deliberado: podar la memoria → escribir el manifest → borrar imágenes.
+  // Así el manifest en disco nunca cita directorios inexistentes, y si el proceso
+  // se corta entre el manifest y el borrado solo quedan directorios huérfanos.
   private save(): void {
     mkdirSync(this.filesDir, { recursive: true });
-    writeFileSync(join(this.dir, "manifest.json"), JSON.stringify(this.manifest));
-    this.prune();
+    const dropped = this.prune();
+    this.writeManifest();
+    for (const dir of dropped) rmSync(join(this.filesDir, dir), { recursive: true, force: true });
   }
 
-  /** Conserva solo los últimos MAX_TURNS turnos con registros. */
-  private prune(): void {
+  /** Escritura atómica: un manifest a medio escribir dejaría la sesión sin undo. */
+  private writeManifest(): void {
+    const target = join(this.dir, "manifest.json");
+    const tmp = `${target}.tmp`;
+    writeFileSync(tmp, JSON.stringify(this.manifest));
+    renameSync(tmp, target);
+  }
+
+  /** Conserva solo los últimos MAX_TURNS turnos; devuelve los dirs a borrar. */
+  private prune(): string[] {
     const turns = [...new Set(this.manifest.records.map((r) => r.turn))].sort((a, b) => a - b);
-    if (turns.length <= MAX_TURNS) return;
+    if (turns.length <= MAX_TURNS) return [];
     const drop = new Set(turns.slice(0, turns.length - MAX_TURNS));
+    const dirs: string[] = [];
     for (const rec of this.manifest.records) {
-      if (drop.has(rec.turn) && rec.dir) rmSync(join(this.filesDir, rec.dir), { recursive: true, force: true });
+      if (drop.has(rec.turn) && rec.dir) dirs.push(rec.dir);
     }
     this.manifest.records = this.manifest.records.filter((r) => !drop.has(r.turn));
+    return dirs;
   }
 
   /** Empieza un turno. Invalida los turnos deshechos (redo ya no vale). */

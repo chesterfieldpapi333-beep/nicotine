@@ -9,6 +9,7 @@ import { applyDiffStyle } from "./diff-style.js";
 import { visibleWidth, stripAnsi, fitAnsi } from "./ansi-wrap.js";
 import { bindingMatches, type TuiConfig } from "./tui-config.js";
 import { actionLabelFor } from "./action-stream.js";
+import { sanitizeForTUI } from "../security/sanitize.js";
 import type { TodoItem } from "../core/events.js";
 import type { PermissionRequest, PermissionDecision, QuestionPrompt } from "../core/types.js";
 import { readdirSync, statSync } from "node:fs";
@@ -145,7 +146,7 @@ export class TuiApp {
   }
   toolStart(id: string, name: string, args: Record<string, unknown>): void {
     if (this.deps.tui.ui.actionStream) this.phaseLabel = actionLabelFor(name, args);
-    this.messages.push({ role: "tool", text: args ? JSON.stringify(args) : "", toolName: name });
+    this.messages.push({ role: "tool", text: args ? sanitizeForTUI(JSON.stringify(args)) : "", toolName: name });
     this.render();
   }
   toolEnd(_id: string, name: string, output: string, isError: boolean, durationMs: number): void {

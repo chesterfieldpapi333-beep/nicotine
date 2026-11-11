@@ -27,7 +27,8 @@ Uso:
   nic [opciones] [prompt...]     TUI en terminal (ANSI/OpenTUI); REPL plano sin TTY
   nic --print [opciones] [prompt]  un turno; respuesta a stdout
   nic --json  [opciones] [prompt]  eventos JSONL a stdout
-  nic doctor [opciones]            diagnóstico
+  nic doctor [opciones]            diagnóstico (sección «CLIs en PATH»)
+  nic doctor --versions            + ejecuta «--version» de cada CLI (timeout 2 s)
   nic doctor --security [--json]   seguridad del entorno (exit 0 limpio, 1 hallazgos)
   nic policy export [--readonly] [-o archivo]   reglas efectivas con origen
   nic policy import <archivo> [--yes]          valida y aplica política del proyecto (.nicotine/policy.json)
@@ -126,6 +127,7 @@ function parseArgs(argv: string[]): Args {
       case "--mdns": args.mdns = true; break;
       case "--mdns-domain": args.mdnsDomain = next(i, a); args.mdns = true; i++; break;
       case "--security": args.positional.push("--security"); break;
+      case "--versions": args.positional.push("--versions"); break;
       case "--readonly": args.readonly = true; break;
       case "--solo-bash": args.soloBash = true; break;
       case "--help": case "-h": args.help = true; break;
@@ -167,7 +169,7 @@ async function main(): Promise<number> {
     if (args.positional.includes("--security")) {
       return runDoctorSecurity({ cwd, configDir: args.configDir, json: args.json || args.positional.includes("--json") });
     }
-    return runDoctor({ cwd, configDir: args.configDir, agentId: args.agent, modelFlag: args.model });
+    return runDoctor({ cwd, configDir: args.configDir, agentId: args.agent, modelFlag: args.model, versions: args.positional.includes("--versions") });
   }
   if (args.command === "audit") {
     return runAudit({ cwd, positional: args.positional });

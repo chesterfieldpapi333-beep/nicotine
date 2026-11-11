@@ -12,15 +12,11 @@
 > fácil de aprender y de modificar, compatible con skills/plugins/MCP de otras
 > CLIs (Claude Code, Codex, Gemini CLI, OpenCode, Pi y similares).
 >
-> **Fecha de investigación:** 2026-11-08. **Estado del código:** **Fase 8 implementada** —
-> edit con «fragmento más parecido», compactación de dos pasos (poda sin LLM → resumen),
-> rotación de API keys (401/403/429/5xx), tool-calls en texto (Hermes/Qwen), memoria por
-> proyecto (`.nicotine/memory.md`), agentes `architect`/`editor`, `policies` v2 (hard-deny),
-> catálogos HTTP de skills (`nicotine skills update`, digest sha256 verificado), shell-scan
-> conservador, ancho CJK/emoji en el motor ANSI, `snapshots: false`, formats VERIFICADOS
-> de Codex (skills, `.codex-plugin`) y Gemini (comandos TOML de extensión).
-> `bun test` → 220/220 verde. `/fusion` diferido (sin spec). **Fases 0–8 completas.**
-> Esta tabla es la guía de las fases 1–8.
+> **Fecha de investigación:** 2026-11-08 (actualizada 2026-11-11). **Estado del código:**
+> **Fases 0–11 implementadas**, más el endurecimiento H0–H10, C2/C3/C6 y la misión DeepSeek
+> adaptada (bloqueo duro de rutas + análisis destructivo de bash). Las métricas de la suite y
+> los hashes por fase están en `docs/informe-fases.md` (sección «Hardening») y en la tabla de
+> endurecimiento de este documento. Esta tabla es la guía de las fases 1–8.
 
 ## Leyenda
 
@@ -36,11 +32,11 @@
 | Fase | Estado | Commit | Notas |
 |---|---|---|---|
 | H0 — threat model + `doctor --security` | hecho | d72c7eb | `docs/threat-model.md`, exit 0/1 |
-| H1 — estilo LF/trailing/newline final | hecho | (H1/H3 commit antes de esta tabla) | `scripts/check-style.ts` |
+| H1 — estilo LF/trailing/newline final | hecho | b655059 (+ 1daf98d) | `scripts/check-style.ts`, `bun run check:style` |
 | H2 — verificación in-repo | hecho | 6e03604 | `scripts/verify-release.sh`, `release/SHA256SUMS`, `release/SBOM.json` |
-| H3 — redacción de credenciales en sesiones | hecho | H4+H8 commit | `redactSecrets`, deny-wins |
+| H3 — redacción de credenciales en sesiones | hecho | 6bce2a7 (+ 1daf98d) | `src/core/redact.ts`, `redactSecrets` al persistir |
 | H4 — límites de recursos/output | hecho | 7aa1c92 | caps 50 KiB salida bash/tools, config `NICOTINE_MAX_TOOL_OUTPUT_BYTES` |
-| H5 — auditoría/deny-wins baseline | hecho | (antes) | `--readonly`, invariante deny-wins |
+| H5 — auditoría/deny-wins baseline | hecho | 1daf98d + 6bce2a7 | `nic policy … --readonly`, invariante deny-wins |
 | H6 — cadena de suministro | hecho | a868066 | pins exactos, sin lifecycle scripts, lockfile congelado |
 | H7 — fuzz/robustez de parsers | hecho | f625424 | ~3000 iters deterministas |
 | H8 — audit log exportable | hecho | 7aa1c92 | JSONL rotado, `nic audit export` |
@@ -48,8 +44,10 @@
 | C3 — semantic action stream | hecho | 5094bf1 | footer de fase; toggle `ui.action_stream` |
 | C6 — `--solo-bash` minimal | hecho | f141fbe | bash+readonly; sin vault/MCP/LSP |
 | Misión DeepSeek adaptada (paths+bash-parser) | hecho | cdf4a34 | bloqueo duro de rutas; ask forzado en destructivos |
-| H9 — release in-repo (v0.2.0) | hecho | (tag v0.2.0) | este doc + `docs/release.md` |
-| H10 — informe final | hecho | a30fd7e (fix incluido) | `docs/verification-10f.md`; hallazgo readonly corregido |
+| H9 — release in-repo (v0.2.0) | hecho | 2c377d7 + 3a28b5d (tag v0.2.0) | `release/SHA256SUMS`, `release/SBOM.json`, `docs/release.md` |
+| H10 — informe final | hecho | bd7ee01 (fix a30fd7e) | `docs/verification-10f.md`; hallazgo readonly corregido |
+
+Hashes verificados el 2026-11-11 contra `git log` de `master` (`bd7ee01`) con historia completa (`git fetch --unshallow`); las filas que citaban «commit antes de esta tabla» se sustituyeron por el hash real.
 
 Notas: el bloqueo duro de rutas (`~/.ssh|aws|gnupg`, `.git`) y el análisis destructivo de bash vienen de la misión DeepSeek (adaptada), no de la numeración original H* — quedaron fusionados donde encajan.
 
