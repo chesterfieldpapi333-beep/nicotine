@@ -1,4 +1,4 @@
-// Comandos de archivo de otras CLIs y de vireo-compat:
+// Comandos de archivo de otras CLIs y de nicotine-compat:
 //   .claude/commands/**/*.md          (Claude Code; subdirs → namespace a:b:c)
 //   .opencode/commands/*.md           (OpenCode)
 //   .pi/prompts/*.md                  (Pi)
@@ -6,7 +6,7 @@
 //   ~/.config/opencode/commands/*.md, ~/.pi/agent/prompts/*.md, ~/.claude/commands/**/*.md (global)
 // Markdown con frontmatter opcional (yaml-lite): description, argument-hint.
 // Cuerpo con $ARGUMENTS (todo el resto) y $1..$9 (posicionales, splitArgs).
-// model/agent del frontmatter se ignoran con aviso (vireo no los honra).
+// model/agent del frontmatter se ignoran con aviso (nicotine no los honra).
 
 import { existsSync, readdirSync, statSync, readFileSync } from "node:fs";
 import { join, relative, basename, dirname } from "node:path";
@@ -71,7 +71,7 @@ export function scanFileCommands(
       if (["description", "argument-hint", "argument_hint", "model", "agent"].includes(k)) continue;
       warnings.push(`${file}: clave desconocida (ignorada): ${k}`);
     }
-    if (fm["model"] !== undefined) warnings.push(`${file}: «model» no se honra (vireo usa el modelo de la sesión)`);
+    if (fm["model"] !== undefined) warnings.push(`${file}: «model» no se honra (nicotine usa el modelo de la sesión)`);
     if (fm["agent"] !== undefined) warnings.push(`${file}: «agent» no se honra en v1`);
     const description = typeof fm["description"] === "string" && fm["description"].trim()
       ? fm["description"].trim()
@@ -161,9 +161,9 @@ export interface TomlCommandSource { name: string; root: string; origin: "global
 // Comandos TOML de extensiones de Gemini CLI (VERIFICADO contra geminicli.com):
 //   <extension>/commands/**/*.toml ; prompt (string, requerido) ; description (string, opcional)
 //   subdirectorios → namespace con DOS PUNTOS: commands/gcs/sync.toml → gcs:sync
-//   en vireo se registran SIEMPRE con el prefijo de la extensión (<ext>:cmd) para no
+//   en nicotine se registran SIEMPRE con el prefijo de la extensión (<ext>:cmd) para no
 //   pisar comandos de usuario/proyecto (gemini usa el nombre pelado con precedencia menor;
-//   el prefijo es la vía que vireo ya usa para plugins).
+//   el prefijo es la vía que nicotine ya usa para plugins).
 //   Sustitución: {{args}} → $ARGUMENTS · {{args[N]}} → $N+1.
 export function scanTomlCommands(sources: TomlCommandSource[]): { commands: FileCommand[]; warnings: string[] } {
   const warnings: string[] = [];
@@ -198,7 +198,7 @@ export function scanTomlCommands(sources: TomlCommandSource[]): { commands: File
       const description = typeof v["description"] === "string" && v["description"].trim()
         ? v["description"].trim()
         : (prompt.split("\n").find((l) => l.trim()) ?? basename(file, ".toml")).trim();
-      // gemini {{args}} / {{args[N]}} → equivalente vireo
+      // gemini {{args}} / {{args[N]}} → equivalente nicotine
       const body = prompt
         .replace(/\{\{\s*args\s*\}\}/g, "$ARGUMENTS")
         .replace(/\{\{\s*args\[(\d+)\]\s*\}\}/g, (_m, n) => `$${Number(n) + 1}`);

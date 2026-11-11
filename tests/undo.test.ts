@@ -7,7 +7,7 @@ import type { ChatMessage, ToolContext, UiHooks } from "../src/core/types.js";
 
 let tmp: string;
 beforeEach(() => {
-  tmp = mkdtempSync(join(tmpdir(), "vireo-undo-"));
+  tmp = mkdtempSync(join(tmpdir(), "nicotine-undo-"));
   process.env.XDG_DATA_HOME = join(tmp, "data");
 });
 

@@ -1,11 +1,12 @@
+import { envAlias } from "./env.js";
 import { matchAuth } from "./auth.js";
 // Proveedor OpenAI-compatible con streaming (chat/completions + SSE).
 // Cualquier endpoint OpenAI-compatible funciona: OpenAI, OpenRouter, proxies,
 // Ollama (--openai compatible), LM Studio…
 // Motor «vercel-ai» OPCIONAL (opt-in, off por defecto): provider.engine="vercel-ai"
-// o VIREO_PROVIDER_ENGINE=vercel-ai delega el transporte en el Vercel AI SDK
+// o NICOTINE_PROVIDER_ENGINE=vercel-ai delega el transporte en el Vercel AI SDK
 // (import dinámico, cero deps en el núcleo). Ver provider-vercel.ts.
-// Resolución de modelo: --model > config.model > VIREO_MODEL > OPENAI_MODEL.
+// Resolución de modelo: --model > config.model > NICOTINE_MODEL > OPENAI_MODEL.
 // Si el modelo lleva "proveedor/" se usa solo el sufijo con OPENAI_API_KEY/OPENAI_BASE_URL.
 
 import type { ChatMessage, ToolCall, ToolSchema } from "./types.js";
@@ -31,7 +32,7 @@ export interface ProviderConfig {
   model: string;
   /**
    * Modelos alternativos si TODAS las claves fallan con 401/403/429/5xx.
-   * Orden: `provider.fallbackModels: string[]` (config) → `VIREO_MODEL_FALLBACKS`
+   * Orden: `provider.fallbackModels: string[]` (config) → `NICOTINE_MODEL_FALLBACKS`
    * (env, coma-separados). Mismas reglas de prefijo vendor/ y #variant que `model`.
    */
   fallbackModels?: string[];
@@ -48,8 +49,8 @@ export function stripModel(raw: string): string {
 }
 
 export function resolveProvider(config: Record<string, unknown>, flagModel?: string): ProviderConfig {
-  const raw = flagModel ?? (config["model"] as string | undefined) ?? process.env.VIREO_MODEL ?? process.env.OPENAI_MODEL;
-  if (!raw) throw new Error("No hay modelo configurado. Usa --model, config `model` o VIREO_MODEL (ej. openai/gpt-4o-mini).");
+  const raw = flagModel ?? (config["model"] as string | undefined) ?? envAlias("MODEL") ?? process.env.OPENAI_MODEL;
+  if (!raw) throw new Error("No hay modelo configurado. Usa --model, config `model` o NICOTINE_MODEL (ej. openai/gpt-4o-mini).");
   // "vendor/model" → el vendor es informativo; el endpoint es OpenAI-compatible.
   const model = stripModel(raw);
   const providerCfg = (config["provider"] ?? {}) as Record<string, unknown>;
@@ -67,13 +68,14 @@ export function resolveProvider(config: Record<string, unknown>, flagModel?: str
   if (Array.isArray(providerCfg["fallbackModels"])) {
     for (const m of providerCfg["fallbackModels"] as unknown[]) if (typeof m === "string" && m.trim()) fallback.push(stripModel(m));
   }
-  if (process.env.VIREO_MODEL_FALLBACKS) {
-    for (const m of process.env.VIREO_MODEL_FALLBACKS.split(",")) { const t = m.trim(); if (t) fallback.push(stripModel(t)); }
+  const fallbacks = envAlias("MODEL_FALLBACKS");
+  if (fallbacks) {
+    for (const m of fallbacks.split(",")) { const t = m.trim(); if (t) fallback.push(stripModel(t)); }
   }
   const fallbackModels = [...new Set(fallback.filter((m) => m && m !== model))];
   const headers = (providerCfg["headers"] ?? {}) as Record<string, string>;
   const engineRaw = (typeof providerCfg["engine"] === "string" && providerCfg["engine"].trim() ? providerCfg["engine"].trim() : undefined)
-    ?? process.env.VIREO_PROVIDER_ENGINE ?? "fetch";
+    ?? envAlias("PROVIDER_ENGINE") ?? "fetch";
   if (engineRaw !== "fetch" && engineRaw !== "vercel-ai") {
     throw new Error(`provider.engine «${engineRaw}» desconocido; valores: fetch (por defecto) | vercel-ai`);
   }
@@ -101,6 +103,30 @@ export interface StreamChatOptions {
   fetchImpl?: typeof fetch;
   /** Aviso de rotación de clave (sin exponer la clave). */
   onRetry?: (info: { attempt: number; status: number; total: number; model?: string; nextModel?: string }) => void;
+  /** Opt-in (`compat.refusal_failover`): rechazo del proveedor → reintento con el siguiente fallback. Solo routing; jamás prompts de evasión. Bufferiza el texto del intento. */
+  refusalFailover?: boolean;
+  /** Aviso de refusal-failover: de/desde qué modelo saltó. */
+  onRefusalFailover?: (info: { from: string; to: string | null }) => void;
+}
+
+// Detección conservadora de rechazo del proveedor (contenido, no HTTP):
+// lista corta y ambigua-baja, solo respuestas de texto de menos de 1500 chars.
+const REFUSAL_PATTERNS = [
+  /\bi['’]?m sorry.{0,40}can(no|'t|not)\b/i,
+  /\bi cannot (help|assist|provide|comply)\b/i,
+  /\bi can(no|'t|not) (help|assist|provide|comply|fulfill)\b/i,
+  /\bi['’]?m (unable|not able|not allowed) to\b/i,
+  /\b(as an ai (language )?model|against my (programming|guidelines|policies))\b/i,
+  /\b(cannot|can't|won't) (help|assist) (with|you) (this|that|with you)\b/i,
+  /\bno puedo (ayudar|asistir|proporcionar|cumplir)\b/i,
+  /\blo siento.{0,40}no puedo\b/i,
+  /\bno me (es|está) (posible|permitido)\b/i,
+];
+export function looksLikeRefusal(text: string): boolean {
+  const t = text.trim();
+  if (!t || t.length > 1500) return false;
+  if (/```|<tool_call>|\{"name"/.test(t)) return false; // parece tool-call/código, no rechazo
+  return REFUSAL_PATTERNS.some((re) => re.test(t));
 }
 
 export interface StreamChatResult {
@@ -163,6 +189,9 @@ export async function streamChat(opts: StreamChatOptions): Promise<StreamChatRes
   if (usedModel !== provider.model) provider.model = usedModel; // failover pega en la sesión (visible en /models)
   if (!res.body) throw new Error("El proveedor no devolvió stream (res.body vacío).");
 
+  const bufferMode = opts.refusalFailover === true;
+  const forward = (chunk: string) => { if (!bufferMode) opts.onText?.(chunk); };
+
   let text = "";
   const toolCalls = new Map<number, { id: string; name: string; args: string }>();
   let usage: TokenUsage | undefined;
@@ -195,7 +224,7 @@ export async function streamChat(opts: StreamChatOptions): Promise<StreamChatRes
       if (!delta) continue;
       if (typeof delta.content === "string" && delta.content) {
         text += delta.content;
-        opts.onText?.(delta.content);
+        forward(delta.content);
       }
       for (const tc of delta.tool_calls ?? []) {
         const i = tc.index ?? 0;
@@ -207,6 +236,24 @@ export async function streamChat(opts: StreamChatOptions): Promise<StreamChatRes
       }
     }
   }
+
+  // Refusal-failover (opt-in): rechazo detectado y queda un fallback por debajo →
+  // descartar este intento (nada llegó a emitirse) y reintentar con el siguiente modelo.
+  if (bufferMode && toolCalls.size === 0 && looksLikeRefusal(text)) {
+    // provider.model puede haber sido mutado por el failover HTTP: la cadena efectiva es
+    // [usedModel, ...fallbacks] deduplicada (el fallback del que venimos no se repite).
+    const chain = [...new Set([usedModel, ...(provider.fallbackModels ?? [])])];
+    const idx = chain.indexOf(usedModel);
+    const nextModel = idx >= 0 ? chain[idx + 1] : undefined;
+    opts.onRefusalFailover?.({ from: usedModel, to: nextModel ?? null });
+    if (nextModel) {
+      // Mutación en el MISMO objeto: la sesión se "pega" al modelo que respondió (igual que el failover HTTP).
+      provider.model = nextModel;
+      provider.fallbackModels = chain.slice(idx + 2);
+      return streamChat({ ...opts, provider });
+    }
+  }
+  if (bufferMode && text) opts.onText?.(text); // intento final (o no-rechazo): emitir lo bufferizado
 
   const message: ChatMessage = { role: "assistant", content: text || null };
   if (toolCalls.size) {

@@ -1,10 +1,10 @@
 // Catálogos HTTP de skills (agentskills.io discovery / .well-known/agent-skills).
 //
-// El arranque de vireo es SÍNCRONO: no se descarga nada al arrancar. En su
-// lugar, `vireo skills update` (este módulo, con fetch) descarga los catálogos
+// El arranque de nicotine es SÍNCRONO: no se descarga nada al arrancar. En su
+// lugar, `nicotine skills update` (este módulo, con fetch) descarga los catálogos
 // configurados en `skills: ["https://…"]`, verifica el digest sha256 de cada
 // SKILL.md contra el índice (integridad estilo registry) y los deja en caché
-// ($XDG_CACHE_HOME o ~/.cache/vireo/skills-http/<hash-url>/<nombre>/SKILL.md).
+// ($XDG_CACHE_HOME o ~/.cache/nicotine/skills-http/<hash-url>/<nombre>/SKILL.md).
 // El cargador síncrono escanea la CACHÉ como una fuente más (sin red).
 //
 // Formato esperado (discovery 0.2.0, tolerante): {"$schema"?, skills: [{name,
@@ -32,7 +32,7 @@ const sha256hex = (buf: Buffer | string) => createHash("sha256").update(buf).dig
 
 /** Carpeta de caché de un catálogo. `cacheRoot` inyectable para tests. */
 export function catalogCacheDir(catalogUrl: string, cacheRoot?: string): string {
-  const base = cacheRoot ?? join(process.env.XDG_CACHE_HOME ?? join(homedir(), ".cache"), "vireo", "skills-http");
+  const base = cacheRoot ?? join(process.env.XDG_CACHE_HOME ?? join(homedir(), ".cache"), "nicotine", "skills-http");
   return join(base, sha256hex(catalogUrl).slice(0, 16));
 }
 

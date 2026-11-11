@@ -14,7 +14,7 @@ const ctxFor = (cwd: string): ToolContext => ({
 });
 
 function fixture() {
-  const dir = mkdtempSync(join(tmpdir(), "vireo-tools-"));
+  const dir = mkdtempSync(join(tmpdir(), "nicotine-tools-"));
   mkdirSync(join(dir, "src", "sub"), { recursive: true });
   writeFileSync(join(dir, "src", "a.ts"), "export const alpha = 1;\n");
   writeFileSync(join(dir, "src", "b.ts"), "export const beta = 2;\n");
@@ -55,8 +55,8 @@ describe("grep", () => {
 
 describe("bash", () => {
   test("echo y exit code", async () => {
-    const out = await bashTool.run({ command: "echo hola-vireo && exit 3" }, ctxFor(process.cwd()));
-    expect(out.output).toContain("hola-vireo");
+    const out = await bashTool.run({ command: "echo hola-nicotine && exit 3" }, ctxFor(process.cwd()));
+    expect(out.output).toContain("hola-nicotine");
     expect(out.output).toContain("[exit 3]");
   });
   test("timeout mata el proceso", async () => {

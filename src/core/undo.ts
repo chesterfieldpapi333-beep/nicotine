@@ -2,7 +2,7 @@
 //
 // Cada turno empieza con beginTurn(label). Las tools que modifican archivos
 // (write/edit/apply_patch) copian PRE-imagen (antes de ejecutarse) y POST-imagen
-// (después) a $XDG_DATA_HOME/vireo/snapshots/<sesión>/. `bash` se registra como
+// (después) a $XDG_DATA_HOME/nicotine/snapshots/<sesión>/. `bash` se registra como
 // paso NO deshacible (los efectos de un shell arbitrario no son reversibles en
 // general) — /undo lo reporta y lo consume.
 //
@@ -12,7 +12,7 @@
 // su versión nunca se pierde.
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync, rmSync, statSync, copyFileSync } from "node:fs";
-import { homedir } from "node:os";
+import { dataHome } from "./session.js";
 import { join, relative, resolve, dirname, isAbsolute } from "node:path";
 
 const MAX_FILE_BYTES = 2 * 1024 * 1024; // 2 MB: por encima, el archivo no se respalda
@@ -51,8 +51,7 @@ export interface UndoResult {
 }
 
 export function snapshotsRoot(): string {
-  const base = process.env.XDG_DATA_HOME ?? join(homedir(), ".local", "share");
-  return join(base, "vireo", "snapshots");
+  return join(dataHome(), "snapshots");
 }
 
 export class UndoManager {

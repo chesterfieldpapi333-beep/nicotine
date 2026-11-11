@@ -35,7 +35,7 @@ describe("PermissionEngine", () => {
     expect(e.check("read", "/proj/.env.local").effect).toBe("ask");
     expect(e.check("read", "/proj/.env.example").effect).toBe("allow");
   });
-  test("external_directory: ask por defecto (spec Vireo)", () => {
+  test("external_directory: ask por defecto (spec Nicotine)", () => {
     const e = new PermissionEngine(baseRules());
     const r = e.checkPath("/proyecto", "read", "/etc/passwd");
     expect(r.effect).toBe("ask");
@@ -83,5 +83,36 @@ describe("configToRules", () => {
   });
   test("efecto desconocido lanza", () => {
     expect(() => configToRules({ bash: "permiso" }, undefined)).toThrow(/allow\|ask\|deny/);
+  });
+});
+
+describe("checkPath — deny-wins entre external_directory y la acción", () => {
+  test("--readonly (deny edit *) gana sobre external_directory ask fuera del proyecto", () => {
+    const rules = [...baseRules(), { action: "edit", resource: "*", effect: "deny" as const }];
+    const e = new PermissionEngine(rules);
+    const r = e.checkPath("/proyecto", "edit", "/tmp/ro-fixture-h10/secret.txt");
+    expect(r.effect).toBe("deny");
+  });
+  test("deny de la acción fuera del proyecto gana aunque external_directory sea allow", () => {
+    const rules = [
+      ...baseRules(),
+      { action: "external_directory", resource: "/tmp/*", effect: "allow" as const },
+      { action: "edit", resource: "*", effect: "deny" as const },
+    ];
+    const e = new PermissionEngine(rules);
+    expect(e.checkPath("/proyecto", "edit", "/tmp/x.ts").effect).toBe("deny");
+  });
+  test("external_directory deny gana sobre allow de la acción fuera del proyecto", () => {
+    const rules = [
+      ...baseRules(),
+      { action: "external_directory", resource: "/etc/*", effect: "deny" as const },
+      { action: "read", resource: "*", effect: "allow" as const },
+    ];
+    const e = new PermissionEngine(rules);
+    expect(e.checkPath("/proyecto", "read", "/etc/passwd").effect).toBe("deny");
+  });
+  test("sin denies: external ask sigue mandando (comportamiento previo)", () => {
+    const e = new PermissionEngine(baseRules());
+    expect(e.checkPath("/proyecto", "read", "/etc/passwd").effect).toBe("ask");
   });
 });

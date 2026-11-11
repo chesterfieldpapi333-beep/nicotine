@@ -7,7 +7,7 @@ import { join } from "node:path";
 import type { ChatMessage, ToolContext } from "../src/core/types.js";
 
 beforeEach(() => {
-  process.env.XDG_DATA_HOME = mkdtempSync(join(tmpdir(), "vireo-compact-"));
+  process.env.XDG_DATA_HOME = mkdtempSync(join(tmpdir(), "nicotine-compact-"));
 });
 
 const history = (): ChatMessage[] => [

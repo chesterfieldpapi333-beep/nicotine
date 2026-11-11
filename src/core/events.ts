@@ -11,7 +11,7 @@ export type AgentEvent =
   | { type: "todos_updated"; todos: TodoItem[] }
   | { type: "session_saved"; sessionId: string }
   | { type: "compaction"; beforeTokens: number; afterTokens: number; pass?: 1 | 2 }
-  | { type: "provider_retry"; status: number; attempt: number; total: number; model?: string; nextModel?: string };
+  | { type: "provider_retry"; status: number; attempt: number; total: number; model?: string; nextModel?: string; refusal?: boolean };
 
 export interface TokenUsage {
   promptTokens?: number;
@@ -40,7 +40,7 @@ export class EventBus {
         fn(event);
       } catch (err) {
         // Una UI rota no debe tumbar el loop del agente.
-        console.error(`[vireo] suscriptor de eventos falló: ${(err as Error).message}`);
+        console.error(`[nicotine] suscriptor de eventos falló: ${(err as Error).message}`);
       }
     }
   }

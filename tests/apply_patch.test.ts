@@ -16,7 +16,7 @@ describe("apply_patch", () => {
     expect(paths).toEqual(["a", "b", "c", "d"]);
   });
   test("add + delete + update (con rename) en un patch", async () => {
-    const dir = mkdtempSync(join(tmpdir(), "vireo-patch-"));
+    const dir = mkdtempSync(join(tmpdir(), "nicotine-patch-"));
     writeFileSync(join(dir, "keep.ts"), "const x = 1;\nsecond line\n");
     const patch = [
       "*** Add File: nuevo.ts",
@@ -36,14 +36,14 @@ describe("apply_patch", () => {
     rmSync(dir, { recursive: true, force: true });
   });
   test("update sin lectura previa falla", async () => {
-    const dir = mkdtempSync(join(tmpdir(), "vireo-patch-"));
+    const dir = mkdtempSync(join(tmpdir(), "nicotine-patch-"));
     writeFileSync(join(dir, "f.ts"), "a\n");
     const ctx = ctxFor(dir, []); // sin read
     await expect(applyPatchTool.run({ patchText: "*** Update File: f.ts\n-a\n+b\n" }, ctx)).rejects.toThrow(/lectura previa/);
     rmSync(dir, { recursive: true, force: true });
   });
   test("hunk no localizado → error que muestra el bloque buscado", async () => {
-    const dir = mkdtempSync(join(tmpdir(), "vireo-patch-"));
+    const dir = mkdtempSync(join(tmpdir(), "nicotine-patch-"));
     writeFileSync(join(dir, "f.ts"), "alpha\nbeta\n");
     const ctx = ctxFor(dir, [join(dir, "f.ts")]);
     await expect(applyPatchTool.run({ patchText: "*** Update File: f.ts\n-zzz\n+yyy\n" }, ctx)).rejects.toThrow(/no se localizó el hunk/);

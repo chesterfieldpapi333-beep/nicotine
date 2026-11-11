@@ -1,4 +1,4 @@
-// Subconjunto HONESTO de la API REST clásica de opencode para `vireo serve`.
+// Subconjunto HONESTO de la API REST clásica de opencode para `nicotine serve`.
 // Ver la cabecera de src/compat/opencode-rest.ts (fuente de verdad: SDK clásico
 // v1.18.0) y docs/parity.md (fase 10e). Lo NO implementado devuelve 404 con
 // { error }: handleOpenCodeRequest devuelve false y serve.ts emite el 404.
@@ -79,7 +79,7 @@ const decode = (s: string): string => { try { return decodeURIComponent(s); } ca
 const jsonError = (res: ServerResponse, status: number, error: string): void => { send(res, status, { error }); };
 const sessionMissing = (res: ServerResponse, id: string): void => jsonError(res, 404, `sesión «${id}» no existe`);
 const notActive = (res: ServerResponse, id: string): void =>
-  jsonError(res, 404, `sesión «${id}» no está activa en este proceso (vireo: una sesión por proceso; arranca con -s ${id})`);
+  jsonError(res, 404, `sesión «${id}» no está activa en este proceso (nicotine: una sesión por proceso; arranca con -s ${id})`);
 
 /**
  * Marca busy SINCRÓNICAMENTE (antes de cualquier await) y parsea el body.
@@ -167,8 +167,8 @@ async function parsePromptBody(ctx: OpenCodeContext, raw: string): Promise<Parse
   let body: Record<string, unknown>;
   try { body = JSON.parse(raw || "{}") as Record<string, unknown>; } catch { return { error: "JSON inválido" }; }
   if (!body || typeof body !== "object" || Array.isArray(body)) return { error: "body debe ser un objeto" };
-  if (body.messageID !== undefined) return { error: "messageID no soportado (vireo deriva los ids del JSONL persistido)" };
-  if (body.noReply) return { error: "noReply no soportado (vireo siempre ejecuta el turno)" };
+  if (body.messageID !== undefined) return { error: "messageID no soportado (nicotine deriva los ids del JSONL persistido)" };
+  if (body.noReply) return { error: "noReply no soportado (nicotine siempre ejecuta el turno)" };
   const parts = body.parts;
   if (!Array.isArray(parts) || parts.length === 0) return { error: "falta `parts` (array no vacío de partes de texto)" };
   const texts: string[] = [];
@@ -208,7 +208,7 @@ async function parsePromptBody(ctx: OpenCodeContext, raw: string): Promise<Parse
   }
 
   // model: { providerID, modelID } — se honra modelID; providerID se ACEPTA pero se ignora
-  // (vireo habla con UN endpoint OpenAI-compatible; el failover de claves/modelos se mantiene)
+  // (nicotine habla con UN endpoint OpenAI-compatible; el failover de claves/modelos se mantiene)
   let providerOverride: ProviderConfig | undefined;
   if (body.model !== undefined) {
     const m = body.model as Record<string, unknown>;
@@ -316,7 +316,7 @@ export async function handleOpenCodeRequest(ctx: OpenCodeContext, req: IncomingM
   // /config — fusionada y SANITIZADA (claves sensibles → ***)
   if (method === "GET" && path === "/config") { send(res, 200, sanitizeConfig(rt.config)); finish(200); return true; }
   if (method === "PATCH" && path === "/config") {
-    jsonError(res, 404, "PATCH /config no implementado en el subconjunto vireo (sin capa de escritura de config); edita opencode.json(c) a mano");
+    jsonError(res, 404, "PATCH /config no implementado en el subconjunto nicotine (sin capa de escritura de config); edita opencode.json(c) a mano");
     finish(404); return true;
   }
   if (method === "GET" && path === "/config/providers") { send(res, 200, ocConfigProviders(rt.config, rt.provider)); finish(200); return true; }
@@ -343,7 +343,7 @@ export async function handleOpenCodeRequest(ctx: OpenCodeContext, req: IncomingM
     send(res, 200, map);
     finish(200); return true;
   }
-  // /lsp y /formatter: vireo NO mantiene servidores LSP persistentes ni formatters → [] siempre
+  // /lsp y /formatter: nicotine NO mantiene servidores LSP persistentes ni formatters → [] siempre
   if (method === "GET" && path === "/lsp") { send(res, 200, []); finish(200); return true; }
   if (method === "GET" && path === "/formatter") { send(res, 200, []); finish(200); return true; }
 
@@ -378,9 +378,9 @@ export async function handleOpenCodeRequest(ctx: OpenCodeContext, req: IncomingM
     send(res, 200, findFiles(query, cwd, dirs));
     finish(200); return true;
   }
-  // /find/symbol — sin endpoint de símbolos LSP en vireo
+  // /find/symbol — sin endpoint de símbolos LSP en nicotine
   if (method === "GET" && path === "/find/symbol") {
-    jsonError(res, 404, "no implementado: vireo no tiene endpoint de símbolos LSP (ver /doc)");
+    jsonError(res, 404, "no implementado: nicotine no tiene endpoint de símbolos LSP (ver /doc)");
     finish(404); return true;
   }
   // /file — contenido de un DIRECTORIO como FileNode[]
@@ -430,7 +430,7 @@ export async function handleOpenCodeRequest(ctx: OpenCodeContext, req: IncomingM
     try { raw = await readBody(req); } catch (err) { jsonError(res, 413, (err as Error).message); finish(413); return true; }
     let body: Record<string, unknown> = {};
     try { body = JSON.parse(raw || "{}") as Record<string, unknown>; } catch { jsonError(res, 400, "JSON inválido"); finish(400); return true; }
-    if (body.parentID !== undefined) { jsonError(res, 400, "parentID no soportado (vireo no persiste relaciones padre→hijo entre sesiones)"); finish(400); return true; }
+    if (body.parentID !== undefined) { jsonError(res, 400, "parentID no soportado (nicotine no persiste relaciones padre→hijo entre sesiones)"); finish(400); return true; }
     let title: string | undefined;
     if (body.title !== undefined) {
       if (typeof body.title !== "string" || !body.title.trim()) { jsonError(res, 400, "`title` debe ser un string no vacío"); finish(400); return true; }
@@ -473,7 +473,7 @@ export async function handleOpenCodeRequest(ctx: OpenCodeContext, req: IncomingM
       send(res, 200, mapped); finish(200); return true;
     }
     if (method === "DELETE") {
-      if (id === rt.session.id) { jsonError(res, 409, "no se puede borrar la sesión ACTIVA del proceso (vireo la tiene abierta)"); finish(409); return true; }
+      if (id === rt.session.id) { jsonError(res, 409, "no se puede borrar la sesión ACTIVA del proceso (nicotine la tiene abierta)"); finish(409); return true; }
       const mapped = mapOcSession(id, cwd, version);
       const ok = Session.remove(id);
       if (ok && mapped) emitOcEvent(ctx, { type: "session.deleted", properties: { info: mapped } });
@@ -540,7 +540,7 @@ export async function handleOpenCodeRequest(ctx: OpenCodeContext, req: IncomingM
     try {
       const raw = await readBody(req);
       body = JSON.parse(raw || "{}") as Record<string, unknown>;
-      if (body.messageID !== undefined) { const e = "messageID no soportado (vireo deriva los ids del JSONL persistido)"; ctx.setBusy(false, null); jsonError(res, 400, e); finish(400); return true; }
+      if (body.messageID !== undefined) { const e = "messageID no soportado (nicotine deriva los ids del JSONL persistido)"; ctx.setBusy(false, null); jsonError(res, 400, e); finish(400); return true; }
       const command = typeof body.command === "string" ? body.command.trim().replace(/^\/+/, "") : "";
       if (!command) { ctx.setBusy(false, null); jsonError(res, 400, "falta `command` (nombre del comando, sin «/»)"); finish(400); return true; }
       body = { ...body, command };
@@ -594,7 +594,7 @@ export async function handleOpenCodeRequest(ctx: OpenCodeContext, req: IncomingM
     if (method !== "GET") return false;
     const id = decode(mTodo[1]);
     if (!sessionExists(id)) { sessionMissing(res, id); finish(404); return true; }
-    // vireo solo conoce los todos del proceso en curso; para otras sesiones: []
+    // nicotine solo conoce los todos del proceso en curso; para otras sesiones: []
     send(res, 200, id === rt.session.id ? ctx.todos() : []);
     finish(200); return true;
   }
@@ -612,7 +612,7 @@ export async function handleOpenCodeRequest(ctx: OpenCodeContext, req: IncomingM
     try { body = JSON.parse(raw || "{}") as Record<string, unknown>; } catch { jsonError(res, 400, "JSON inválido"); finish(400); return true; }
     if (typeof body.providerID !== "string" || typeof body.modelID !== "string") {
       ctx.setBusy(false, null);
-      jsonError(res, 400, "summarize requiere { providerID, modelID } (strings). Se aceptan pero NO se honran: vireo compacta con su provider CONFIGURADO");
+      jsonError(res, 400, "summarize requiere { providerID, modelID } (strings). Se aceptan pero NO se honran: nicotine compacta con su provider CONFIGURADO");
       finish(400); return true;
     }
     try {

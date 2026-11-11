@@ -8,9 +8,11 @@ import { wrapMessage, oneLine, type DisplayMessage } from "./components.js";
 import { applyDiffStyle } from "./diff-style.js";
 import { visibleWidth, stripAnsi, fitAnsi } from "./ansi-wrap.js";
 import { bindingMatches, type TuiConfig } from "./tui-config.js";
+import { actionLabelFor } from "./action-stream.js";
 import type { TodoItem } from "../core/events.js";
 import type { PermissionRequest, PermissionDecision, QuestionPrompt } from "../core/types.js";
 import { readdirSync, statSync } from "node:fs";
+import { loadOverrides, classify } from "../core/model-catalog.js";
 import { join } from "node:path";
 import { safeRender, type Component } from "./component.js";
 import type { SlotName } from "../ext/api.js";
@@ -122,6 +124,7 @@ export class TuiApp {
   private fileCache: string[] | null = null;
   private _cursor = { row: 0, col: 0 };
   private spinnerStarted = 0;
+  private phaseLabel: string | null = null;
   requestRender: () => void = () => {};
 
   constructor(public deps: TuiAppDeps) {}
@@ -141,10 +144,12 @@ export class TuiApp {
     this.render();
   }
   toolStart(id: string, name: string, args: Record<string, unknown>): void {
+    if (this.deps.tui.ui.actionStream) this.phaseLabel = actionLabelFor(name, args);
     this.messages.push({ role: "tool", text: args ? JSON.stringify(args) : "", toolName: name });
     this.render();
   }
   toolEnd(_id: string, name: string, output: string, isError: boolean, durationMs: number): void {
+    this.phaseLabel = null;
     for (let i = this.messages.length - 1; i >= 0; i--) {
       const m = this.messages[i];
       if (m.role === "tool" && m.toolName === name && m.output === undefined) {
@@ -155,6 +160,7 @@ export class TuiApp {
   }
   turnEnd(reason: string, totalTokens?: number): void {
     this.streaming = false;
+    this.phaseLabel = null;
     if (totalTokens) this.tokens = totalTokens;
     if (reason === "max_steps") this.messages.push({ role: "error", text: "se alcanzó el máximo de pasos" });
     this.render();
@@ -213,7 +219,7 @@ export class TuiApp {
 
   private headerLine(width: number): string {
     const t = this.deps.theme;
-    const left = fgHex(token(t, "accent")) + bold + "vireo" + reset + dimmed + ` · ${this.deps.currentAgent()} · ${this.deps.currentModel()} · ${this.deps.cwd.split("/").filter(Boolean).pop() ?? "/"}` + reset;
+    const left = fgHex(token(t, "accent")) + bold + "nicotine" + reset + dimmed + ` · ${this.deps.currentAgent()} · ${this.deps.currentModel()} · ${this.deps.cwd.split("/").filter(Boolean).pop() ?? "/"}` + reset;
     const right = dimmed + `sesión ${this.deps.currentSession()}` + reset;
     const gap = Math.max(1, width - visibleWidth(left) - visibleWidth(right));
     return left + " ".repeat(gap) + right;
@@ -283,7 +289,11 @@ export class TuiApp {
 
   private footerLine(width: number): string {
     const t = this.deps.theme;
-    const state = this.streaming ? `${fgHex(token(t, "accent"))}pensando… ${Math.floor((Date.now() - this.spinnerStarted) / 1000)}s${reset}` : dimmed + "listo" + reset;
+    const state = !this.streaming
+      ? dimmed + "listo" + reset
+      : this.phaseLabel
+        ? `${fgHex(token(t, "accent"))}${this.phaseLabel}…${reset}`
+        : `${fgHex(token(t, "accent"))}pensando… ${Math.floor((Date.now() - this.spinnerStarted) / 1000)}s${reset}`;
     const hints = dimmed + "tab agente · ctrl+p comandos · ctrl+x atajos · esc abortar" + reset;
     const right = this.tokens > 0 ? dimmed + `${this.tokens} tok` + reset : "";
     const left = `${state}${dimmed}  ·  ${hints}${reset}`;
@@ -386,7 +396,7 @@ export class TuiApp {
     // comandos con ctrl+p
     if (key.ctrl && key.name === "p") { this.openCommandPalette(); return; }
     // paginado
-    const pageStep = Math.max(1, Math.round(this.deps.tui.scrollSpeed * 4)); // vireo-lite: scrollSpeed 3 → 12 líneas
+    const pageStep = Math.max(1, Math.round(this.deps.tui.scrollSpeed * 4)); // nicotine-lite: scrollSpeed 3 → 12 líneas
     if (key.name === "wheelup") { this.scrollLines(this.deps.tui.scrollSpeed); return; }
     if (key.name === "wheeldown") { this.scrollLines(-this.deps.tui.scrollSpeed); return; }
     if (key.name === "pageup") { this.scrollFromBottom = Math.min(this.scrollFromBottom + pageStep, 10000); this.render(); return; }
@@ -581,7 +591,12 @@ export class TuiApp {
     if (!models?.length) { this.info("el proveedor no lista modelos (o no responde); edita `model` en opencode.json"); return; }
     this.dialog = {
       kind: "list", title: "modelos (enter selecciona para esta sesión)",
-      items: models.map((m) => ({ id: m, label: m, hint: m === this.deps.currentModel() ? "actual" : undefined })),
+      items: models.map((m) => {
+        const c = classify(m, loadOverrides());
+        const badges = `${c.tools === true ? "✓tools" : c.tools === false ? "✗tools" : "?"} ${c.censored === false ? "libre" : c.censored === true ? "censura" : ""}`.trim();
+        const hint = [m === this.deps.currentModel() ? "actual" : null, badges].filter(Boolean).join(" · ");
+        return { id: m, label: m, hint: hint || undefined };
+      }),
       selected: Math.max(0, models.indexOf(this.deps.currentModel())),
       onPick: (id) => { this.deps.setModel(id); this.info(`modelo: ${id} (solo esta sesión; guárdalo en opencode.json para hacerlo permanente)`); },
     };

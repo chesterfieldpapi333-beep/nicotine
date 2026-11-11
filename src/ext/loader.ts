@@ -22,12 +22,17 @@ export function discoverExtensions(cwd: string, config: Record<string, unknown>,
   const candidates: Candidate[] = [];
   const warnings: string[] = [];
 
-  // global: ~/.config/vireo/extensions/* (confiables)
-  const globalDir = join(homedir(), ".config", "vireo", "extensions");
+  // legado primero: nicotine pisa vireo en caso de mismo id (el dedupe deja ganar al último)
+  // global: ~/.config/vireo/extensions/* (legado, compat) y ~/.config/nicotine/extensions/* (confiables)
+  const legacyGlobal = join(homedir(), ".config", "vireo", "extensions");
+  for (const f of listExtFiles(legacyGlobal)) candidates.push({ id: idOf(f), path: f, dir: legacyGlobal, origin: "global" });
+  const globalDir = join(homedir(), ".config", "nicotine", "extensions");
   for (const f of listExtFiles(globalDir)) candidates.push({ id: idOf(f), path: f, dir: globalDir, origin: "global" });
-  // proyecto: raíz→cwd, .vireo/extensions/ (NO confiables)
+  // proyecto: raíz→cwd, .vireo/extensions/ (legado, compat) y .nicotine/extensions/ (NO confiables)
   for (const dir of dirsRootToCwd(cwd)) {
-    const pdir = join(dir, ".vireo", "extensions");
+    const legacyPdir = join(dir, ".vireo", "extensions");
+    for (const f of listExtFiles(legacyPdir)) candidates.push({ id: idOf(f), path: f, dir: legacyPdir, origin: "project" });
+    const pdir = join(dir, ".nicotine", "extensions");
     for (const f of listExtFiles(pdir)) candidates.push({ id: idOf(f), path: f, dir: pdir, origin: "project" });
   }
   // config `extensions`: rutas (archivo .ts/.js o carpeta); origen desde la capa

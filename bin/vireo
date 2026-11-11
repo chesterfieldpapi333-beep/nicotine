@@ -1,3 +1,5 @@
 #!/usr/bin/env bash
-# Launcher: Bun ejecuta TypeScript directo, sin paso de build.
-exec bun "$(dirname "$(readlink -f "$0")")/../src/index.ts" "$@"
+# SHIM deprecado (fase 10f): `vireo` se renombró a `nicotine` (comando `nic`).
+# Este shim sigue funcionando: avisa por stderr y delega en bin/nic.
+echo "aviso: «vireo» se renombró a «nicotine» (comando «nic»); usa «nic» en su lugar" >&2
+exec "$(dirname "$(readlink -f "$0")")/nic" "$@"

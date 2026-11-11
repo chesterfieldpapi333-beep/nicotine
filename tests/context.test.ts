@@ -7,7 +7,7 @@ import { join } from "node:path";
 import { loadContextFiles, MAX_FILE_BYTES } from "../src/compat/context-files.js";
 
 let root: string;
-beforeEach(() => { root = mkdtempSync(join(tmpdir(), "vireo-ctx-")); });
+beforeEach(() => { root = mkdtempSync(join(tmpdir(), "nicotine-ctx-")); });
 afterEach(() => rmSync(root, { recursive: true, force: true }));
 
 const w = (rel: string, content: string) => {

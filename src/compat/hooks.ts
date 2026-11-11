@@ -6,7 +6,7 @@
 //  matcher: regex sobre tool name (ausente = todas). timeout: seg (def 5, máx 30).
 //  Eventos sin equivalente (Notification, Stop, …) y tipos sin soporte → aviso,
 //  nunca ejecución. El comando corre con bash, stdin = JSON {tool_name, args},
-//  env con CLAUDE_PROJECT_DIR / VIREO_PROJECT_DIR / CLAUDE_PLUGIN_ROOT.
+//  env con CLAUDE_PROJECT_DIR / NICOTINE_PROJECT_DIR / CLAUDE_PLUGIN_ROOT.
 //  Origen proyecto → NUNCA se ejecutan sin confirmación (la hace el llamador,
 //  ver preparePlugins); este módulo solo coleta y ejecuta.
 
@@ -54,7 +54,7 @@ export function collectHooks(
     if (!root || typeof root !== "object") { warnings.push(`${file}: «hooks» debe ser un objeto`); return; }
     for (const [eventRaw, groups] of Object.entries(root as Record<string, unknown>)) {
       const event = normalizeEvent(eventRaw);
-      if (!event) { skipped.push({ source: file, detail: `evento «${eventRaw}» sin equivalente en vireo; omitido` }); continue; }
+      if (!event) { skipped.push({ source: file, detail: `evento «${eventRaw}» sin equivalente en nicotine; omitido` }); continue; }
       if (!Array.isArray(groups)) { warnings.push(`${file}: hooks.${eventRaw} debe ser un array; omitido`); continue; }
       for (const group of groups) {
         const g = (group ?? {}) as Record<string, unknown>;
@@ -105,7 +105,7 @@ const parseHook = (
   const obj = (c ?? {}) as Record<string, unknown>;
   const type = String(obj["type"] ?? "command");
   if (type !== "command") { skipped.push({ source: file, detail: `hook tipo «${type}» no soportado (solo command); omitido` }); return null; }
-  if (obj["async"] === true) { skipped.push({ source: file, detail: "hook async omitido (vireo ejecuta hooks síncronos)" }); return null; }
+  if (obj["async"] === true) { skipped.push({ source: file, detail: "hook async omitido (nicotine ejecuta hooks síncronos)" }); return null; }
   const command = typeof obj["command"] === "string" ? obj["command"].trim() : "";
   if (!command) { warnings.push(`${file}: hook command vacío; omitido`); return null; }
   const timeoutSec = typeof obj["timeout"] === "number" ? Math.min(Math.max(1, obj["timeout"]), 30) : 5;
@@ -143,7 +143,7 @@ const expandVars = (command: string, projectDir: string, pluginRoot?: string): s
   command
     .replace(/\$\{CLAUDE_PROJECT_DIR\}/g, projectDir)
     .replace(/\$CLAUDE_PROJECT_DIR\b/g, projectDir)
-    .replace(/\$\{VIREO_PROJECT_DIR\}/g, projectDir)
+    .replace(/\$\{NICOTINE_PROJECT_DIR\}/g, projectDir)
     .replace(/\$\{CLAUDE_PLUGIN_ROOT\}/g, pluginRoot ?? projectDir)
     .replace(/\$\{CLAUDE_PLUGIN_DATA\}/g, pluginRoot ?? projectDir);
 
@@ -163,7 +163,7 @@ function execHook(
       env: {
         ...process.env,
         CLAUDE_PROJECT_DIR: env.projectDir,
-        VIREO_PROJECT_DIR: env.projectDir,
+        NICOTINE_PROJECT_DIR: env.projectDir,
         ...(hook.pluginRoot ? { CLAUDE_PLUGIN_ROOT: hook.pluginRoot, CLAUDE_PLUGIN_DATA: hook.pluginRoot } : {}),
       },
     }, (error, stdout, stderr) => {

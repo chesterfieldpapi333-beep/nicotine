@@ -1,4 +1,4 @@
-// Helpers HTTP compartidos por vireo serve y el subconjunto opencode (src/modes/).
+// Helpers HTTP compartidos por nicotine serve y el subconjunto opencode (src/modes/).
 // Auth básica (cualquier usuario; la contraseña manda) con comparación en
 // tiempo constante; body capado a 1 MiB.
 

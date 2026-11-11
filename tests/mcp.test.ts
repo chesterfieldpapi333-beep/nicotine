@@ -112,7 +112,7 @@ describe("connectMcpServers — stdio", () => {
   });
 
   test("sanitización de nombres server/tool", async () => {
-    const dir = mkdtempSync(join(tmpdir(), "vireo-mcp-san-"));
+    const dir = mkdtempSync(join(tmpdir(), "nicotine-mcp-san-"));
     tmpdirs.push(dir);
     const u = ui("once");
     const rt = await connect(stdioConf("mi servidor.con@raro", "legacy"), { "mi servidor.con@raro": "global" }, u);

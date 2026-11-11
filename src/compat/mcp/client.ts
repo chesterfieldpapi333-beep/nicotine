@@ -36,7 +36,7 @@ export interface McpPromptInfo {
   arguments?: { name: string; description?: string; required?: boolean }[];
 }
 
-const CLIENT_INFO = { name: "vireo", version: "0.1.0" };
+const CLIENT_INFO = { name: "nicotine", version: "0.2.0" };
 const PROTOCOL_2026 = "2026-07-28";
 const LEGACY_LADDER = ["2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05"];
 
@@ -128,7 +128,7 @@ export class McpClient {
       if (refreshed) {
         res = await attempt(refreshed);
       } else if (oauthToken) {
-        throw new Error(`HTTP 401 en ${method}: el token de «${this.def.name}» no se pudo renovar; ejecuta «vireo mcp auth ${this.def.name}»`);
+        throw new Error(`HTTP 401 en ${method}: el token de «${this.def.name}» no se pudo renovar; ejecuta «nicotine mcp auth ${this.def.name}»`);
       }
     }
     const sid = res.headers.get("mcp-session-id");
@@ -136,7 +136,7 @@ export class McpClient {
     const ct = res.headers.get("content-type") ?? "";
     if (!res.ok && res.status !== 202) {
       const tail = (await res.text().catch(() => "")).slice(0, 300);
-      const hint = res.status === 401 && !hasExplicitAuth ? ` — ejecuta «vireo mcp auth ${this.def.name}»` : "";
+      const hint = res.status === 401 && !hasExplicitAuth ? ` — ejecuta «nicotine mcp auth ${this.def.name}»` : "";
       throw new Error(`HTTP ${res.status} en ${method}${hint}: ${tail || res.statusText}`);
     }
     if (ct.includes("text/event-stream")) return readSseForId(res, id, timeoutMs);

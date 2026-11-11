@@ -6,10 +6,10 @@
 //   - PKCE S256 obligatorio (OAuth 2.1) · RFC 9207 iss verificado si el AS lo anuncia
 //
 // Seguridad:
-//   - tokens en $XDG_DATA_HOME/vireo/oauth.json (0600), clave: NOMBRE del servidor
+//   - tokens en $XDG_DATA_HOME/nicotine/oauth.json (0600), clave: NOMBRE del servidor
 //   - NUNCA se loguean tokens ni códigos; solo marcas de tiempo e ids
 //   - loopback redirect (127.0.0.1, puerto efímero); state aleatorio; timeout
-//   - refresh single-flight por proceso; si falla → error accionable («vireo mcp auth <n>»)
+//   - refresh single-flight por proceso; si falla → error accionable («nicotine mcp auth <n>»)
 //   - headers explícitos del usuario ganan sobre el token guardado
 
 import { createServer, type Server } from "node:http";
@@ -208,8 +208,8 @@ export async function registerClient(asm: AuthServerMetadata, redirectUri: strin
     method: "POST",
     headers: { "content-type": "application/json", accept: "application/json" },
     body: JSON.stringify({
-      client_name: "vireo",
-      client_uri: "https://github.com/chesterfieldpapi333-beep/vireo",
+      client_name: "nicotine",
+      client_uri: "https://github.com/chesterfieldpapi333-beep/nicotine",
       redirect_uris: [redirectUri],
       grant_types: ["authorization_code", "refresh_token"],
       response_types: ["code"],
@@ -273,7 +273,7 @@ export async function refreshAccessToken(name: string, entry: OAuthTokenEntry, f
   const inflight = refreshInflight.get(key);
   if (inflight) return inflight;
   const promise = (async (): Promise<OAuthTokenEntry> => {
-    if (!entry.refresh_token) throw new Error(`el token de «${name}» caducó y el servidor no emitió refresh_token; ejecuta «vireo mcp auth ${name}»`);
+    if (!entry.refresh_token) throw new Error(`el token de «${name}» caducó y el servidor no emitió refresh_token; ejecuta «nicotine mcp auth ${name}»`);
     const asm = await discoverAuthServer(entry.issuer, fetchImpl, timeoutMs);
     const { status, json, text } = await fetchJson(asm.token_endpoint, timeoutMs, fetchImpl, {
       method: "POST",
@@ -332,7 +332,7 @@ export function waitForCallback(timeoutMs: number): { server: Server; result: Pr
   let resolveResult!: (v: CallbackResult) => void, rejectResult!: (e: Error) => void;
   const result = new Promise<CallbackResult>((res, rej) => { resolveResult = res; rejectResult = rej; });
   const html = (ok: boolean, msg: string) =>
-    `<!doctype html><meta charset="utf-8"><title>vireo</title><body style="font-family:system-ui;max-width:40em;margin:4em auto"><h1>${ok ? "✓ Autorizado" : "✗ Error"}</h1><p>${msg}</p><p>Ya puedes cerrar esta ventana.</p></body>`;
+    `<!doctype html><meta charset="utf-8"><title>nicotine</title><body style="font-family:system-ui;max-width:40em;margin:4em auto"><h1>${ok ? "✓ Autorizado" : "✗ Error"}</h1><p>${msg}</p><p>Ya puedes cerrar esta ventana.</p></body>`;
   const server = createServer((req, res) => {
     try {
       const u = new URL(req.url ?? "/", "http://127.0.0.1");
@@ -348,7 +348,7 @@ export function waitForCallback(timeoutMs: number): { server: Server; result: Pr
         return;
       }
       res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
-      res.end(html(true, "vireo recibió la sesión correctamente."));
+      res.end(html(true, "nicotine recibió la sesión correctamente."));
       resolveResult({ code, state, iss });
     } catch (err) {
       res.writeHead(500); res.end();

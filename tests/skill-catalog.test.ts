@@ -24,9 +24,9 @@ function mockCatalogFetch(map: Record<string, { body: string | Buffer; status?: 
 
 let home: string, root: string, cacheRoot: string;
 beforeEach(() => {
-  home = mkdtempSync(join(tmpdir(), "vireo-cat-home-"));
-  root = mkdtempSync(join(tmpdir(), "vireo-cat-cwd-"));
-  cacheRoot = mkdtempSync(join(tmpdir(), "vireo-cat-cache-"));
+  home = mkdtempSync(join(tmpdir(), "nicotine-cat-home-"));
+  root = mkdtempSync(join(tmpdir(), "nicotine-cat-cwd-"));
+  cacheRoot = mkdtempSync(join(tmpdir(), "nicotine-cat-cache-"));
 });
 afterEach(() => {
   rmSync(home, { recursive: true, force: true });
@@ -34,7 +34,7 @@ afterEach(() => {
   rmSync(cacheRoot, { recursive: true, force: true });
 });
 
-describe("vireo skills update — descarga verificada por digest", () => {
+describe("nicotine skills update — descarga verificada por digest", () => {
   const buildCatalog = (entries: { name: string; body: string; type?: string; digestOk?: boolean }[]) => {
     const skills = entries.map((e) => ({
       name: e.name,

@@ -1,9 +1,0 @@
-# ============================================================
-#  package.license — licencias aceptadas
-# ============================================================
-
-# Aceptar todo excepto EULA de NVIDIA (se acepta abajo si tenés NVIDIA)
-* -@EULA
-# Si tenés GPU NVIDIA y necesitás el driver propietario:
-# dev-util/nvidia-xconfig ACCEPT_LICENSE="*"
-# x11-drivers/nvidia-drivers ACCEPT_LICENSE="*"

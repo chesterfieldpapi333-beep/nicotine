@@ -1,5 +1,5 @@
-// Temas JSON de otras CLIs → tokens vireo (merge sobre vireo-dark).
-//  Shape A (vireo-like): { name?, tokens: { token: color } }
+// Temas JSON de otras CLIs → tokens nicotine (merge sobre nicotine-dark).
+//  Shape A (nicotine-like): { name?, tokens: { token: color } }
 //  Shape B (best-effort): { "theme": {…} } o flat { primary, text, … }
 // Mapeo B (documentado como best-effort): primary|info→accent, text|foreground→fg,
 // background|backgroundPanel|bg→bg, secondary|muted|comment→dim, error→error,
@@ -21,7 +21,7 @@ export interface ForeignTheme {
 
 export interface PluginThemeSource { name: string; root: string; origin: "global" | "project" }
 
-const KNOWN_VIREO = new Set(["accent", "fg", "bg", "dim", "error", "warning", "success", "diffAdd", "diffDel", "diffHunk"]);
+const KNOWN_NICOTINE = new Set(["accent", "fg", "bg", "dim", "error", "warning", "success", "diffAdd", "diffDel", "diffHunk"]);
 const MAP_B: Record<string, string> = {
   primary: "accent", info: "accent", selection: "accent",
   text: "fg", foreground: "fg",
@@ -78,7 +78,7 @@ export function parseThemeFile(path: string): ParseResult {
   const tokens: Record<string, string> = {};
   const takeKnown = (src: Record<string, unknown>) => {
     for (const [k, v] of Object.entries(src)) {
-      if (KNOWN_VIREO.has(k) && typeof v === "string" && v.trim()) tokens[k] = v.trim();
+      if (KNOWN_NICOTINE.has(k) && typeof v === "string" && v.trim()) tokens[k] = v.trim();
     }
   };
 
@@ -86,7 +86,7 @@ export function parseThemeFile(path: string): ParseResult {
   if (obj["tokens"] && typeof obj["tokens"] === "object") {
     takeKnown(obj["tokens"] as Record<string, unknown>);
     if (Object.keys(tokens).length >= 1) return { tokens };
-    return { warning: `${path}: «tokens» no contiene ningún token vireo conocido` };
+    return { warning: `${path}: «tokens» no contiene ningún token nicotine conocido` };
   }
 
   // Shape B
@@ -94,7 +94,7 @@ export function parseThemeFile(path: string): ParseResult {
   const unmapped: string[] = [];
   for (const [k, v] of Object.entries(src)) {
     if (typeof v !== "string" || !v.trim()) continue;
-    const mapped = MAP_B[k] ?? (KNOWN_VIREO.has(k) ? k : undefined);
+    const mapped = MAP_B[k] ?? (KNOWN_NICOTINE.has(k) ? k : undefined);
     if (mapped) tokens[mapped] = v.trim();
     else unmapped.push(k);
   }

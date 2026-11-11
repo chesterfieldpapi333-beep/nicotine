@@ -57,6 +57,14 @@ export function matchPattern(pattern: string, value: string): boolean {
   return new RegExp(`^${re}$`).test(v);
 }
 
+// Reglas de --readonly (CLI): denegación global de acciones que modifican.
+// deny-wins las hace imposibles de relajar desde config o agentes.
+export const READONLY_RULES: Rule[] = [
+  { action: "edit", resource: "*", effect: "deny" }, // write/apply_patch/patch normalizan a edit
+  { action: "bash", resource: "*", effect: "deny" },
+  { action: "vault", resource: "write:*", effect: "deny" },
+];
+
 export interface CheckResult { effect: Effect; rule?: Rule; /** true si lo impide una policy v2 (hard-deny post-reglas). */ policy?: boolean }
 
 export interface Policy { action: string; resource: string }
@@ -112,21 +120,23 @@ export class PermissionEngine {
     return abs !== root && !abs.startsWith(root + "/");
   }
 
-  /** Verificación completa de una operación sobre rutas. */
+  /** Verificación completa de una operación sobre rutas. Deny gana entre todas las capas (`external_directory` y la acción específica). */
   checkPath(cwd: string, action: string, target: string): CheckResult {
     const abs = isAbsolute(expandHome(target)) ? resolve(expandHome(target)) : resolve(cwd, target);
-    if (this.outsideProject(cwd, abs)) {
-      // Spec Vireo: fuera del proyecto SIEMPRE pasa por external_directory;
-      // si no hay regla, se pregunta (más estricto que el default v2 de OpenCode).
-      const ext = this.check("external_directory", abs.endsWith("/") ? abs : abs + "/*");
-      if (ext.effect !== "allow") return ext;
-    }
-    return this.check(action, abs);
+    const direct = this.check(action, abs);
+    if (!this.outsideProject(cwd, abs)) return direct;
+    // Spec Nicotine: fuera del proyecto SIEMPRE pasa por external_directory;
+    // si no hay regla, se pregunta (más estricto que el default v2 de OpenCode).
+    const ext = this.check("external_directory", abs.endsWith("/") ? abs : abs + "/*");
+    // deny-wins entre ambas compuertas: un deny de cualquiera de las dos gana.
+    if (direct.effect === "deny" || ext.effect === "deny") return direct.effect === "deny" ? direct : ext;
+    if (direct.effect === "ask" || ext.effect === "ask") return direct.effect === "ask" ? direct : ext;
+    return direct;
   }
 }
 
 // Defaults base de OpenCode v2 (documentados en /docs/permissions#defaults),
-// más "ask" para external_directory porque el spec de Vireo lo exige.
+// más "ask" para external_directory porque el spec de Nicotine lo exige.
 export function baseRules(): Rule[] {
   return [
     { action: "*", resource: "*", effect: "allow" },

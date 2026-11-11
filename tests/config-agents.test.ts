@@ -15,7 +15,7 @@ import { loadConfig } from "../src/core/config.js";
 
 let tmp: string;
 beforeEach(() => {
-  tmp = mkdtempSync(join(tmpdir(), "vireo-agents-"));
+  tmp = mkdtempSync(join(tmpdir(), "nicotine-agents-"));
   process.env.XDG_DATA_HOME = join(tmp, "data");
   clearExtraAgents();
 });
@@ -167,7 +167,7 @@ describe("integración buildRuntime", () => {
     });
     const rt = buildRuntime({ cwd: project, auto: false, attachUi: false });
     expect(rt.messages[0].content).toContain("Soy un revisor estricto.");
-    expect(rt.messages[0].content).not.toContain("Eres Vireo");
+    expect(rt.messages[0].content).not.toContain("Eres Nicotine");
     expect(rt.messages[0].content).toContain("Entorno:"); // entorno conservado
     expect(rt.messages[0].content).not.toContain("Forma de trabajo");
     expect(findAgent("reviewer").mode).toBe("primary");
@@ -242,9 +242,9 @@ Revisa con rigor. Nunca edites.`);
     expect(a!.mode).toBe("subagent");
     expect(a!.model).toBe("openai/helper-x#high");
     expect(a!.systemPrompt).toContain("Revisa con rigor");
-    expect(a!.systemPrompt).not.toContain("Eres Vireo");
+    expect(a!.systemPrompt).not.toContain("Eres Nicotine");
     expect(a!.permissionRules).toContainEqual({ action: "edit", resource: "*", effect: "deny" });
-    // normalizeAction mapea «shell» → «bash» (alias vireo)
+    // normalizeAction mapea «shell» → «bash» (alias nicotine)
     expect(a!.permissionRules).toContainEqual({ action: "bash", resource: "git status *", effect: "ask" });
     expect(r.warnings).toEqual([]);
   });

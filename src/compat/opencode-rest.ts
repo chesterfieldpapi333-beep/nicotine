@@ -1,4 +1,4 @@
-// Subconjunto HONESTO de la API REST "clásica" de opencode en vireo serve.
+// Subconjunto HONESTO de la API REST "clásica" de opencode en nicotine serve.
 // No es paridad: solo las rutas implementadas en src/modes/serve.ts responden;
 // todo lo demás devuelve 404 con cuerpo { error } (ver docs/parity.md, fase 10e).
 //
@@ -23,15 +23,15 @@ import { stripModel } from "../core/provider.js";
 
 const sha1 = (s: string): string => createHash("sha1").update(s).digest("hex");
 
-export const DEFAULT_PROJECT_ID_SALT = "vireo";
+export const DEFAULT_PROJECT_ID_SALT = "nicotine";
 
-/** projectID sintético y estable para el directorio actual (vireo gestiona UNA raíz por proceso). */
+/** projectID sintético y estable para el directorio actual (nicotine gestiona UNA raíz por proceso). */
 export function projectId(cwd: string): string {
   return `proj_${sha1(`${DEFAULT_PROJECT_ID_SALT}:${cwd}`).slice(0, 16)}`;
 }
 
 /**
- * providerID efectivo: vireo habla con UN endpoint OpenAI-compatible.
+ * providerID efectivo: nicotine habla con UN endpoint OpenAI-compatible.
  * Se deduce de la baseURL por el catálogo CONNECT; si no encaja, se reporta «custom».
  */
 export function detectProviderId(baseURL: string): string {
@@ -118,11 +118,11 @@ const safeJson = (raw: string | undefined): Record<string, unknown> => {
 };
 
 /**
- * ChatMessage[] de vireo → Array<{ info, parts }> (el sobre clásico de opencode).
+ * ChatMessage[] de nicotine → Array<{ info, parts }> (el sobre clásico de opencode).
  * Mapeo honesto y aproximado:
  *   - los mensajes «tool» (resultado) se pliegan en ToolPart.state.output del
  *     tool_call correspondiente; no aparecen como mensaje propio;
- *   - los mensajes «system» no se exponen (vireo no los persiste);
+ *   - los mensajes «system» no se exponen (nicotine no los persiste);
  *   - cost/tokens no se persisten por mensaje: se emiten ceros;
  *   - el estado de error de un tool NO se persiste: siempre «completed»;
  *   - parentID del assistant = id del último user previo (u «unknown»);
@@ -185,7 +185,7 @@ export function mapChatMessages(
 
 export interface OcEvent { type: string; properties: Record<string, unknown> }
 
-/** TodoItem de vireo → Todo de opencode (id/priority sintéticos, documentados). */
+/** TodoItem de nicotine → Todo de opencode (id/priority sintéticos, documentados). */
 export function ocTodos(todos: { content: string; status: string }[]): Array<{ id: string; content: string; status: string; priority: string }> {
   return todos.map((t, i) => ({ id: `todo_${i + 1}`, content: String(t.content), status: ["pending", "in_progress", "completed"].includes(t.status) ? t.status : "pending", priority: "medium" }));
 }
@@ -483,7 +483,7 @@ export interface OcProvider {
   options: Record<string, unknown>; models: Record<string, unknown>;
 }
 
-/** Provider sintético (vireo = UN endpoint OpenAI-compatible). NUNCA incluye claves. */
+/** Provider sintético (nicotine = UN endpoint OpenAI-compatible). NUNCA incluye claves. */
 export function ocProvider(cfg: Record<string, unknown>, provider: { baseURL: string; model: string; apiKey?: string }): OcProvider {
   const id = detectProviderId(provider.baseURL);
   const providerCfg = (cfg["provider"] ?? {}) as Record<string, unknown>;
@@ -534,7 +534,7 @@ export function mapCommandToOc(c: { name: string; description?: string; hint?: s
   return { name: c.name, description: (c.description ?? c.hint ?? "").slice(0, 512) || undefined, agent: c.agent, model: c.model, template: c.body };
 }
 
-/** Estado MCP vireo → McpStatus clásico. «untrusted» se mapea a failed con motivo (no hay equivalente). */
+/** Estado MCP nicotine → McpStatus clásico. «untrusted» se mapea a failed con motivo (no hay equivalente). */
 export function mapMcpStatusToOc(st: { state: string; error?: string }): Record<string, unknown> {
   switch (st.state) {
     case "connected": return { status: "connected" };
@@ -559,14 +559,14 @@ export function buildOpenApiDoc(version: string): Record<string, unknown> {
   const ok = (description: string) => ({ description, content: { "application/json": { schema: { type: "object" } } } });
   const okArr = (description: string) => ({ description, content: { "application/json": { schema: { type: "array" } } } });
   const sse = (description: string) => ({ description: `${description} (text/event-stream)` });
-  const notImpl = { description: "No implementado en el subconjunto vireo (body { error })" };
+  const notImpl = { description: "No implementado en el subconjunto nicotine (body { error })" };
   const paths: Record<string, Record<string, unknown>> = {
     "/global/health": { get: { summary: "Salud del servidor", responses: { "200": ok("{ healthy: true, version }") } } },
     "/global/event": { get: { summary: "SSE de eventos globales (GlobalEvent { directory, payload }); primer evento: server.connected", responses: { "200": sse("stream SSE") } } },
     "/doc": { get: { summary: "Este documento OpenAPI 3.1", responses: { "200": ok("OpenAPI 3.1") } } },
     "/path": { get: { summary: "{ state, config, worktree, directory }", responses: { "200": ok("Path") } } },
     "/vcs": { get: { summary: "{ branch } (git rev-parse --abbrev-ref HEAD); 404 si no es repo", responses: { "200": ok("VcsInfo"), "404": { description: "no es un repo git (body { error })" } } } },
-    "/project": { get: { summary: "Array con el proyecto ÚNICO actual (vireo: una raíz por proceso)", responses: { "200": okArr("Array<Project>") } } },
+    "/project": { get: { summary: "Array con el proyecto ÚNICO actual (nicotine: una raíz por proceso)", responses: { "200": okArr("Array<Project>") } } },
     "/project/current": { get: { summary: "Proyecto único actual", responses: { "200": ok("Project") } } },
     "/config": { get: { summary: "Config fusionada SANITIZADA (claves sensibles → ***)", responses: { "200": ok("objeto config") } }, patch: { summary: "NO implementado", responses: { "404": notImpl } } },
     "/config/providers": { get: { summary: "{ providers: [provider sintético sin claves], default: { id: model } }", responses: { "200": ok("ConfigProviders") } } },
@@ -575,19 +575,19 @@ export function buildOpenApiDoc(version: string): Record<string, unknown> {
     "/command": { get: { summary: "Comandos custom (config + plugins) como Command clásico; template = cuerpo crudo", responses: { "200": okArr("Array<Command>") } } },
     "/agent": { get: { summary: "Agentes (builtins + archivo + config) como Agent clásico; permission APROXIMADO (documentado)", responses: { "200": okArr("Array<Agent>") } } },
     "/mcp": { get: { summary: "{ [name]: McpStatus } (connected|disabled|failed|needs_auth); «untrusted»→failed documentado", responses: { "200": ok("McpStatus map") } } },
-    "/lsp": { get: { summary: "Array LSP clásico — SIEMPRE [] (vireo no mantiene servidores LSP persistentes)", responses: { "200": okArr("Array<LspStatus>") } } },
-    "/formatter": { get: { summary: "Array formatter clásico — SIEMPRE [] (vireo no gestiona formatters)", responses: { "200": okArr("Array<FormatterStatus>") } } },
+    "/lsp": { get: { summary: "Array LSP clásico — SIEMPRE [] (nicotine no mantiene servidores LSP persistentes)", responses: { "200": okArr("Array<LspStatus>") } } },
+    "/formatter": { get: { summary: "Array formatter clásico — SIEMPRE [] (nicotine no gestiona formatters)", responses: { "200": okArr("Array<FormatterStatus>") } } },
     "/log": { post: { summary: "Escribe una línea de log del cliente a stderr; devuelve true", responses: { "200": ok("boolean"), "400": { description: "body inválido" } } } },
     "/event": { get: { summary: "SSE de eventos del proyecto; primer evento: server.connected", responses: { "200": sse("stream SSE") } } },
     "/find": { get: { summary: "?pattern=regex — coincidencias en bytes (rg --json o buscador propio)", responses: { "200": okArr("Array<FindMatch>"), "400": { description: "pattern inválido" } } } },
     "/find/file": { get: { summary: "?query=fuzzy — rutas relativas (dirs=true incluye directorios)", responses: { "200": okArr("Array<string>"), "400": { description: "falta query" } } } },
-    "/find/symbol": { get: { summary: "NO implementado (sin endpoint de símbolos LSP en vireo)", responses: { "404": notImpl } } },
+    "/find/symbol": { get: { summary: "NO implementado (sin endpoint de símbolos LSP en nicotine)", responses: { "404": notImpl } } },
     "/file": { get: { summary: "?path= — contenido de DIRECTORIO como FileNode[]", responses: { "200": okArr("Array<FileNode>"), "400": { description: "path no es directorio legible" } } } },
     "/file/content": { get: { summary: "?path= — texto utf8 o base64 (binario, tope 2 MiB)", responses: { "200": ok("FileContent"), "400": { description: "no legible" }, "413": { description: "demasiado grande" } } } },
     "/file/status": { get: { summary: "Array<File> desde git status --porcelain + numstat; [] fuera de repo git", responses: { "200": okArr("Array<File>") } } },
     "/session": { get: { summary: "Array con TODAS las sesiones JSONL (forma opencode)", responses: { "200": okArr("Array<Session>") } }, post: { summary: "Crea sesión (body { parentID?, title? }); devuelve Session", responses: { "200": ok("Session") } } },
     "/session/status": { get: { summary: "{ [sessionID]: { type: 'idle'|'busy' } } (busy solo en este proceso)", responses: { "200": ok("SessionStatus map") } } },
-    "/session/current": { get: { summary: "EXTENSIÓN vireo: { id, title } de la sesión activa del proceso (no es ruta opencode)", responses: { "200": ok("{ id, title }") } } },
+    "/session/current": { get: { summary: "EXTENSIÓN nicotine: { id, title } de la sesión activa del proceso (no es ruta opencode)", responses: { "200": ok("{ id, title }") } } },
     "/session/{id}": { get: { summary: "Session (404 si no existe)", responses: { "200": ok("Session"), "404": { description: "no encontrada" } } }, patch: { summary: "Renombra (body { title? })", responses: { "200": ok("Session"), "404": { description: "no encontrada" } } }, delete: { summary: "Borra JSONL (false si no existe); 409 para la sesión activa", responses: { "200": ok("boolean"), "409": { description: "sesión activa del proceso" } } } },
     "/session/{id}/message": { get: { summary: "Array<{ info, parts }> (mensajes NO-system persistidos)", responses: { "200": okArr("Array<{info, parts}>"), "404": { description: "no encontrada" } } }, post: { summary: "Ejecuta un turno (body clásico SessionPrompt: parts[] de texto; FilePart con url file:// soportado; noReply/agent/system/model/tools honrados con límites documentados en /doc y parity.md)", responses: { "200": ok("AssistantMessage pair"), "400": { description: "body inválido/no soportado" }, "404": { description: "sesión no activa en este proceso" }, "409": { description: "turno en curso" } } } },
     "/session/{id}/message/{messageID}": { get: { summary: "{ info, parts } por id", responses: { "200": ok("{info, parts}"), "404": { description: "mensaje no encontrado" } } } },
@@ -597,17 +597,17 @@ export function buildOpenApiDoc(version: string): Record<string, unknown> {
     "/session/{id}/todo": { get: { summary: "Últimos todos vistos por este proceso (todowrite); [] si ninguno — priority/id sintéticos", responses: { "200": okArr("Array<Todo>"), "404": { description: "no encontrada" } } } },
     "/session/{id}/summarize": { post: { summary: "Compacta con el modelo CONFIGURADO (providerID/modelID del body se aceptan pero NO se honran); devuelve boolean compacted", responses: { "200": ok("boolean"), "400": { description: "body inválido" }, "404": { description: "sesión no activa" } } } },
     "/experimental/tool/ids": { get: { summary: "Array<string> de nombres de tool (ALL_TOOLS del proceso)", responses: { "200": okArr("ToolIds") } } },
-    "/experimental/tool": { get: { summary: "Array<{ id, description, parameters }> (parameters = JSON Schema propio de vireo)", responses: { "200": okArr("ToolList") } } },
+    "/experimental/tool": { get: { summary: "Array<{ id, description, parameters }> (parameters = JSON Schema propio de nicotine)", responses: { "200": okArr("ToolList") } } },
   };
   return {
     openapi: "3.1.0",
     info: {
-      title: "vireo serve — subconjunto compatible con la API REST clásica de opencode",
+      title: "nicotine serve — subconjunto compatible con la API REST clásica de opencode",
       version,
       description: "Subconjunto HONESTO: solo las rutas de este documento existen; el resto responde 404 con { error }. " +
-        "Las formas siguen el SDK clásico de opencode v1.18.0; campos sin equivalente en vireo (p. ej. cost/tokens por mensaje, error de tool, needs_auth real para OAuth MCP) se emiten con valores neutros y están documentados en docs/parity.md. " +
-        "Auth: HTTP Basic (cualquier usuario; VIREO_SERVER_PASSWORD u OPENCODE_SERVER_PASSWORD). " +
-        "query ?directory= se ACEPTA pero se ignora (vireo sirve una raíz por proceso). no es paridad.",
+        "Las formas siguen el SDK clásico de opencode v1.18.0; campos sin equivalente en nicotine (p. ej. cost/tokens por mensaje, error de tool, needs_auth real para OAuth MCP) se emiten con valores neutros y están documentados en docs/parity.md. " +
+        "Auth: HTTP Basic (cualquier usuario; NICOTINE_SERVER_PASSWORD u OPENCODE_SERVER_PASSWORD). " +
+        "query ?directory= se ACEPTA pero se ignora (nicotine sirve una raíz por proceso). no es paridad.",
     },
     servers: [{ url: "/" }],
     paths,

@@ -9,7 +9,7 @@ import { runServe } from "../src/modes/serve.js";
 const PASSWORD = "test-secret-opencode";
 const PORT = 8478;
 const base = `http://127.0.0.1:${PORT}`;
-const authHeader = () => ({ authorization: "Basic " + Buffer.from(`vireo:${PASSWORD}`).toString("base64") });
+const authHeader = () => ({ authorization: "Basic " + Buffer.from(`nicotine:${PASSWORD}`).toString("base64") });
 const jsonHeaders = () => ({ ...authHeader(), "content-type": "application/json" });
 
 let dir: string;
@@ -29,13 +29,13 @@ function mockFetch(): typeof fetch {
 }
 
 beforeAll(async () => {
-  dir = mkdtempSync(join(tmpdir(), "vireo-opencode-"));
+  dir = mkdtempSync(join(tmpdir(), "nicotine-opencode-"));
   writeFileSync(join(dir, "fixture.txt"), "aguacate-opencode-fixture\nsegunda línea\n");
   savedXdg = process.env.XDG_DATA_HOME;
   process.env.XDG_DATA_HOME = join(dir, "xdg");       // sesiones aisladas del host
-  process.env.VIREO_SERVER_PASSWORD = PASSWORD;
+  process.env.NICOTINE_SERVER_PASSWORD = PASSWORD;
   process.env.OPENAI_API_KEY = "sk-mock-secret";
-  process.env.VIREO_MODEL = "openai/mock-model";
+  process.env.NICOTINE_MODEL = "openai/mock-model";
   process.env.OPENAI_BASE_URL = "https://api.openai.com/v1";
   let resolveListening!: () => void;
   listening = new Promise<void>((r) => { resolveListening = r; });
@@ -45,9 +45,9 @@ beforeAll(async () => {
 });
 
 afterAll(() => {
-  delete process.env.VIREO_SERVER_PASSWORD;
+  delete process.env.NICOTINE_SERVER_PASSWORD;
   delete process.env.OPENAI_API_KEY;
-  delete process.env.VIREO_MODEL;
+  delete process.env.NICOTINE_MODEL;
   delete process.env.OPENAI_BASE_URL;
   if (savedXdg === undefined) delete process.env.XDG_DATA_HOME; else process.env.XDG_DATA_HOME = savedXdg;
   try { rmSync(dir, { recursive: true, force: true }); } catch { /* best effort */ }
@@ -196,7 +196,7 @@ describe("opencode REST subset (integración local)", () => {
 
   test("turno async en vuelo → /session/{id}/message responde 409 (sin corrupción de mensajes)", async () => {
     // segunda instancia con mock LENTO: garantiza que el turno sigue en vuelo
-    const dir2 = mkdtempSync(join(tmpdir(), "vireo-opencode-slow-"));
+    const dir2 = mkdtempSync(join(tmpdir(), "nicotine-opencode-slow-"));
     const PORT2 = 8479;
     const slowFetch = (async (url: string, init: any) => {
       if (String(url).includes("/models")) return new Response(JSON.stringify({ data: [] }), { status: 200 });

@@ -9,14 +9,14 @@
 //            .codex/skills — VERIFICADO
 //   config `skills: [...]`: carpeta a escanear (un nivel `*/SKILL.md` o `**/SKILL.md`) o un SKILL.md
 //            directo. Las URLs apuntan a catálogos HTTP de skills (discovery): NO se
-//            descargan al arrancar — vireo lee la CACHÉ de `vireo skills update`
+//            descargan al arrancar — nicotine lee la CACHÉ de `nicotine skills update`
 //            (ver compat/skill-catalog.ts); sin caché → aviso.
 //
 // Carga: al arrancar SOLO nombre+descripción entran al system prompt; el body se
 // carga bajo demanda con la tool `skill`. `disable-model-invocation` (o
 // `metadata.opencode.autoinvoke: false`) oculta la skill del listado, pero sigue
 // siendo cargable por id. name debe cumplir ^[a-z0-9]+(-[a-z0-9]+)*$ ≤64 y casar
-// con el directorio — Vireo AVISA, no rechaza (OpenCode v2 tampoco enforcea).
+// con el directorio — Nicotine AVISA, no rechaza (OpenCode v2 tampoco enforcea).
 
 import { readFileSync, readdirSync, statSync, existsSync } from "node:fs";
 import { join, basename, dirname } from "node:path";
@@ -103,7 +103,7 @@ export function scanSkillSources(cwd: string, config: Record<string, unknown>, o
   for (const url of httpUrls) {
     const [cached] = cachedCatalogSources([url], opts.catalogCacheRoot);
     if (cached) sources.push(cached);
-    else warnings.push(`skills: catálogo HTTP sin descargar: ${url} — ejecuta \`vireo skills update\``);
+    else warnings.push(`skills: catálogo HTTP sin descargar: ${url} — ejecuta \`nicotine skills update\``);
   }
   return { sources, warnings };
 }

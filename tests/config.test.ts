@@ -6,7 +6,7 @@ import { loadConfig } from "../src/core/config.js";
 import { PermissionEngine } from "../src/core/permissions.js";
 
 function fixture() {
-  const root = mkdtempSync(join(tmpdir(), "vireo-config-"));
+  const root = mkdtempSync(join(tmpdir(), "nicotine-config-"));
   mkdirSync(join(root, "sub", ".opencode"), { recursive: true });
   return root;
 }
@@ -43,13 +43,13 @@ describe("loadConfig (capas proyecto)", () => {
   });
   test("{env:VAR} y {file:path} se sustituyen", () => {
     const root = fixture();
-    process.env.VIREO_TEST_KEY = "secreto";
+    process.env.NICOTINE_TEST_KEY = "secreto";
     writeFileSync(join(root, "clave.txt"), "contenido-clave\n");
-    writeFileSync(join(root, "opencode.json"), JSON.stringify({ provider: { apiKey: "{env:VIREO_TEST_KEY}", baseURL: "{file:clave.txt}" } }));
+    writeFileSync(join(root, "opencode.json"), JSON.stringify({ provider: { apiKey: "{env:NICOTINE_TEST_KEY}", baseURL: "{file:clave.txt}" } }));
     const { config } = loadConfig(root);
     expect((config["provider"] as any).apiKey).toBe("secreto");
     expect((config["provider"] as any).baseURL).toBe("contenido-clave");
-    delete process.env.VIREO_TEST_KEY;
+    delete process.env.NICOTINE_TEST_KEY;
     rmSync(root, { recursive: true, force: true });
   });
   test("JSONC con comentarios en el proyecto", () => {

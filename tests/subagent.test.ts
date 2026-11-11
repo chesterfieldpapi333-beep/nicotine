@@ -8,7 +8,7 @@ import type { AgentEvent } from "../src/core/events.js";
 
 let tmp: string;
 beforeEach(() => {
-  tmp = mkdtempSync(join(tmpdir(), "vireo-subagent-"));
+  tmp = mkdtempSync(join(tmpdir(), "nicotine-subagent-"));
   process.env.XDG_DATA_HOME = join(tmp, "data");
   process.env.OPENAI_BASE_URL = "http://127.0.0.1:8799/v1"; // localhost: no exige API key
 });

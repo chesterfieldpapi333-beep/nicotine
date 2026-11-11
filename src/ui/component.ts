@@ -21,7 +21,7 @@ export function safeOnKey(component: Component, key: KeyEventLike): boolean {
   try {
     return !!component.onKey?.(key);
   } catch (err) {
-    console.error(`[vireo] onKey roto: ${(err as Error).message}`);
+    console.error(`[nicotine] onKey roto: ${(err as Error).message}`);
     return false;
   }
 }

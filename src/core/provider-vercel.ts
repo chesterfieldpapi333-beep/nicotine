@@ -1,6 +1,6 @@
 // Motor opcional «vercel-ai» (opt-in; DESACTIVADO por defecto).
 //
-// El núcleo de vireo habla con endpoints OpenAI-compatible directamente
+// El núcleo de nicotine habla con endpoints OpenAI-compatible directamente
 // (motor «fetch», ver provider.ts) con cero dependencias. Este módulo permite
 // usar en su lugar el Vercel AI SDK como capa de transporte/streaming, sin
 // añadir NINGUNA dependencia al núcleo: los paquetes se importan
@@ -8,17 +8,17 @@
 //
 //   bun add ai @ai-sdk/openai-compatible
 //   // opencode.json → provider: { "engine": "vercel-ai" }
-//   // o env VIREO_PROVIDER_ENGINE=vercel-ai
+//   // o env NICOTINE_PROVIDER_ENGINE=vercel-ai
 //
 // Probado con ai@7.0.166 + @ai-sdk/openai-compatible@3.0.87 (mock SSE local
 // y petición real contra endpoint OpenAI-compatible). Si falta algún paquete
 // → error claro con el comando exacto a ejecutar.
 //
 // Diferencias honestas con el motor fetch:
-//   - Las tools NO se registran en el SDK: vireo las ejecuta él mismo (igual
+//   - Las tools NO se registran en el SDK: nicotine las ejecuta él mismo (igual
 //     que en fetch). El SDK solo usa su schema (jsonSchema) y devuelve los
 //     tool-calls ya parseados.
-//   - vireo compacta con mensajes role:"system" INTERMEDIOS; el SDK por
+//   - nicotine compacta con mensajes role:"system" INTERMEDIOS; el SDK por
 //     defecto los rechaza, así que se pasa `allowSystemInMessages: true`
 //     (OpenAI los acepta en cualquier posición).
 //   - El failover (claves × modelos, máx. 12 intentos, códigos 401/403/429/5xx)
@@ -34,9 +34,7 @@ import type { TokenUsage } from "./events.js";
 const FAILOVER = new Set([401, 403, 429, 500, 502, 503, 504]);
 const MAX_ATTEMPTS = 12;
 
-// ---------------------------------------------------------------------------
 // Conversión de mensajes/tools (puro; exportado para tests)
-// ---------------------------------------------------------------------------
 
 /** Índice toolCallId → toolName (los mensajes role:"tool" de OpenAI no llevan nombre). */
 export function toolNameByCallId(messages: ChatMessage[]): Map<string, string> {
@@ -101,14 +99,10 @@ export function sdkToolSet(
   return Object.keys(out).length ? out : undefined;
 }
 
-// ---------------------------------------------------------------------------
 // Carga perezosa de los paquetes (cero deps en el núcleo)
-// ---------------------------------------------------------------------------
 
 export interface VercelModules {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   ai: any;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   openaiCompatible: any;
 }
 
@@ -125,13 +119,11 @@ async function defaultLoadModules(): Promise<VercelModules> {
       "config pide el motor «vercel-ai» pero faltan los paquetes. Instálalos con:\n" +
       "  bun add ai @ai-sdk/openai-compatible\n" +
       "(probado con ai@7.0.166 + @ai-sdk/openai-compatible@3.0.87).\n" +
-      "O vuelve al motor por defecto: provider.engine=\"fetch\" o VIREO_PROVIDER_ENGINE=fetch.");
+      "O vuelve al motor por defecto: provider.engine=\"fetch\" o NICOTINE_PROVIDER_ENGINE=fetch.");
   }
 }
 
-// ---------------------------------------------------------------------------
 // Stream con el SDK
-// ---------------------------------------------------------------------------
 
 function statusOf(err: unknown): number {
   const e = err as { statusCode?: unknown; status?: unknown };
@@ -165,7 +157,7 @@ async function runOnce(
     throw new ProviderError(0, "«ai» no exporta streamText/jsonSchema; versión incompatible (probado con ai@7.0.166).");
   }
   const sdk = openaiCompatible.createOpenAICompatible({
-    name: "vireo",
+    name: "nicotine",
     baseURL: provider.baseURL,
     ...(key ? { apiKey: key } : {}),
     headers: provider.headers,
@@ -176,15 +168,14 @@ async function runOnce(
     messages: toModelMessages(opts.messages),
     ...(tools ? { tools } : {}),
     // Sustituyen el retry interno del SDK (default 2) por el failover propio de
-    // vireo (claves × modelos, ver vercelStreamChat): 1 intento por clave.
+    // nicotine (claves × modelos, ver vercelStreamChat): 1 intento por clave.
     maxRetries: 0,
-    // vireo compacta con role:"system" intermedios (compact.ts); OpenAI los acepta.
+    // nicotine compacta con role:"system" intermedios (compact.ts); OpenAI los acepta.
     allowSystemInMessages: true,
     ...(opts.signal ? { abortSignal: opts.signal } : {}),
   });
 
   let text = "";
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let streamErr: any;
   for await (const part of result.fullStream as AsyncIterable<{ type: string; text?: unknown; error?: unknown }>) {
     if (part?.type === "text-delta") {
@@ -211,7 +202,6 @@ async function runOnce(
 
   let toolCalls: ToolCall[] = [];
   try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const calls = ((await result.toolCalls) ?? []) as any[];
     toolCalls = calls.map((tc, i) => ({
       id: typeof tc?.toolCallId === "string" && tc.toolCallId ? tc.toolCallId : `call_${Date.now().toString(36)}_${i}`,

@@ -1,6 +1,6 @@
 // Arranque común de todos los modos: config → permisos → sesión → contexto.
 
-import { PermissionEngine } from "../core/permissions.js";
+import { PermissionEngine, READONLY_RULES } from "../core/permissions.js";
 import { loadConfig } from "../core/config.js";
 import { findAgent, allAgents, registerExtraAgents, registerConfigAgents } from "../core/agents.js";
 import { parseConfigAgents } from "../compat/config-agents.js";
@@ -19,7 +19,9 @@ import type { McpServerStatus } from "../compat/mcp/types.js";
 import { loadProjectApprovals, saveProjectApproval } from "../core/approvals.js";
 import type { McpPromptInfo } from "../compat/mcp/client.js";
 import type { AgentTool, ChatMessage, ToolContext } from "../core/types.js";
-import { ALL_TOOLS } from "../tools/index.js";
+import { ALL_TOOLS, filterSoloBash } from "../tools/index.js";
+import { makeVaultTools } from "../tools/vault.js";
+import { resolveVault, vaultDigest } from "../compat/obsidian-vault.js";
 import { lspServersFromConfig } from "../compat/lsp.js";
 import { makeLspTool } from "../tools/lsp.js";
 import { runAgentLoop } from "../core/loop.js";
@@ -42,6 +44,9 @@ export interface RuntimeOptions {
   signal?: AbortSignal;
   /** Bifurca la sesión cargada (--fork): conserva historial, session id nuevo. */
   fork?: boolean;
+  /** false/undefined = normal; true = edit/bash/vault-write denegados (deny-wins). */
+  readonly?: boolean;
+  soloBash?: boolean;
   /** fetch inyectable (tests / serve). Los subagentes lo heredan. */
   fetchImpl?: typeof fetch;
 }
@@ -109,6 +114,14 @@ export function buildRuntime(opts: RuntimeOptions): Runtime {
     } catch { /* aviso ya emitido en el descubrimiento */ }
   }
   const skillIndex = loadSkillIndex(opts.cwd, config, { extraSources: plugins.skillSources });
+  const vault = resolveVault(config);
+  if (vault.enabled) {
+    const digest = vaultDigest(vault);
+    if (digest) contextBlock = `${contextBlock}\n\n${digest}`;
+  }
+  const compatCfgEarly = config["compat"] as Record<string, unknown> | undefined;
+  const refusalFailover = !!compatCfgEarly && typeof compatCfgEarly === "object" && compatCfgEarly["refusal_failover"] === true;
+  const vaultTools = makeVaultTools(vault);
   const configCommands = parseConfigCommands(config["commands"]);
   const configAgents = parseConfigAgents(config["agents"]);
   registerConfigAgents(configAgents.agents);
@@ -173,6 +186,7 @@ export function buildRuntime(opts: RuntimeOptions): Runtime {
     undo,
     skills: skillIndex,
     textToolCalls,
+    refusalFailover,
     approvals: { save: (action, resource) => saveProjectApproval(opts.cwd, action, resource) },
   };
 
@@ -185,8 +199,9 @@ export function buildRuntime(opts: RuntimeOptions): Runtime {
     ...session.messages(),
   ];
 
+  const effectiveRules = opts.readonly ? [...rules, ...READONLY_RULES] : rules;
   const withSaved = (agentRules: import("../core/permissions.js").Rule[]) =>
-    new PermissionEngine([...rules, ...savedApprovals, ...agentRules], policies);
+    new PermissionEngine([...effectiveRules, ...savedApprovals, ...agentRules], policies);
 
   let currentAgentId = agent.id;
   const agentCtl = {
@@ -229,9 +244,10 @@ export function buildRuntime(opts: RuntimeOptions): Runtime {
       undo, // comparte el gestor: sus ediciones quedan en el mismo undo por turno
       skills: skillIndex,
       textToolCalls,
+      refusalFailover,
     };
     const subPermissions = withSaved(subAgent.permissionRules);
-    const subTools = ALL_TOOLS
+    const subTools = [...activeTools, ...activeVaultTools]
       .filter((t) => (subAgent.toolAllow ? subAgent.toolAllow.includes(t.name) : true))
       .filter((t) => !["task", "plan-enter", "plan-exit"].includes(t.name));
     const reason = await runAgentLoop({ provider: subProvider, permissions: subPermissions, messages: childMessages, tools: subTools, ctx: childCtx, maxSteps: 30, fetchImpl: opts.fetchImpl });
@@ -243,13 +259,17 @@ export function buildRuntime(opts: RuntimeOptions): Runtime {
   ctx.runSubagent = runSubagent;
 
   // Tool lsp: SOLO si la config declara servidores (experimental, off por defecto)
+  // --solo-bash: perfil «minimal» (spec C6) — solo bash + solo-lectura, sin vault/MCP/lsp
+  const activeTools = opts.soloBash ? filterSoloBash(ALL_TOOLS) : ALL_TOOLS;
+  const activeVaultTools = opts.soloBash ? [] : vaultTools;
+  const toolsForRuntime = [...activeTools, ...activeVaultTools];
   const lspCfg = lspServersFromConfig(config);
-  const lspTools = lspCfg.defs.length ? [makeLspTool(lspCfg.defs)] : [];
+  const lspTools = !opts.soloBash && lspCfg.defs.length ? [makeLspTool(lspCfg.defs)] : [];
   const warningsLsp = [...lspCfg.warnings, ...(lspCfg.defs.length ? [`lsp: ${lspCfg.defs.length} servidor(es) configurado(s) — experimental (solo diagnostics)`] : [])];
 
   const rt = {
     config, layers, provider, permissions: withSaved(agent.permissionRules), session, bus, ui, ctx, messages,
-    tools: [...ALL_TOOLS, ...lspTools],
+    tools: [...toolsForRuntime, ...lspTools],
     usageTotals: { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
     compaction: compactionFromConfig(config),
     agent: agentCtl,
