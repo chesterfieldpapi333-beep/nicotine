@@ -4,6 +4,7 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 Versionado: el proyecto aún no sigue semver estricto; cada fase cerrada sube minor.
 
 ## [Sin publicar] — 2026-11-11
+- D2 G2: `shell-scan` extrae cuerpos de heredoc ANTES de segmentar — el `rm` dentro del heredoc ya no lo oculta (ni lo inventa); comandos tras el heredoc sí se detectan; ante cierre no encontrado, fallback al comportamiento anterior. Falso negativo estructural de D1 corregido.
 - D2 (parcial): detección de `find … -delete`, `find … -exec[dir] rm`, y `git clean` con fuerza sin `-n` (simula) → ask; ambos aprobados por el dueño (OK «sí a todo», 2026-11-11).
 - D2 (parcial): `exec` añadido a los wrappers de `bash-parser` (G4) y `.git` añadido al bloqueo de redirecciones incl. prefijo `./` (G1); invariantes intactos (solo ensancha `ask`).
 - Arranque de la sesión de refuerzo (`docs/arranque-refuerzo.md`): revisa/mejora **detrás** del mantenedor (auditar lo fusionado, ampliar tests, proponer specs — jamás tocar `src/` sin spec).

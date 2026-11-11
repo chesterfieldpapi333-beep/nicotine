@@ -15,7 +15,8 @@ export function shellSegments(command: string): string[] {
   const t = command.trim();
   if (!t) return [];
   try {
-    split(t, 0, segments);
+    const stripped = stripHeredocs(t);
+    split(stripped, 0, segments);
   } catch {
     return [t]; // cualquier anomalía → comportamiento de hoy
   }
@@ -44,12 +45,72 @@ function readBalanced(s: string, open: number): [string, number] | null {
   return null;
 }
 
+/** Inicio de heredoc real (operador <<, con <<-> opcional, fuera de comillas). */
+const HEREDOC_START = /<<(-)?[ \t]*(['"]?)([A-Za-z0-9_][A-Za-z0-9_-]*)\2/;
+
+/** Detecta inicios de heredoc en UNA línea, ignorando los << dentro de comillas. */
+function heredocStartsOutsideQuotes(line: string): { delim: string; dash: boolean }[] {
+  const out: { delim: string; dash: boolean }[] = [];
+  let i = 0;
+  let quote: "" | "'" | '"' = "";
+  while (i < line.length) {
+    const ch = line[i];
+    if (quote === "'") { if (ch === "'") quote = ""; i++; continue; }
+    if (quote === '"') { if (ch === "\\") { i += 2; continue; } if (ch === '"') quote = ""; i++; continue; }
+    if (ch === "\\") { i += 2; continue; }
+    if (ch === "'") { quote = "'"; i++; continue; }
+    if (ch === '"') { quote = '"'; i++; continue; }
+    if (ch === "<" && line[i + 1] === "<" && line[i + 2] !== "<") {
+      const m = HEREDOC_START.exec(line.slice(i));
+      if (m) {
+        out.push({ delim: m[3], dash: m[1] === "-" });
+        i += m[0].length;
+        continue;
+      }
+    }
+    i++;
+  }
+  return out;
+}
+
+/**
+ * Elimina cuerpos de heredoc y líneas delimitadoras del texto a segmentar.
+ * Los cuerpos NO son comandos ejecutados: no deben ocultar ni inventar segmentos.
+ * Ante cualquier anomalía (delimitador no encontrado) → devuelve el input tal cual
+ * (comportamiento conservador previo).
+ */
+function stripHeredocs(input: string): string {
+  const lines = input.split("\n");
+  const skip = new Array<boolean>(lines.length).fill(false);
+  let touched = false;
+  for (let i = 0; i < lines.length; i++) {
+    if (skip[i]) continue;
+    const hs = heredocStartsOutsideQuotes(lines[i]);
+    if (!hs.length) continue;
+    let cursor = i + 1;
+    for (const h of hs) {
+      let j = cursor;
+      let closedAt = -1;
+      while (j < lines.length) {
+        const bare = h.dash ? lines[j].replace(/^\t+/, "") : lines[j];
+        if (bare === h.delim) { closedAt = j; break; }
+        j++;
+      }
+      if (closedAt === -1) return input; // sin cierre → conservador
+      for (let k = cursor; k <= closedAt; k++) skip[k] = true;
+      touched = true;
+      cursor = closedAt + 1;
+    }
+  }
+  if (!touched) return input;
+  return lines.filter((_, idx) => !skip[idx]).join("\n");
+}
+
 const MAX_DEPTH = 4;
 
 function split(s: string, depth: number, out: string[]): void {
   if (depth > MAX_DEPTH) { out.push(s); return; }
-  // heredoc sin parser: no te metas
-  if (/<</.test(s)) { out.push(s); return; }
+  // los heredocs ya fueron eliminados por stripHeredocs() antes de segmentar
 
   let cur = "";
   const push = () => { const t = cur.trim(); if (t) out.push(t); cur = ""; };

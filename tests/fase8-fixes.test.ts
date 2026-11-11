@@ -27,9 +27,11 @@ describe("shellSegments — splitter conservador", () => {
     const bt = shellSegments("diff <(git show a) <(git show b); echo `uname -a`");
     expect(bt).toContain("uname -a");
   });
-  test("heredoc → todo el comando como un segmento (conservador)", () => {
+  test("heredoc → el cuerpo como segmento no existe; el resto sí (G2)", () => {
     const cmd = "cat <<EOF && echo nope\nhola\nEOF";
-    expect(shellSegments(cmd)).toEqual([cmd]);
+    // G2 (aprobado 2026-11-11): cuerpo y delimitador NO son comandos; el resto del
+    // comando sí. Esto corrige el falso negativo de D1 («congelar ≠ bendecir»).
+    expect(shellSegments(cmd)).toEqual(["cat <<EOF", "echo nope"]);
   });
   test("comilla sin cerrar → comando completo (conservador)", () => {
     const cmd = 'echo "sin cerrar && rm -rf /';

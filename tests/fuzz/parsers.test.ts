@@ -69,6 +69,7 @@ test("shell-scan: fragmentos hostiles clásicos", () => {
   const hostile = [
     "a && b || c; d | e", "x$(y$(z)))", "`unclosed", "'unterminated", "\"unterminated",
     "cat <<EOF\n<<<EOF >>EO", "\\\\", "a; ".repeat(500), "$(".repeat(100), "((( )))", "a\\;b\\|c",
+    "cat <<EOF\nrm -rf /\nEOF", "x <<A && y\nA", "<<-\"E\" \t\tb\n\tE", "<<E\nE", "echo \"<<EOF\"\ncuerpo", "\"a <<EOF\"\nsincierre",
   ];
   for (const cmd of hostile) {
     const segs = shellSegments(cmd);

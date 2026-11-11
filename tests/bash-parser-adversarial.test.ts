@@ -4,8 +4,8 @@
 import { describe, test, expect } from "bun:test";
 import { analyzeBashCommand } from "../src/tools/bash-parser.js";
 
-describe("heredocs (cualquier << ⇒ un solo segmento; no se analizan dentro)", () => {
-  test("rm dentro del heredoc no se detecta hoy — caracterización, reporte obligado", () => {
+describe("heredocs (cuerpo NO es comando; el resto sí — G2)", () => {
+  test("rm dentro del cuerpo heredoc no es ejecutable → seguro (correcto)", () => {
     expect(analyzeBashCommand("cat <<EOF\nrm -rf /\nEOF").isDangerous).toBe(false);
   });
   test("delimitador citado", () => {
@@ -14,8 +14,13 @@ describe("heredocs (cualquier << ⇒ un solo segmento; no se analizan dentro)", 
   test("heredoc con <<-", () => {
     expect(analyzeBashCommand("cat <<-EOF\nrm -rf /\nEOF").isDangerous).toBe(false);
   });
-  test("heredoc seguido de destructivo sigue sin detectarse — falso negativo reportado", () => {
-    expect(analyzeBashCommand("cat <<EOF && rm -rf /tmp/x\nEOF").isDangerous).toBe(false);
+  test("destructivo tras el heredoc SÍ se detecta (corrige falso negativo de D1)", () => {
+    // el heredoc tenía cuerpo vacío (EOF en la línea siguiente) y el rm real se ejecuta
+    expect(analyzeBashCommand("cat <<EOF && rm -rf /tmp/x\nEOF").isDangerous).toBe(true);
+  });
+  test("texto antes y después del heredoc se analiza", () => {
+    expect(analyzeBashCommand("echo start <<EOF\nnot a command: rm -rf /\nEOF\necho end").isDangerous).toBe(false);
+    expect(analyzeBashCommand("x=1; cat <<'E'\nrm -rf /\nE\nrm -rf /tmp/x2").isDangerous).toBe(true);
   });
 });
 
