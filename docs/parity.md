@@ -31,6 +31,28 @@
 | `falta` | No empezado (columna "Fase" indica cuándo) |
 | `sin verificar` | No se pudo confirmar contra fuente oficial; queda como TODO |
 
+## Endurecimiento (H0–H10) — estado a 2026-11-11
+
+| Fase | Estado | Commit | Notas |
+|---|---|---|---|
+| H0 — threat model + `doctor --security` | hecho | d72c7eb | `docs/threat-model.md`, exit 0/1 |
+| H1 — estilo LF/trailing/newline final | hecho | (H1/H3 commit antes de esta tabla) | `scripts/check-style.ts` |
+| H2 — verificación in-repo | hecho | 6e03604 | `scripts/verify-release.sh`, `release/SHA256SUMS`, `release/SBOM.json` |
+| H3 — redacción de credenciales en sesiones | hecho | H4+H8 commit | `redactSecrets`, deny-wins |
+| H4 — límites de recursos/output | hecho | 7aa1c92 | caps 50 KiB salida bash/tools, config `NICOTINE_MAX_TOOL_OUTPUT_BYTES` |
+| H5 — auditoría/deny-wins baseline | hecho | (antes) | `--readonly`, invariante deny-wins |
+| H6 — cadena de suministro | hecho | a868066 | pins exactos, sin lifecycle scripts, lockfile congelado |
+| H7 — fuzz/robustez de parsers | hecho | f625424 | ~3000 iters deterministas |
+| H8 — audit log exportable | hecho | 7aa1c92 | JSONL rotado, `nic audit export` |
+| C2 — refusal-failover (opt-in) | hecho | 07e3f55 | falla → siguiente `fallbackModels` |
+| C3 — semantic action stream | hecho | 5094bf1 | footer de fase; toggle `ui.action_stream` |
+| C6 — `--solo-bash` minimal | hecho | f141fbe | bash+readonly; sin vault/MCP/LSP |
+| Misión DeepSeek adaptada (paths+bash-parser) | hecho | cdf4a34 | bloqueo duro de rutas; ask forzado en destructivos |
+| H9 — release in-repo (v0.2.0) | hecho | (tag v0.2.0) | este doc + `docs/release.md` |
+| H10 — informe final | pendiente | — | — |
+
+Notas: el bloqueo duro de rutas (`~/.ssh|aws|gnupg`, `.git`) y el análisis destructivo de bash vienen de la misión DeepSeek (adaptada), no de la numeración original H* — quedaron fusionados donde encajan.
+
 ## Fuentes consultadas (2026-11-08)
 
 **OpenCode (referencia principal)**
