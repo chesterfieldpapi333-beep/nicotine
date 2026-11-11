@@ -12,7 +12,6 @@ import { discoverPlugins } from "../compat/plugins.js";
 import { findAgent, registerExtraAgents, registerConfigAgents, allAgents } from "../core/agents.js";
 import { PermissionEngine } from "../core/permissions.js";
 import { ALL_TOOLS } from "../tools/index.js";
-import { spawnSync } from "node:child_process";
 import { sessionsDir } from "../core/session.js";
 import { catalogStatus } from "../compat/skill-catalog.js";
 import { readAuth } from "../core/auth.js";
@@ -170,7 +169,9 @@ export function runDoctor(opts: { cwd: string; configDir?: string; agentId?: str
   for (const w of plugins.warnings) out.push(`  ! ${w}`);
   out.push("");
   out.push("Entorno:");
-  out.push(`  ripgrep: ${spawnSync("rg", ["--version"], { stdio: "ignore" }).status === 0 ? "sí" : "NO (grep usa fallback JS)"}`);
+  // Sonda por disco: mismo dato que `rg --version`, sin ejecutar nada (P1).
+  const rgCli = discoverClis({ names: ["rg"] }).found[0];
+  out.push(`  ripgrep: ${rgCli ? `sí (${rgCli.path})` : "NO (grep usa fallback JS)"}`);
   out.push(`  websearch: ${envAlias("SEARXNG_URL") ? "searxng" : process.env.EXA_API_KEY ? "exa" : "sin backend (configura NICOTINE_SEARXNG_URL o EXA_API_KEY)"}`);
   out.push(`  sesiones: ${sessionsDir()}`);
   out.push("");

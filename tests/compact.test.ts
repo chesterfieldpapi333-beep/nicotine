@@ -280,3 +280,26 @@ describe("compactionFromConfig — valores inválidos (Q3)", () => {
     expect(nan.keepTokens).toBe(defaults.keepTokens);
   });
 });
+
+describe("serializeTranscript — tope del transcript (P5)", () => {
+  test("un transcript enorme se trunca antes de ir al resumen y lo avisa", async () => {
+    const { maybeCompact } = await import("../src/core/compact.js");
+    const cuerpos: string[] = [];
+    const fetchQueGraba = (async (_url: unknown, init?: { body?: string }) => {
+      if (typeof init?.body === "string") cuerpos.push(init.body);
+      const sse = `data: ${JSON.stringify({ choices: [{ delta: { content: "R" } }] })}\n\ndata: [DONE]\n\n`;
+      return new Response(sse, { status: 200, headers: { "content-type": "text/event-stream" } });
+    }) as unknown as typeof fetch;
+
+    const messages: ChatMessage[] = [{ role: "system", content: "sys" }];
+    for (let i = 1; i <= 40; i++) messages.push({ role: "user", content: `m${i} ${"x".repeat(4000)}` });
+    messages.push({ role: "assistant", content: "cola" });
+
+    const res = await maybeCompact({
+      messages, provider, config: { auto: true, thresholdTokens: 1, keepTokens: 10 },
+      force: true, fetchImpl: fetchQueGraba,
+    });
+    expect(res.pass).toBe(2);
+    expect(cuerpos.join("")).toContain("transcript truncado para el resumen");
+  });
+});
