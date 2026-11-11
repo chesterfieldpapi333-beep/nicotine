@@ -43,7 +43,7 @@ en el código, o código sin doc? Honestidad antes que cortesía: un «no existe
 
 - **Claude (mantenedor)**: estructura, specs, seguridad, revisión, merges.
 - **DeepSeek / GLM (implementadores)**: D1 / G1 (propuestas, pendientes del OK del dueño).
-- **Gemini (analista)**: A1 ahora; A2 tras el PR de Qwen Q4.
+- **Gemini (analista)**: A1 ahora; A2 puede correr: Q4 (sanitize) ya mergeó en `d31c05e`.
 - **Qwen**: su cola Q1→Q4 en `docs/qwen-tasks.md` (no la re-asignés).
 
 Si un worker encuentra algo que requiere tocar una superficie prohibida o una decisión de

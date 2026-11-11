@@ -4,6 +4,7 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 Versionado: el proyecto aún no sigue semver estricto; cada fase cerrada sube minor.
 
 ## [Sin publicar] — 2026-11-11
+- Mantenedor: Q1–Q4 marcados ✅ en `docs/qwen-tasks.md` (merge PR #2 `93ba8ce` / PR #3 `2ab5ba8`); addendum en `docs/verification-10f.md`; sumas in-repo regeneradas (196 archivos) tras integrar los PRs.
 - Docs `docs/equipo-capas.md`: equipo multi-modelo repartido por CAPAS (L0 dirección → L1 diseño → L2/L4 DeepSeek implementación+resiliencia → L3/L5 GLM documentación+tests masivos → L6 Gemini adversarial → L7 release) + matriz superficie×capas y prompts listos para pegar.
 - Docs `docs/equipo-interno.md` + `docs/examples/multi-modelo/agents/`: cómo armar un equipo multi-modelo dentro de nicotine (gateway OpenAI-compatible único, agentes con `model` propio, analista de solo lectura); ejemplos verificados contra `scanAgentFiles`.
 - Equipo multi-modelo documentado (`docs/equipo.md`, `docs/arranque-workers.md`): Claude estructura, DeepSeek/GLM programan, Gemini analiza (solo lectura), Qwen mantiene su cola.

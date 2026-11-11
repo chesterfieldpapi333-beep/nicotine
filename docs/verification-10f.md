@@ -28,15 +28,19 @@ Fecha: 2026-11-11 · Commit verificado: `a30fd7e` (master) · Tag: `v0.2.0` = `2
 `--readonly` + objetivo **fuera del proyecto** caía en `external_directory → ask` en vez de
 `edit * → deny`: `checkPath` short-circuiteaba la compuerta externa y nunca miraba la
 regla de la acción. Corregido en `a30fd7e`: deny gana entre ambas compuertas
-(`external_directory` y acción); tests agregados (4 casos). **Implicación pública:** el tag
-`v0.2.0` apunta a `2c377d7` (pre-fix). Decisión pendiente del dueño: (a) mover el tag, o
-(b) cortar `v0.2.1` con el fix (recomendado si v0.2.0 ya fue consumido por alguien).
+(`external_directory` y acción); tests agregados (4 casos). **Resuelto:** dueño optó por (b):
+`v0.2.1` (`0c9408c`) lleva el fix; `v0.2.0` se conserva como historia.
 
 ## Qué queda sin verificar (explícito)
 
+> [Addendum 2026-11-11, mismo día] Los PRs de Qwen aterrizaron en `master` durante esta
+> verificación (PR #2 `93ba8ce`, PR #3 `2ab5ba8`; suite 408 → 471 pass, 1 skip): discovery
+> de CLIs, docs de coherencia, tests de áreas flacas y `sanitizeForTUI`. Los ítems que el
+> informe original marcaba como pendientes por Qwen ya no lo son; las demás secciones
+> se conservan como registro histórico.
+
 - **mDNS / serve en vivo**: no se anunció ningún servicio real en esta máquina; solo paths de código y tests.
 - **Vercel / proveedores reales**: refusal-failover (C2) solo con mocks; sin tráfico a openai/anthropic reales.
-- **Qwen Q1–Q4**: PRs aún no existen; todo lo de Qwen está pendiente de review + suite.
 - **`curl -o x && bash x`**, `cat s | sh`: fuera del alcance del analizador bash (heurística de primer nivel, documentado en `docs/mission-deepseek.md`).
 - **`bun pm audit`**: no existe en bun 1.4.4 — sin auditoría de CVE automática.
 - **Firma de tags/commits**: ninguna; autenticidad = HTTPS a GitHub + SHA256SUMS + revisión de diff.
@@ -46,7 +50,7 @@ regla de la acción. Corregido en `a30fd7e`: deny gana entre ambas compuertas
 ## Límites conocidos consolidados
 
 1. bash-parser: falso positivo esperado en `rm/chmod/chown` (fuerza ask siempre); falso negativo en pipe-a-shell local y encadenados no-red.
-2. sanitizeForTUI (Q4) pendiente: la TUI imprime outputs sin sanitizar ANSI todavía.
+2. sanitizeForTUI (Q4): durante la verificación original estaba pendiente; mergeó el mismo día en `d31c05e`. Residual: `--json` no sanitiza (intencional). Ver addendum arriba.
 3. Bloqueo de rutas: prefijos `~/.ssh|~/.aws|~/.gnupg` + cualquier `.git`; otras rutas por permisos normales.
 4. `--auto` aprueba cualquier ask **una vez** (nunca persiste; deny intacto); en non-TTY, ask = reject.
 5. `vba`/truncado: 50 KiB configurable (`NICOTINE_MAX_TOOL_OUTPUT_BYTES`, máx 4 MiB).

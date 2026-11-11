@@ -159,8 +159,8 @@ Tu encargo A1 (tras leer docs/): revisión cruzada threat-model T1–T11 ↔ có
 
 ### Qwen (su cola sigue — ya está medida para L2/L5)
 ```
-(Sin cambios — pegar docs/qwen-arranque.md del repo. Q4 = sanitize ANSI es lo único que
-desbloquea el cierre de la misión DeepSeek en TUI/output.)
+(Cola Q finalizada 2026-11-11: Q1 discovery, Q2 docs, Q3 tests, Q4 sanitize — mergeada en
+PR #2/#3; Q1–Q4 marcados ✅ en docs/qwen-tasks.md. Qwen en espera de nuevos chips.)
 ```
 
 ## Escalado y resolución de conflictos
