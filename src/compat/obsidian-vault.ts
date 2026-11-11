@@ -1,18 +1,9 @@
-// Integración con el vault de Obsidian del usuario (memoria persistente entre
-// sesiones). Archivos planos Markdown; sin API, sin base de datos.
-//
-// Activación: NICOTINE_VAULT=/ruta o config `memory.vaultPath`. Apagado:
-// NICOTINE_MEMORY_OFF=1 o `memory.enabled: false`. Sin ambas → desactivado.
-//
-// Seguridad:
-//   - Toda ruta relativa se resuelve DENTRO del vault; cualquier escape (`..`)
-//     se rechaza.
-//   - Escritura SOLO en zonas de primer nivel permitidas. `02-Sesiones` está
-//     reservada para las sesiones volcadas por la herramienta de agente y JAMÁS
-//     se escribe ni se permite reconfigurarla.
-//   - El contenido con patrones de credenciales se rechaza (nunca se persiste).
-//   - El digest inyectado al system prompt está limitado (~8 KiB) y nunca
-//     incluye el contenido completo de archivos, solo títulos y excerpts cortos.
+// Vault de Obsidian del usuario (memoria persistente). Archivos planos; sin API.
+// Activación: NICOTINE_VAULT o `memory.vaultPath`. Apagado: NICOTINE_MEMORY_OFF=1
+// o `memory.enabled: false`. Toda ruta se resuelve dentro del vault; `02-Sesiones`
+// jamás se escribe ni se reconfigura; contenido con credenciales nunca sale del
+// vault hacia el modelo: se filtra en digest, se omite en búsqueda y se bloquea
+// en lectura (fail-closed).
 
 import { existsSync, readdirSync, readFileSync, statSync, mkdirSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
@@ -38,10 +29,13 @@ export function containsCredential(content: string): boolean {
   return DENY_CONTENT.some((re) => re.test(content));
 }
 
+export function stripCredentialLines(text: string): string {
+  return text.split("\n").filter((l) => !containsCredential(l)).join("\n");
+}
+
 export interface VaultState {
   enabled: boolean;
-  /** Motivo honesto si está desactivado (para doctor). */
-  reason: string;
+    reason: string;
   root: string | null;
   writeZones: string[];
 }
@@ -82,7 +76,6 @@ export function resolveVault(config: Record<string, unknown> | undefined): Vault
   return { enabled: true, reason: "", root, writeZones: zones };
 }
 
-/** Une un path relativo al vault rechazando escapes; acepta rutas ya absolutas dentro del vault. */
 export function safeJoin(root: string, rel: string): string {
   const t = String(rel).trim();
   if (!t) throw new Error("ruta vacía");
@@ -149,7 +142,6 @@ export function excerpt(text: string, max = 240): string {
   return flat.length > max ? flat.slice(0, max).trimEnd() + "…" : flat;
 }
 
-/** Digest corto que se inyecta al system prompt. Sin contenido sensible completo. */
 export function vaultDigest(state: VaultState, maxBytes = 8192): string {
   if (!state.enabled || !state.root) return "";
   const root = state.root;
@@ -167,7 +159,7 @@ export function vaultDigest(state: VaultState, maxBytes = 8192): string {
         for (const d of recent) {
           const name = basename(d, extname(d));
           let first = "";
-          try { first = excerpt(readFileSync(d, "utf8").replace(/^---[\s\S]*?---\s*/, ""), 120); } catch { /* ignora */ }
+          try { first = excerpt(stripCredentialLines(readFileSync(d, "utf8").replace(/^---[\s\S]*?---\s*/, "")), 120); } catch { /* ignora */ }
           lines.push(`- ${name}${first ? ` — ${first}` : ""}`);
         }
       }
@@ -180,7 +172,7 @@ export function vaultDigest(state: VaultState, maxBytes = 8192): string {
         for (const c of recent) {
           const name = basename(c, extname(c));
           let first = "";
-          try { first = excerpt(readFileSync(c, "utf8").replace(/^---[\s\S]*?---\s*/, ""), 120); } catch { /* ignora */ }
+          try { first = excerpt(stripCredentialLines(readFileSync(c, "utf8").replace(/^---[\s\S]*?---\s*/, "")), 120); } catch { /* ignora */ }
           lines.push(`- ${name}${first ? ` — ${first}` : ""}`);
         }
       }
@@ -216,6 +208,7 @@ export function searchVault(state: VaultState, query: string, folder: string | u
     for (const l of text.split("\n")) {
       if (hits.length >= lim) break;
       line++;
+      if (containsCredential(l)) continue;
       if (l.toLowerCase().includes(ql)) {
         const snippet = l.trim().slice(0, 200);
         hits.push(`${rel}:${line}: ${snippet}`);

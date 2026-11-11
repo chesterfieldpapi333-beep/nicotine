@@ -33,7 +33,12 @@ herramienta de volcado de sesiones). Override: `"memory": { "vaultWriteZones": [
 
 - Toda ruta se resuelve DENTRO del vault; `..` que escape → error.
 - Contenido con patrones de credenciales (`sk-…`, `ghp_…`, `AIza…`, claves privadas,
-  `api_key=…`) → rechazado, la nota no se escribe.
+  `api_key=…`):
+  - `vault_write` lo rechaza (la nota no se escribe);
+  - `vault_search` omite las líneas que coincidan con el denylist;
+  - `vault_read` no devuelve la nota hacia el modelo (fail-closed): ábrela en Obsidian y rota el secreto;
+  - el digest inyectado al system prompt filtra esas líneas antes del excerpt.
+- Archivos > 512 KiB (p. ej. volcados completos) se buscan solo por nombre, no por contenido.
 - Escritura sobreescribe sin fusionar; no borra nada nunca.
 - Nada de esto sube a la red; lectura local solamente.
 

@@ -64,6 +64,37 @@ describe("vault Obsidian (fase 11a)", () => {
     expect(ok.output).toContain("Idea");
   });
 
+  const SECRET = "sk-" + "spa" + "x".repeat(60);
+
+  test("vault_read bloquea notas con credenciales (fail-closed) sin filtrar el secreto", async () => {
+    const root = makeVault();
+    writeFileSync(join(root, "02-Sesiones", "ia local.md"), `Nota de prueba.\nclave: ${SECRET}\nmás texto\n`);
+    const state = resolveVault({ memory: { vaultPath: root } });
+    const [, read] = makeVaultTools(state);
+    const res = await run(read as never, { path: "02-Sesiones/ia local.md" });
+    expect(res.output).toContain("credenciales");
+    expect(res.output).not.toContain(SECRET);
+  });
+
+  test("vault_search omite líneas con credenciales y sí encuentra el resto", async () => {
+    const root = makeVault();
+    writeFileSync(join(root, "02-Sesiones", "ia local.md"), `modelo favorito: mixtra\notra clave: ${SECRET}\nmodelo listo\n`);
+    const state = resolveVault({ memory: { vaultPath: root } });
+    const [search] = makeVaultTools(state);
+    const res = await run(search as never, { query: "modelo" });
+    expect(res.output).toContain("ia local.md");
+    expect(res.output).not.toContain(SECRET);
+  });
+
+  test("el digest nunca incluye líneas con credenciales del excerpt", () => {
+    const root = makeVault();
+    writeFileSync(join(root, "01-Decisiones", "2026-11-06 - lit.md"), `---\ntitulo: lit\nfecha: 2026-11-06\n---\n\nDecisión pública.\nclave interna: ${SECRET}\n`);
+    const state = resolveVault({ memory: { vaultPath: root } });
+    const d = vaultDigest(state);
+    expect(d).toContain("lit");
+    expect(d).not.toContain(SECRET);
+  });
+
   test("vault_write crea con frontmatter en zona permitida; rechaza 02-Sesiones y credenciales", async () => {
     const root = makeVault();
     const state = resolveVault({ memory: { vaultPath: root } });

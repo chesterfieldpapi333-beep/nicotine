@@ -1,6 +1,5 @@
-// Tools de memoria persistente contra el vault de Obsidian del usuario.
-// vault_search / vault_read: solo lectura. vault_write: zonas permitidas +
-// rechazo de contenido con credenciales + frontmatter automático.
+// vault_search / vault_read: solo lectura (credenciales filtradas/bloqueadas).
+// vault_write: zonas permitidas + rechazo de credenciales + frontmatter mínimo.
 
 import type { AgentTool } from "../core/types.js";
 import {
@@ -38,7 +37,7 @@ export function makeVaultTools(state: VaultState): AgentTool[] {
     name: "vault_read",
     description:
       "Lee una nota del vault de Obsidian. path: ruta relativa a la raíz del vault (p. ej. «01-Decisiones/2026-11-06 - lit.md»). " +
-      "Máx 32 KiB. Úsala tras vault_search para ver el detalle de una decisión.",
+      "Máx 32 KiB. Úsala tras vault_search para ver el detalle de una decisión. Si la nota contiene credenciales, se bloquea (fail-closed).",
     parameters: {
       type: "object",
       properties: { path: { type: "string" } },
@@ -53,6 +52,9 @@ export function makeVaultTools(state: VaultState): AgentTool[] {
       const raw = readFileSync(abs, "utf8");
       const LIMIT = 32 * 1024;
       const rel = vaultRelPath(state.root, abs);
+      if (containsCredential(raw)) {
+        return { output: `${rel} contiene patrones de credenciales; no se lee hacia el modelo. Abre la nota en Obsidian, rota el secreto y enmajézalo fuera del vault antes de reintentarlo.` };
+      }
       if (raw.length > LIMIT) return { output: `# ${rel}\n\n${raw.slice(0, LIMIT)}\n\n…(truncada; ${raw.length} bytes)` };
       return { output: `# ${rel}\n\n${raw}` };
     },
