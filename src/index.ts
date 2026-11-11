@@ -46,6 +46,7 @@ Opciones:
   -p, --print        modo no interactivo (un turno)
       --json         eventos como JSONL
       --readonly     sin escrituras: edit/bash/vault-write → deny (deny-wins, no relajable)
+      --solo-bash   perfil «minimal»: solo la tool bash + solo-lectura (read/glob/grep/webfetch)
       serve          servidor HTTP local (apagado por defecto; requiere NICOTINE_SERVER_PASSWORD)
       --port <n>     puerto de serve (defecto 4096)
       --hostname <h> bind de serve (defecto 127.0.0.1)
@@ -98,11 +99,12 @@ interface Args {
   help: boolean;
   version: boolean;
   readonly: boolean;
+  soloBash: boolean;
   positional: string[];
 }
 
 function parseArgs(argv: string[]): Args {
-  const args: Args = { print: false, json: false, auto: false, continueLatest: false, fork: false, help: false, version: false, readonly: false, positional: [] };
+  const args: Args = { print: false, json: false, auto: false, continueLatest: false, fork: false, help: false, version: false, readonly: false, soloBash: false, positional: [] };
   const next = (i: number, flag: string) => {
     if (i + 1 >= argv.length) throw new Error(`falta valor para ${flag}`);
     return argv[i + 1];
@@ -125,6 +127,7 @@ function parseArgs(argv: string[]): Args {
       case "--mdns-domain": args.mdnsDomain = next(i, a); args.mdns = true; i++; break;
       case "--security": args.positional.push("--security"); break;
       case "--readonly": args.readonly = true; break;
+      case "--solo-bash": args.soloBash = true; break;
       case "--help": case "-h": args.help = true; break;
       case "--version": args.version = true; break;
       case "doctor": case "serve": case "skills": case "mcp": case "models": case "download": case "analyze": case "policy": case "audit":
@@ -233,7 +236,7 @@ async function main(): Promise<number> {
   const abort = new AbortController();
   process.on("SIGINT", () => abort.abort());
 
-  const base = { cwd, configDir: args.configDir, auto: args.auto, agentId: args.agent, modelFlag: args.model, sessionId: args.sessionId, continueLatest: args.continueLatest, fork: args.fork, signal: abort.signal, readonly: args.readonly };
+  const base = { cwd, configDir: args.configDir, auto: args.auto, agentId: args.agent, modelFlag: args.model, sessionId: args.sessionId, continueLatest: args.continueLatest, fork: args.fork, signal: abort.signal, readonly: args.readonly, soloBash: args.soloBash };
 
   try {
     if (args.json) {

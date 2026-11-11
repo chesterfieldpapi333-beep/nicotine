@@ -23,3 +23,14 @@ export const ALL_TOOLS: AgentTool[] = [
   todowriteTool, questionTool,
   taskTool, planEnterTool, planExitTool, skillTool,
 ];
+
+// Perfil «minimal» (--solo-bash): solo bash + solo-lectura. Deny-wins intacto:
+// el usuario puede seguir denegando/forzando ask sobre bash; aquí solo se
+// recorta la superficie, nunca se amplía.
+export const SOLO_BASH_TOOL_NAMES: readonly string[] = [
+  "bash", "read", "glob", "grep", "webfetch",
+];
+
+export function filterSoloBash(tools: AgentTool[]): AgentTool[] {
+  return tools.filter((t) => SOLO_BASH_TOOL_NAMES.includes(t.name));
+}

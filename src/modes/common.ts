@@ -19,7 +19,7 @@ import type { McpServerStatus } from "../compat/mcp/types.js";
 import { loadProjectApprovals, saveProjectApproval } from "../core/approvals.js";
 import type { McpPromptInfo } from "../compat/mcp/client.js";
 import type { AgentTool, ChatMessage, ToolContext } from "../core/types.js";
-import { ALL_TOOLS } from "../tools/index.js";
+import { ALL_TOOLS, filterSoloBash } from "../tools/index.js";
 import { makeVaultTools } from "../tools/vault.js";
 import { resolveVault, vaultDigest } from "../compat/obsidian-vault.js";
 import { lspServersFromConfig } from "../compat/lsp.js";
@@ -46,6 +46,7 @@ export interface RuntimeOptions {
   fork?: boolean;
   /** false/undefined = normal; true = edit/bash/vault-write denegados (deny-wins). */
   readonly?: boolean;
+  soloBash?: boolean;
   /** fetch inyectable (tests / serve). Los subagentes lo heredan. */
   fetchImpl?: typeof fetch;
 }
@@ -246,7 +247,7 @@ export function buildRuntime(opts: RuntimeOptions): Runtime {
       refusalFailover,
     };
     const subPermissions = withSaved(subAgent.permissionRules);
-    const subTools = [...ALL_TOOLS, ...vaultTools]
+    const subTools = [...activeTools, ...activeVaultTools]
       .filter((t) => (subAgent.toolAllow ? subAgent.toolAllow.includes(t.name) : true))
       .filter((t) => !["task", "plan-enter", "plan-exit"].includes(t.name));
     const reason = await runAgentLoop({ provider: subProvider, permissions: subPermissions, messages: childMessages, tools: subTools, ctx: childCtx, maxSteps: 30, fetchImpl: opts.fetchImpl });
@@ -258,9 +259,12 @@ export function buildRuntime(opts: RuntimeOptions): Runtime {
   ctx.runSubagent = runSubagent;
 
   // Tool lsp: SOLO si la config declara servidores (experimental, off por defecto)
-  const toolsForRuntime = [...ALL_TOOLS, ...vaultTools];
+  // --solo-bash: perfil «minimal» (spec C6) — solo bash + solo-lectura, sin vault/MCP/lsp
+  const activeTools = opts.soloBash ? filterSoloBash(ALL_TOOLS) : ALL_TOOLS;
+  const activeVaultTools = opts.soloBash ? [] : vaultTools;
+  const toolsForRuntime = [...activeTools, ...activeVaultTools];
   const lspCfg = lspServersFromConfig(config);
-  const lspTools = lspCfg.defs.length ? [makeLspTool(lspCfg.defs)] : [];
+  const lspTools = !opts.soloBash && lspCfg.defs.length ? [makeLspTool(lspCfg.defs)] : [];
   const warningsLsp = [...lspCfg.warnings, ...(lspCfg.defs.length ? [`lsp: ${lspCfg.defs.length} servidor(es) configurado(s) — experimental (solo diagnostics)`] : [])];
 
   const rt = {
