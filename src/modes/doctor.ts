@@ -18,6 +18,10 @@ import { catalogStatus } from "../compat/skill-catalog.js";
 import { readAuth } from "../core/auth.js";
 import { lspServersFromConfig } from "../compat/lsp.js";
 import { readOauthStore } from "../compat/mcp/oauth.js";
+import { resolveVault } from "../compat/obsidian-vault.js";
+import { dataHome } from "../core/session.js";
+import { existsSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 
 export function runDoctor(opts: { cwd: string; configDir?: string; agentId?: string; modelFlag?: string }): number {
   const { config, rules, policies, layers, warnings: configWarnings, mcpOrigins, extensionOrigins } = loadConfig(opts.cwd, { configDir: opts.configDir });
@@ -52,6 +56,21 @@ export function runDoctor(opts: { cwd: string; configDir?: string; agentId?: str
   const oauthServers = Object.keys(readOauthStore());
   out.push(`OAuth MCP: ${oauthServers.length ? `${oauthServers.length} servidor(es) autorizado(s) — ${oauthServers.join(", ")} (tokens nunca se muestran)` : "ningún servidor autorizado (nicotine mcp auth)"}`);
   const lsp = lspServersFromConfig(config);
+  const vault = resolveVault(config);
+  out.push(`vault Obsidian: ${vault.enabled ? `${vault.root} (esc: ${vault.writeZones.join(", ") || "ninguna"}; 02-Sesiones reservada)` : vault.reason}`);
+  try {
+    const statsPath = join(dataHome(), "toolcall-stats.jsonl");
+    if (existsSync(statsPath)) {
+      let ok = 0, fail = 0;
+      for (const line of readFileSync(statsPath, "utf8").split("\n")) {
+        if (!line.trim()) continue;
+        try { const rec = JSON.parse(line) as { ok?: number; fail?: number }; ok += rec.ok ?? 0; fail += rec.fail ?? 0; } catch { /* línea corrupta se ignora */ }
+      }
+      out.push(`tool-calls en texto: ${ok} parseadas, ${fail} sin parsear (desde <data-home>/toolcall-stats.jsonl)`);
+    } else {
+      out.push("tool-calls en texto: sin actividad registrada");
+    }
+  } catch { /* lectura best-effort */ }
   out.push(`lsp: ${lsp.defs.length ? `${lsp.defs.length} servidor(es) — experimental (solo diagnostics): ${lsp.defs.map((d) => d.name).join(", ")}` : "desactivado (sin `lsp` en config)"}`);
   out.push("");
   out.push("Modelo:");

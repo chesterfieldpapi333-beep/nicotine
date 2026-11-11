@@ -16,6 +16,13 @@ Bun.serve({
   hostname: "127.0.0.1",
   async fetch(req) {
     const url = new URL(req.url);
+    if (url.pathname === "/v1/models") {
+      return Response.json({ data: [
+        { id: "openai/gpt-4o-mini" },
+        { id: "uncensored-qwen-coder" },
+        { id: "mi-modelo-raro" },
+      ] });
+    }
     if (url.pathname !== "/v1/chat/completions") return new Response("not found", { status: 404 });
     const body = (await req.json()) as any;
     const hasToolResult = body.messages?.some((m: any) => m.role === "tool");

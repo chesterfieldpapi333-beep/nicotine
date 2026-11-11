@@ -12,6 +12,9 @@ import { mcpServersFromConfig, asDef } from "./compat/mcp/manager.js";
 import { runAuthorizationFlow, deleteOauthEntry, readOauthStore } from "./compat/mcp/oauth.js";
 import { loadConfig } from "./core/config.js";
 import { updateCatalogs } from "./compat/skill-catalog.js";
+import { runModelsList, runModelsOverride, runModelsOverrides } from "./modes/models.js";
+import { runDownload } from "./modes/download.js";
+import { runAnalyze } from "./modes/analyze.js";
 
 const VERSION = "0.1.0";
 
@@ -25,6 +28,11 @@ Uso:
   nic mcp auth <nombre>         autoriza (OAuth 2.1+PKCE) a un servidor MCP remoto
   nic mcp logout <nombre>       olvida el token guardado de un servidor MCP remoto
   nic skills update [url…]      descarga catálogos HTTP de skills (discovery) y los cachea
+  nic models [--json] [--filter <s>]     lista modelos del proveedor + herramientas/censura (heurística + overrides)
+  nic models override <id> …    fija override manual (tools|no-tools|censored|uncensored|unknown)
+  nic models overrides          muestra overrides y su ruta
+  nic download <url> [-o salida]  descarga robusta (reintentos, límite 128 MiB, sha256)
+  nic analyze <archivo> [--json]  análisis estático (magic bytes, sha256; ClamAV y VirusTotal opcionales)
 
 Opciones:
   -p, --print        modo no interactivo (un turno)
@@ -49,6 +57,10 @@ Entorno:
   NICOTINE_TUI_CONFIG   ruta alternativa a tui.json(c)
   NICOTINE_MODEL        modelo por defecto
   NICOTINE_SERVER_PASSWORD  contraseña para «nic serve» (obligatoria)
+  NICOTINE_VAULT           ruta del vault de Obsidian (memoria persistente)
+  NICOTINE_MEMORY_OFF=1    desactiva memoria Obsidian (tools y digest)
+  NICOTINE_VT_API_KEY      clave de VirusTotal para «nic analyze» (solo lookup por hash)
+  NICOTINE_TOOLCALL_STATS_OFF=1  desactiva estadísticas del rescate de tool-calls en texto
 
 Fallbacks de modelo: provider.fallbackModels en config o NICOTINE_MODEL_FALLBACKS
 (coma-separados) — se usan si TODAS las claves fallan con 401/403/429/5xx.
@@ -103,7 +115,7 @@ function parseArgs(argv: string[]): Args {
       case "--mdns-domain": args.mdnsDomain = next(i, a); args.mdns = true; i++; break;
       case "--help": case "-h": args.help = true; break;
       case "--version": args.version = true; break;
-      case "doctor": case "serve": case "skills": case "mcp":
+      case "doctor": case "serve": case "skills": case "mcp": case "models": case "download": case "analyze":
         if (!args.command) { args.command = a; break; }
         args.positional.push(a); break;
       case "--": args.positional.push(...argv.slice(i + 1)); i = argv.length; break;
@@ -138,6 +150,34 @@ async function main(): Promise<number> {
 
   if (args.command === "doctor") {
     return runDoctor({ cwd, configDir: args.configDir, agentId: args.agent, modelFlag: args.model });
+  }
+  if (args.command === "models") {
+    if (args.positional[0] === "override") return runModelsOverride(args.positional.slice(1));
+    if (args.positional[0] === "overrides") return runModelsOverrides();
+    if (args.positional[0] === "help") { stdout.write("uso: nic models [--json] [--filter <s>] | nic models override <id> [tools|no-tools|censored|uncensored|unknown] | nic models overrides\n"); return 0; }
+    const filterIdx = args.positional.indexOf("--filter");
+    const filter = filterIdx >= 0 ? args.positional[filterIdx + 1] : undefined;
+    const json = args.positional.includes("--json") || args.json;
+    return runModelsList({ cwd, configDir: args.configDir, json, filter });
+  }
+  if (args.command === "download") {
+    if (!args.positional[0]) { stderr.write("uso: nic download <url> [-o salida] [--max-bytes <n>] [--retries <n>]\n"); return 2; }
+    let out: string | undefined;
+    let maxBytes: number | undefined;
+    let retries: number | undefined;
+    for (let i = 1; i < args.positional.length; i++) {
+      const p = args.positional[i];
+      if (p === "-o") { out = args.positional[i + 1]; i++; }
+      else if (p === "--max-bytes") { const v = Number(args.positional[i + 1]); if (!Number.isFinite(v) || v <= 0) { stderr.write("--max-bytes inválido\n"); return 2; } maxBytes = v; i++; }
+      else if (p === "--retries") { const v = Number(args.positional[i + 1]); if (!Number.isFinite(v) || v < 1) { stderr.write("--retries inválido\n"); return 2; } retries = v; i++; }
+      else { stderr.write(`argumento desconocido: ${p}\n`); return 2; }
+    }
+    return runDownload({ url: args.positional[0], out, maxBytes, retries });
+  }
+  if (args.command === "analyze") {
+    const target = args.positional[0];
+    if (!target) { stderr.write("uso: nic analyze <archivo> [--json]\n"); return 2; }
+    return runAnalyze({ file: target, json: args.positional.includes("--json") || args.json });
   }
   if (args.command === "skills") {
     if (args.positional[0] !== "update") { stderr.write("uso: nic skills update [url…]\n"); return 2; }

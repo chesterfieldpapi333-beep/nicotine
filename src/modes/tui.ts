@@ -5,6 +5,7 @@ import { envAlias } from "../core/env.js";
 import { runAgentLoop } from "../core/loop.js";
 import { findAgent } from "../core/agents.js";
 import { buildSystemPrompt } from "../core/context.js";
+import { resolveVault, vaultDigest } from "../compat/obsidian-vault.js";
 import { Session } from "../core/session.js";
 import type { ChatMessage } from "../core/types.js";
 import type { UiHooks } from "../core/types.js";
@@ -27,6 +28,13 @@ import { splitArgs } from "../compat/util.js";
 export interface TuiOptions extends RuntimeOptions {
   /** Fuerza el motor: "opentui" (defecto) | "ansi". */
   engine?: string;
+}
+
+function promptFor(rt: import("./common.js").Runtime, cwd: string): string {
+  const agent = findAgent(rt.agent.current());
+  const digest = (() => { try { const v = resolveVault(rt.config); return v.enabled ? vaultDigest(v) : ""; } catch { return ""; } })();
+  const contextBlock = digest ? `${rt.contextFiles.block}\n\n${digest}` : rt.contextFiles.block;
+  return buildSystemPrompt({ cwd, agent, contextBlock, skillBlock: rt.skills.block });
 }
 
 export async function runTui(opts: TuiOptions): Promise<number> {
@@ -142,7 +150,7 @@ export async function runTui(opts: TuiOptions): Promise<number> {
     rt.session = s;
     rt.ctx.sessionId = s.id;
     rt.messages.length = 0;
-    rt.messages.push({ role: "system", content: buildSystemPrompt({ cwd, agent: findAgent(rt.agent.current()) }) });
+    rt.messages.push({ role: "system", content: promptFor(rt, cwd) });
     baseCount = 1;
     return s;
   }
@@ -155,7 +163,7 @@ export async function runTui(opts: TuiOptions): Promise<number> {
     rt.session = s;
     rt.ctx.sessionId = s.id;
     rt.messages.length = 0;
-    rt.messages.push({ role: "system", content: buildSystemPrompt({ cwd, agent: findAgent(rt.agent.current()) }) }, ...loaded);
+    rt.messages.push({ role: "system", content: promptFor(rt, cwd) }, ...loaded);
     baseCount = rt.messages.length;
     app.setHistory(displayHistory(loaded));
     return true;

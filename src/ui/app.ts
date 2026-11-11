@@ -11,6 +11,7 @@ import { bindingMatches, type TuiConfig } from "./tui-config.js";
 import type { TodoItem } from "../core/events.js";
 import type { PermissionRequest, PermissionDecision, QuestionPrompt } from "../core/types.js";
 import { readdirSync, statSync } from "node:fs";
+import { loadOverrides, classify } from "../core/model-catalog.js";
 import { join } from "node:path";
 import { safeRender, type Component } from "./component.js";
 import type { SlotName } from "../ext/api.js";
@@ -581,7 +582,12 @@ export class TuiApp {
     if (!models?.length) { this.info("el proveedor no lista modelos (o no responde); edita `model` en opencode.json"); return; }
     this.dialog = {
       kind: "list", title: "modelos (enter selecciona para esta sesión)",
-      items: models.map((m) => ({ id: m, label: m, hint: m === this.deps.currentModel() ? "actual" : undefined })),
+      items: models.map((m) => {
+        const c = classify(m, loadOverrides());
+        const badges = `${c.tools === true ? "✓tools" : c.tools === false ? "✗tools" : "?"} ${c.censored === false ? "libre" : c.censored === true ? "censura" : ""}`.trim();
+        const hint = [m === this.deps.currentModel() ? "actual" : null, badges].filter(Boolean).join(" · ");
+        return { id: m, label: m, hint: hint || undefined };
+      }),
       selected: Math.max(0, models.indexOf(this.deps.currentModel())),
       onPick: (id) => { this.deps.setModel(id); this.info(`modelo: ${id} (solo esta sesión; guárdalo en opencode.json para hacerlo permanente)`); },
     };

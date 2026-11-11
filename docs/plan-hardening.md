@@ -16,12 +16,12 @@ fughan, comportamiento predecible ante entrada hostil y diagnósticos honestos.
 - Integridad del repositorio privado: build reproducible, sumas SHA-256, SBOM simple.
 - Higiene humana: sin comentarios meta/generados, estilo consistente, sin telemetría.
 
-**Fuera de alcance (backlog, no comprometer aún)**
-- `/fusion` (sin spec; sigue bloqueado).
-- Memoria en vault de Obsidian vía herramientas `vault_*` y digest en system prompt.
-- Shim de tool-calling por texto para modelos `tools=false` (patrón «lit-shim»).
-- Catálogos clasificados de modelos y selectores interactivos de proveedor libre.
-- Portar cualquier pieza de `dlx` (config/vault/ClamAV/etc.).
+**Fuera de alcance / backlog**
+- `/fusion`: ELIMINADO del alcance (decisión explícita 2026-11-11). No se implementa.
+- Memoria Obsidian (`vault_*`) + digest: IMPLEMENTADO (fase 11).
+- Shim de tool-calling por texto (formatos múltiples + stats): IMPLEMENTADO (fase 11).
+- Catálogo de modelos (`nic models`, badges, overrides): IMPLEMENTADO (fase 11). TUI `/models` muestra badges.
+- Piezas de `dlx` portadas (descarga robusta, análisis estático): IMPLEMENTADO (fase 11d).
 - Publicación de binarios firmados; publicación a npm/winget.
 
 ## Reglas de ejecución

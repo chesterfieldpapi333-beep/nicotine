@@ -20,6 +20,8 @@ import { loadProjectApprovals, saveProjectApproval } from "../core/approvals.js"
 import type { McpPromptInfo } from "../compat/mcp/client.js";
 import type { AgentTool, ChatMessage, ToolContext } from "../core/types.js";
 import { ALL_TOOLS } from "../tools/index.js";
+import { makeVaultTools } from "../tools/vault.js";
+import { resolveVault, vaultDigest } from "../compat/obsidian-vault.js";
 import { lspServersFromConfig } from "../compat/lsp.js";
 import { makeLspTool } from "../tools/lsp.js";
 import { runAgentLoop } from "../core/loop.js";
@@ -109,6 +111,12 @@ export function buildRuntime(opts: RuntimeOptions): Runtime {
     } catch { /* aviso ya emitido en el descubrimiento */ }
   }
   const skillIndex = loadSkillIndex(opts.cwd, config, { extraSources: plugins.skillSources });
+  const vault = resolveVault(config);
+  if (vault.enabled) {
+    const digest = vaultDigest(vault);
+    if (digest) contextBlock = `${contextBlock}\n\n${digest}`;
+  }
+  const vaultTools = makeVaultTools(vault);
   const configCommands = parseConfigCommands(config["commands"]);
   const configAgents = parseConfigAgents(config["agents"]);
   registerConfigAgents(configAgents.agents);
@@ -231,7 +239,7 @@ export function buildRuntime(opts: RuntimeOptions): Runtime {
       textToolCalls,
     };
     const subPermissions = withSaved(subAgent.permissionRules);
-    const subTools = ALL_TOOLS
+    const subTools = [...ALL_TOOLS, ...vaultTools]
       .filter((t) => (subAgent.toolAllow ? subAgent.toolAllow.includes(t.name) : true))
       .filter((t) => !["task", "plan-enter", "plan-exit"].includes(t.name));
     const reason = await runAgentLoop({ provider: subProvider, permissions: subPermissions, messages: childMessages, tools: subTools, ctx: childCtx, maxSteps: 30, fetchImpl: opts.fetchImpl });
@@ -243,13 +251,14 @@ export function buildRuntime(opts: RuntimeOptions): Runtime {
   ctx.runSubagent = runSubagent;
 
   // Tool lsp: SOLO si la config declara servidores (experimental, off por defecto)
+  const toolsForRuntime = [...ALL_TOOLS, ...vaultTools];
   const lspCfg = lspServersFromConfig(config);
   const lspTools = lspCfg.defs.length ? [makeLspTool(lspCfg.defs)] : [];
   const warningsLsp = [...lspCfg.warnings, ...(lspCfg.defs.length ? [`lsp: ${lspCfg.defs.length} servidor(es) configurado(s) — experimental (solo diagnostics)`] : [])];
 
   const rt = {
     config, layers, provider, permissions: withSaved(agent.permissionRules), session, bus, ui, ctx, messages,
-    tools: [...ALL_TOOLS, ...lspTools],
+    tools: [...toolsForRuntime, ...lspTools],
     usageTotals: { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
     compaction: compactionFromConfig(config),
     agent: agentCtl,
