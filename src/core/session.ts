@@ -1,6 +1,7 @@
 // Sesión en JSONL (append-only). Sin DB: una línea por mensaje/evento.
 // Ubicación: $XDG_DATA_HOME/nicotine/sessions/<id>.jsonl
 
+import { redactSecrets } from "./redact.js";
 import { appendFileSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
@@ -123,7 +124,9 @@ export class Session {
   }
 
   appendMessage(msg: ChatMessage): void {
-    appendFileSync(this.path, JSON.stringify({ type: "message", ts: Date.now(), ...msg }) + "\n");
+    // Persistido redactado: una clave pegada en el chat nunca toca el disco en claro.
+    const line = redactSecrets(JSON.stringify({ type: "message", ts: Date.now(), ...msg }));
+    appendFileSync(this.path, line + "\n");
   }
 
   messages(): ChatMessage[] {
