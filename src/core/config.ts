@@ -1,6 +1,6 @@
 // Carga opencode.json(c) con las capas de precedencia de OpenCode:
 //   system (/etc/opencode) < global (~/.config/opencode) < proyecto (raíz→cwd)
-//   < .opencode/ del árbol proyecto < --config-dir (capa custom de Vireo)
+//   < .opencode/ del árbol proyecto < --config-dir (capa custom de Nicotine)
 // Cada capa deep-mergea con la anterior; `permissions` (array v2) SE CONCATENA
 // entre capas (las reglas se aplican en orden; la última que casa gana).
 
@@ -26,7 +26,7 @@ export interface LoadedConfig {
   extensionOrigins: Record<string, "system" | "global" | "project" | "custom">;
 }
 
-// Claves de primer nivel conocidas (las que usa o irá usando Vireo). Una clave
+// Claves de primer nivel conocidas (las que usa o irá usando Nicotine). Una clave
 // fuera de esta lista se reporta como aviso y se ignora — nunca es un error.
 const KNOWN_TOP_KEYS = new Set([
   "$schema", "model", "small_model", "default_agent", "permission", "permissions",

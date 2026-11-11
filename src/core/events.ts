@@ -40,7 +40,7 @@ export class EventBus {
         fn(event);
       } catch (err) {
         // Una UI rota no debe tumbar el loop del agente.
-        console.error(`[vireo] suscriptor de eventos falló: ${(err as Error).message}`);
+        console.error(`[nicotine] suscriptor de eventos falló: ${(err as Error).message}`);
       }
     }
   }

@@ -10,8 +10,8 @@ import type { ToolContext, UiHooks } from "../src/core/types.js";
 let root: string;
 let home: string;
 beforeEach(() => {
-  root = mkdtempSync(join(tmpdir(), "vireo-skill-proj-"));
-  home = mkdtempSync(join(tmpdir(), "vireo-skill-home-"));
+  root = mkdtempSync(join(tmpdir(), "nicotine-skill-proj-"));
+  home = mkdtempSync(join(tmpdir(), "nicotine-skill-home-"));
 });
 afterEach(() => {
   rmSync(root, { recursive: true, force: true });
@@ -46,9 +46,9 @@ describe("loadSkillIndex — descubrimiento y precedencia", () => {
     expect(byId.get("custom")!.description).toBe("POR-CONFIG");
   });
 
-  test("config `skills` HTTP → aviso con instrucción de `vireo skills update`", () => {
+  test("config `skills` HTTP → aviso con instrucción de `nicotine skills update`", () => {
     const { warnings } = loadSkillIndex(root, { skills: ["https://example.com/catalog.json"] }, { home });
-    expect(warnings.some((w) => w.includes("vireo skills update"))).toBe(true);
+    expect(warnings.some((w) => w.includes("nicotine skills update"))).toBe(true);
   });
 
   test("gemini global/proyecto solo con compat.geminiSkills", () => {
@@ -81,7 +81,7 @@ describe("loadSkillIndex — descubrimiento y precedencia", () => {
       "name: completa",
       "description: skill con todo",
       "license: MIT",
-      "compatibility: vireo >= 1",
+      "compatibility: nicotine >= 1",
       "allowed-tools: [read, grep]",
       "metadata:",
       "  autor: tests",

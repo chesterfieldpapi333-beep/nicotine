@@ -35,7 +35,7 @@ describe("PermissionEngine", () => {
     expect(e.check("read", "/proj/.env.local").effect).toBe("ask");
     expect(e.check("read", "/proj/.env.example").effect).toBe("allow");
   });
-  test("external_directory: ask por defecto (spec Vireo)", () => {
+  test("external_directory: ask por defecto (spec Nicotine)", () => {
     const e = new PermissionEngine(baseRules());
     const r = e.checkPath("/proyecto", "read", "/etc/passwd");
     expect(r.effect).toBe("ask");

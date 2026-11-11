@@ -5,7 +5,7 @@ import { join } from "node:path";
 
 let tmp: string;
 beforeEach(() => {
-  tmp = mkdtempSync(join(tmpdir(), "vireo-session-"));
+  tmp = mkdtempSync(join(tmpdir(), "nicotine-session-"));
   process.env.XDG_DATA_HOME = tmp;
 });
 

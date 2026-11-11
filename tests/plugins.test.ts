@@ -14,8 +14,8 @@ import type { UiHooks } from "../src/core/types.js";
 let home: string;
 let root: string;
 beforeEach(() => {
-  home = mkdtempSync(join(tmpdir(), "vireo-home-"));
-  root = mkdtempSync(join(tmpdir(), "vireo-cwd-"));
+  home = mkdtempSync(join(tmpdir(), "nicotine-home-"));
+  root = mkdtempSync(join(tmpdir(), "nicotine-cwd-"));
   clearExtraAgents();
 });
 afterEach(() => {
@@ -32,7 +32,7 @@ const mkClaudePlugin = () => {
   write(join(home, ".claude/plugins/cool/commands/deploy.md"), "---\ndescription: despliega\nargument-hint: <env>\n---\nDeploya a $ARGUMENTS con $1 (token $2)");
   write(join(home, ".claude/plugins/cool/agents/reviewer.md"), "---\ndescription: revisor de diffs\ntools: Read, Grep\n---\nRevisa con rigor.");
   write(join(home, ".claude/plugins/cool/skills/ship/SKILL.md"), "---\nname: ship\ndescription: envía releases\n---\nship body");
-  write(join(home, ".claude/plugins/cool/hooks/hooks.json"), JSON.stringify({ hooks: { PreToolUse: [{ matcher: "^bash$", hooks: [{ type: "command", command: "echo pre >> /tmp/vireo-hook-test.marker" }] }] } }));
+  write(join(home, ".claude/plugins/cool/hooks/hooks.json"), JSON.stringify({ hooks: { PreToolUse: [{ matcher: "^bash$", hooks: [{ type: "command", command: "echo pre >> /tmp/nicotine-hook-test.marker" }] }] } }));
 };
 
 describe("discoverPlugins — datos multi-CLI", () => {

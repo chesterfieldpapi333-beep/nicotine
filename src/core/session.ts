@@ -1,5 +1,5 @@
 // Sesión en JSONL (append-only). Sin DB: una línea por mensaje/evento.
-// Ubicación: $XDG_DATA_HOME/vireo/sessions/<id>.jsonl
+// Ubicación: $XDG_DATA_HOME/nicotine/sessions/<id>.jsonl
 
 import { appendFileSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync } from "node:fs";
 import { homedir } from "node:os";
@@ -10,10 +10,10 @@ import type { ChatMessage } from "./types.js";
 export interface SessionMeta { id: string; created: string; cwd: string; model: string; title: string }
 export interface SessionLine { type: "meta" | "message"; [k: string]: unknown }
 
-/** Raíz de datos de vireo ($XDG_DATA_HOME/vireo). */
+/** Raíz de datos de nicotine ($XDG_DATA_HOME/nicotine). */
 export function dataHome(): string {
   const base = process.env.XDG_DATA_HOME ?? join(homedir(), ".local", "share");
-  return join(base, "vireo");
+  return join(base, "nicotine");
 }
 
 export function sessionsDir(): string {

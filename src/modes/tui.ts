@@ -1,6 +1,7 @@
 // Modo TUI: alt screen + motor intercambiable (opentui | ansi). Paridad de fase 2.
 // El núcleo nunca imprime: aquí solo suscribimos el bus de eventos a los widgets.
 
+import { envAlias } from "../core/env.js";
 import { runAgentLoop } from "../core/loop.js";
 import { findAgent } from "../core/agents.js";
 import { buildSystemPrompt } from "../core/context.js";
@@ -42,7 +43,7 @@ export async function runTui(opts: TuiOptions): Promise<number> {
     if (themes.has(ft.name)) foreignThemeWarnings.push(`tema «${ft.name}» (${ft.source}) ignorado: ya existe`);
     else themes.set(ft.name, { name: ft.name, tokens: { ...defaultThemes[0].tokens, ...ft.tokens } });
   }
-  let theme = themes.get(tuiCfg.theme) ?? themes.get("vireo-dark") ?? defaultThemes[0];
+  let theme = themes.get(tuiCfg.theme) ?? themes.get("nicotine-dark") ?? defaultThemes[0];
 
   const cycleAgent = (): string => {
     const order = rt.agent.list();
@@ -294,7 +295,7 @@ export async function runTui(opts: TuiOptions): Promise<number> {
       })(); } },
     { name: "editor", hint: "abrir el buffer del prompt en $EDITOR", run: (_app) => { void (async () => {
         const before = app.getEditorText();
-        const res = await editInExternalEditor(before, suspendUI, "vireo");
+        const res = await editInExternalEditor(before, suspendUI, "nicotine");
         if ("error" in res) { _app.error(res.error); return; }
         app.setEditorText(res.text.replace(/\n$/, "")); // EOF final informativo del editor
         _app.info("buffer actualizado desde el editor externo");
@@ -307,7 +308,7 @@ export async function runTui(opts: TuiOptions): Promise<number> {
     { name: "redo", hint: "rehacer el último undo", run: () => runRedo() },
     { name: "fork", hint: "bifurcar la sesión actual", run: () => runFork() },
     { name: "init", hint: "generar/actualizar AGENTS.md", run: () => submitTurn(INIT_PROMPT) },
-    { name: "doctor", hint: "informe de carga", run: () => app.info("doctor: ejecuta `vireo doctor` en otra terminal (informe legible en stdout)") },
+    { name: "doctor", hint: "informe de carga", run: () => app.info("doctor: ejecuta `nicotine doctor` en otra terminal (informe legible en stdout)") },
     { name: "exit", hint: "salir", run: () => engine.stop() },
   ];
   commands.push(...mcpPromptCommands);
@@ -371,9 +372,9 @@ export async function runTui(opts: TuiOptions): Promise<number> {
 
   // ————— arranque de la UI —————
   if (opts.sessionId || opts.continueLatest) app.setHistory(displayHistory(rt.messages.slice(1)));
-  app.info(`vireo 0.1.0 — sesión ${rt.session.id} · ${rt.provider.model} · esc aborta · ctrl+p comandos`);
+  app.info(`nicotine 0.1.0 — sesión ${rt.session.id} · ${rt.provider.model} · esc aborta · ctrl+p comandos`);
 
-  const engineName = (opts.engine ?? process.env.VIREO_UI_ENGINE ?? "opentui").toLowerCase();
+  const engineName = (opts.engine ?? envAlias("UI_ENGINE") ?? "opentui").toLowerCase();
   let engine: UiEngine;
   if (engineName === "ansi") {
     engine = createAnsiEngine(app);
@@ -386,7 +387,7 @@ export async function runTui(opts: TuiOptions): Promise<number> {
         try {
           return await openTui.start();
         } catch (err) {
-          process.stderr.write(`[vireo] OpenTUI falló (${(err as Error)?.message ?? err}); usando motor ANSI\n`);
+          process.stderr.write(`[nicotine] OpenTUI falló (${(err as Error)?.message ?? err}); usando motor ANSI\n`);
           active = createAnsiEngine(app);
           return active.start();
         }
@@ -421,4 +422,4 @@ const INIT_PROMPT =
   "Primero explora: README, package.json/pyproject.toml/Cargo.toml, configs de build/test, y la estructura de src/. " +
   "El AGENTS.md debe incluir: propósito del proyecto; comandos exactos de build, test y run; convenciones de código y de commits; y una guía rápida de estructura. " +
   "Si AGENTS.md ya existe, ACTUALÍZALO fusionando con lo que hay (no borres nada). Usa las herramientas (read/glob/grep/write/edit); no inventes comandos. " +
-"Si encuentras decisiones o convenciones persistentes que no quepan bien en AGENTS.md, crea o actualiza también .vireo/memory.md (memoria del proyecto) con ellas.";
+"Si encuentras decisiones o convenciones persistentes que no quepan bien en AGENTS.md, crea o actualiza también .nicotine/memory.md (memoria del proyecto) con ellas.";

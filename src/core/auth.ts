@@ -1,5 +1,5 @@
 // /connect — añadir un proveedor con API key (spec tui#connect, verificada).
-// La clave se guarda en $XDG_DATA_HOME/vireo/auth.json con permisos 0600, NUNCA
+// La clave se guarda en $XDG_DATA_HOME/nicotine/auth.json con permisos 0600, NUNCA
 // en el repo ni en logs ni en doctor. El catálogo cubre los OpenAI-compatibles
 // habituales; «personalizado» permite otra baseURL.
 //

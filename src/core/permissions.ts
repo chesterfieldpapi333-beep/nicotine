@@ -116,7 +116,7 @@ export class PermissionEngine {
   checkPath(cwd: string, action: string, target: string): CheckResult {
     const abs = isAbsolute(expandHome(target)) ? resolve(expandHome(target)) : resolve(cwd, target);
     if (this.outsideProject(cwd, abs)) {
-      // Spec Vireo: fuera del proyecto SIEMPRE pasa por external_directory;
+      // Spec Nicotine: fuera del proyecto SIEMPRE pasa por external_directory;
       // si no hay regla, se pregunta (más estricto que el default v2 de OpenCode).
       const ext = this.check("external_directory", abs.endsWith("/") ? abs : abs + "/*");
       if (ext.effect !== "allow") return ext;
@@ -126,7 +126,7 @@ export class PermissionEngine {
 }
 
 // Defaults base de OpenCode v2 (documentados en /docs/permissions#defaults),
-// más "ask" para external_directory porque el spec de Vireo lo exige.
+// más "ask" para external_directory porque el spec de Nicotine lo exige.
 export function baseRules(): Rule[] {
   return [
     { action: "*", resource: "*", effect: "allow" },

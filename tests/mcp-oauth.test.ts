@@ -128,7 +128,7 @@ let savedXDG: string | undefined;
 let def: McpServerDef;
 
 beforeEach(async () => {
-  tmp = mkdtempSync(join(tmpdir(), "vireo-oauth-"));
+  tmp = mkdtempSync(join(tmpdir(), "nicotine-oauth-"));
   savedXDG = process.env.XDG_DATA_HOME;
   process.env.XDG_DATA_HOME = join(tmp, "data");
   mock = await startMock();
@@ -210,10 +210,10 @@ describe("McpClient: inyección Bearer + 401 → refresh → reintento único", 
     await client.close();
   });
 
-  test("sin token guardado y sin refresh posible → error accionable con «vireo mcp auth»", async () => {
+  test("sin token guardado y sin refresh posible → error accionable con «nicotine mcp auth»", async () => {
     deleteOauthEntry("mock-remote");
     const client = new McpClient(def);
-    await expect(client.connect()).rejects.toThrow(/vireo mcp auth mock-remote/);
+    await expect(client.connect()).rejects.toThrow(/nicotine mcp auth mock-remote/);
     await client.close().catch(() => {});
   });
 });

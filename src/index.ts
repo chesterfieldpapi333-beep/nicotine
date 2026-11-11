@@ -1,4 +1,4 @@
-// vireo — entry point y parser de argumentos (sin dependencias).
+// nicotine — entry point y parser de argumentos (sin dependencias).
 
 import { stdin, stdout, stderr } from "node:process";
 import { runPrint } from "./modes/print.js";
@@ -7,6 +7,7 @@ import { runRepl } from "./modes/repl.js";
 import { runTui } from "./modes/tui.js";
 import { runDoctor } from "./modes/doctor.js";
 import { runServe } from "./modes/serve.js";
+import { migrateLegacyDataDir } from "./core/migrate.js";
 import { mcpServersFromConfig, asDef } from "./compat/mcp/manager.js";
 import { runAuthorizationFlow, deleteOauthEntry, readOauthStore } from "./compat/mcp/oauth.js";
 import { loadConfig } from "./core/config.js";
@@ -14,25 +15,25 @@ import { updateCatalogs } from "./compat/skill-catalog.js";
 
 const VERSION = "0.1.0";
 
-const HELP = `vireo — agente de código CLI ligero (lite)
+const HELP = `nic (nicotine) — agente de código CLI ligero (lite)
 
 Uso:
-  vireo [opciones] [prompt...]     TUI en terminal (ANSI/OpenTUI); REPL plano sin TTY
-  vireo --print [opciones] [prompt]  un turno; respuesta a stdout
-  vireo --json  [opciones] [prompt]  eventos JSONL a stdout
-  vireo doctor [opciones]            diagnóstico
-  vireo mcp auth <nombre>         autoriza (OAuth 2.1+PKCE) a un servidor MCP remoto
-  vireo mcp logout <nombre>       olvida el token guardado de un servidor MCP remoto
-  vireo skills update [url…]      descarga catálogos HTTP de skills (discovery) y los cachea
+  nic [opciones] [prompt...]     TUI en terminal (ANSI/OpenTUI); REPL plano sin TTY
+  nic --print [opciones] [prompt]  un turno; respuesta a stdout
+  nic --json  [opciones] [prompt]  eventos JSONL a stdout
+  nic doctor [opciones]            diagnóstico
+  nic mcp auth <nombre>         autoriza (OAuth 2.1+PKCE) a un servidor MCP remoto
+  nic mcp logout <nombre>       olvida el token guardado de un servidor MCP remoto
+  nic skills update [url…]      descarga catálogos HTTP de skills (discovery) y los cachea
 
 Opciones:
   -p, --print        modo no interactivo (un turno)
       --json         eventos como JSONL
-      serve          servidor HTTP local (apagado por defecto; requiere VIREO_SERVER_PASSWORD)
+      serve          servidor HTTP local (apagado por defecto; requiere NICOTINE_SERVER_PASSWORD)
       --port <n>     puerto de serve (defecto 4096)
       --hostname <h> bind de serve (defecto 127.0.0.1)
-      --mdns         anuncia el servicio por mDNS/DNS-SD (_vireo._tcp) al arrancar serve
-      --mdns-domain <d> dominio mDNS (defecto vireo.local); implica --mdns
+      --mdns         anuncia el servicio por mDNS/DNS-SD (_nicotine._tcp) al arrancar serve
+      --mdns-domain <d> dominio mDNS (defecto nicotine.local); implica --mdns
   -m, --model <id>   modelo (p. ej. openai/gpt-4o-mini); [proveedor/]modelo
       --agent <id>   agente built-in: build | plan | architect | editor
       --auto         auto-aprueba lo que pregunte (deny sigue denegado)
@@ -44,12 +45,12 @@ Opciones:
       --version      versión
 
 Entorno:
-  VIREO_UI_ENGINE    motor de TUI: opentui (defecto) | ansi (fallback propio)
-  VIREO_TUI_CONFIG   ruta alternativa a tui.json(c)
-  VIREO_MODEL        modelo por defecto
-  VIREO_SERVER_PASSWORD  contraseña para «vireo serve» (obligatoria)
+  NICOTINE_UI_ENGINE    motor de TUI: opentui (defecto) | ansi (fallback propio)
+  NICOTINE_TUI_CONFIG   ruta alternativa a tui.json(c)
+  NICOTINE_MODEL        modelo por defecto
+  NICOTINE_SERVER_PASSWORD  contraseña para «nic serve» (obligatoria)
 
-Fallbacks de modelo: provider.fallbackModels en config o VIREO_MODEL_FALLBACKS
+Fallbacks de modelo: provider.fallbackModels en config o NICOTINE_MODEL_FALLBACKS
 (coma-separados) — se usan si TODAS las claves fallan con 401/403/429/5xx.
 
 Si stdin no es un TTY, su contenido se añade al prompt entre <stdin>…</stdin>.
@@ -122,14 +123,15 @@ async function readStdinIfPiped(): Promise<string> {
 }
 
 async function main(): Promise<number> {
+  migrateLegacyDataDir(); // migración única vireo → nicotine (best-effort, nunca lanza)
   let args: Args;
   try {
     args = parseArgs(process.argv.slice(2));
   } catch (err) {
-    stderr.write(`vireo: ${(err as Error).message}\n`);
+    stderr.write(`nicotine: ${(err as Error).message}\n`);
     return 2;
   }
-  if (args.version) { stdout.write(`vireo ${VERSION}\n`); return 0; }
+  if (args.version) { stdout.write(`nicotine ${VERSION}\n`); return 0; }
   if (args.help) { stdout.write(HELP); return 0; }
 
   const cwd = process.cwd();
@@ -138,7 +140,7 @@ async function main(): Promise<number> {
     return runDoctor({ cwd, configDir: args.configDir, agentId: args.agent, modelFlag: args.model });
   }
   if (args.command === "skills") {
-    if (args.positional[0] !== "update") { stderr.write("uso: vireo skills update [url…]\n"); return 2; }
+    if (args.positional[0] !== "update") { stderr.write("uso: nic skills update [url…]\n"); return 2; }
     const { config } = loadConfig(cwd, { configDir: args.configDir });
     const httpRe = /^https?:\/\//i;
     const fromConfig = Array.isArray(config["skills"])
@@ -174,18 +176,18 @@ async function main(): Promise<number> {
 
   try {
     if (args.json) {
-      if (!prompt) { stderr.write("vireo --json requiere un prompt (argumento o stdin).\n"); return 2; }
+      if (!prompt) { stderr.write("nic --json requiere un prompt (argumento o stdin).\n"); return 2; }
       return await runJson({ ...base, prompt });
     }
     if (args.print) {
-      if (!prompt) { stderr.write("vireo --print requiere un prompt (argumento o stdin).\n"); return 2; }
+      if (!prompt) { stderr.write("nic --print requiere un prompt (argumento o stdin).\n"); return 2; }
       return await runPrint({ ...base, prompt });
     }
     if (prompt) return await runPrint({ ...base, prompt }); // prompt directo = un turno
     if (stdout.isTTY && stdin.isTTY) return await runTui({ ...base }); // TUI interactiva
     return await runRepl(base);
   } catch (err) {
-    stderr.write(`vireo: ${(err as Error).message}\n`);
+    stderr.write(`nicotine: ${(err as Error).message}\n`);
     return 1;
   }
 }
@@ -193,7 +195,7 @@ async function main(): Promise<number> {
 main().then((code) => process.exit(code));
 
 
-// ————— vireo mcp auth|logout —————
+// ————— nicotine mcp auth|logout —————
 
 async function runMcpAuthCli(opts: { cwd: string; configDir?: string; positional: string[] }): Promise<number> {
   const [sub, name] = opts.positional;
@@ -204,7 +206,7 @@ async function runMcpAuthCli(opts: { cwd: string; configDir?: string; positional
     return 0;
   }
   if ((sub !== "auth" && sub !== "logout") || !name) {
-    process.stderr.write("uso: vireo mcp auth \"<nombre>\" | vireo mcp logout \"<nombre>\" | vireo mcp list\n");
+    process.stderr.write("uso: nic mcp auth \"<nombre>\" | nic mcp logout \"<nombre>\" | nic mcp list\n");
     return 2;
   }
   if (sub === "logout") {
@@ -217,12 +219,12 @@ async function runMcpAuthCli(opts: { cwd: string; configDir?: string; positional
   const { config, mcpOrigins } = loadConfig(opts.cwd, { configDir: opts.configDir });
   const entry = mcpServersFromConfig(config).find((s) => s.name === name);
   if (!entry) {
-    process.stderr.write(`vireo mcp auth: no hay servidor MCP «${name}» en la config (${mcpServersFromConfig(config).map((s) => s.name).join(", ") || "ninguno"})\n`);
+    process.stderr.write(`nic mcp auth: no hay servidor MCP «${name}» en la config (${mcpServersFromConfig(config).map((s) => s.name).join(", ") || "ninguno"})\n`);
     return 2;
   }
   const def = asDef(entry.name, entry.raw, mcpOrigins as Record<string, "system" | "global" | "project" | "custom">, opts.cwd);
   if (def.transport.kind !== "http") {
-    process.stderr.write(`vireo mcp auth: «${name}» es stdio — usa env/headers en su config; OAuth solo aplica a servidores remotos\n`);
+    process.stderr.write(`nic mcp auth: «${name}» es stdio — usa env/headers en su config; OAuth solo aplica a servidores remotos\n`);
     return 2;
   }
   const oauthCfgRaw = (entry.raw as Record<string, unknown>)["oauth"];
@@ -242,7 +244,7 @@ async function runMcpAuthCli(opts: { cwd: string; configDir?: string; positional
     process.stdout.write(`\n✓ «${name}» autorizado (issuer ${issuer}; resource ${resource})\n  token guardado en oauth.json (0600); nunca se muestra. Las próximas sesiones lo usan automáticamente.\n`);
     return 0;
   } catch (err) {
-    process.stderr.write(`vireo mcp auth: ${(err as Error).message}\n`);
+    process.stderr.write(`nic mcp auth: ${(err as Error).message}\n`);
     return 1;
   }
 }

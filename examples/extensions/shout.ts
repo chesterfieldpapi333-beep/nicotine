@@ -1,9 +1,9 @@
-// Extensión de referencia de Vireo (mínima pero completa).
+// Extensión de referencia de Nicotine (mínima pero completa).
 //
 // Instalación (elige una):
-//   · por proyecto:  copia este archivo a  <raíz>/.vireo/extensions/shout.ts
+//   · por proyecto:  copia este archivo a  <raíz>/.nicotine/extensions/shout.ts
 //       → pide confirmación UNA vez por sesión antes de importarse (ejecuta código).
-//   · global:        cp a  ~/.config/vireo/extensions/shout.ts
+//   · global:        cp a  ~/.config/nicotine/extensions/shout.ts
 //       → no pide confirmación (confías en tu propia carpeta).
 //   · por config:    "extensions": ["./ruta/shout.ts"]  en opencode.json
 //       → el origen manda (capa sistema/global/proyecto).
@@ -12,8 +12,8 @@
 // En headless: las tools y on(...) funcionan; los registros de UI se ignoran con aviso.
 //
 // E2E con el proveedor falso:
-//   VIREO_MOCK_SCENARIO=extshout vireo --auto --print "usa la extensión"
-//   → el modelo pide ext_shout {text:"vireo"} y recibe "VIREO".
+//   NICOTINE_MOCK_SCENARIO=extshout nicotine --auto --print "usa la extensión"
+//   → el modelo pide ext_shout {text:"nicotine"} y recibe "NICOTINE".
 
 import type { ExtensionAPI } from "../../src/ext/api.js";
 
@@ -41,10 +41,10 @@ export default function activate(api: ExtensionAPI): void {
     run: (app, raw) => app.info(String(raw ?? "").toUpperCase() || "(nada que gritar)"),
   });
 
-  // Barra de estado mínima sustituible: vireo-ext listo · ext_shout
+  // Barra de estado mínima sustituible: nicotine-ext listo · ext_shout
   api.ui.setSlot("footer", {
     render(width: number): string[] {
-      const line = "vireo-ext · listo · ext_shout";
+      const line = "nicotine-ext · listo · ext_shout";
       return [line.length > width ? line.slice(0, width) : line];
     },
   });

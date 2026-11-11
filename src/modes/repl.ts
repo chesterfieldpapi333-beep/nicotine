@@ -1,4 +1,4 @@
-// REPL interino para `vireo` sin argumentos en terminal (la TUI real llega en la fase 2).
+// REPL interino para `nicotine` sin argumentos en terminal (la TUI real llega en la fase 2).
 // Bucle readline: cada línea es un turno; Ctrl+C aborta el turno en curso.
 
 import { createInterface } from "node:readline/promises";
@@ -13,11 +13,11 @@ export async function runRepl(opts: RuntimeOptions): Promise<number> {
   await prepareMcp(rt);
   await prepareHooks(rt);
   await prepareExtensions(rt, { ui: rt.ctx.ui });
-  stderr.write(`vireo — sesión ${rt.session.id} (cwd: ${opts.cwd}). /help para ayuda, /exit para salir.\n`);
+  stderr.write(`nicotine — sesión ${rt.session.id} (cwd: ${opts.cwd}). /help para ayuda, /exit para salir.\n`);
   const rl = createInterface({ input: stdin, output: stdout });
   for (;;) {
     let line: string;
-    try { line = (await rl.question("vireo> ")).trim(); } catch { break; }
+    try { line = (await rl.question("nicotine> ")).trim(); } catch { break; }
     if (!line) continue;
     if (["/exit", "/quit", "/q"].includes(line)) break;
     if (line === "/help") { stderr.write("/new  nueva sesión · /sessions  listar · /exit  salir\n"); continue; }

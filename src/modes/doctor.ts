@@ -1,5 +1,6 @@
 // doctor: qué se cargó, qué quedó pendiente. Fase 1: capas, reglas, modelo, tools.
 
+import { envAlias } from "../core/env.js";
 import { loadConfig } from "../core/config.js";
 import { parseConfigCommands } from "../compat/config-commands.js";
 import { parseConfigAgents } from "../compat/config-agents.js";
@@ -31,7 +32,7 @@ export function runDoctor(opts: { cwd: string; configDir?: string; agentId?: str
   const engine = new PermissionEngine(rules, policies);
   const policyCount = policies.length;
   const out: string[] = [];
-  out.push("vireo doctor");
+  out.push("nicotine doctor");
   out.push("============");
   out.push(`cwd:        ${opts.cwd}`);
   out.push(`bun:        ${process.versions.bun ?? "?"} · node: ${process.versions.node}`);
@@ -44,17 +45,17 @@ export function runDoctor(opts: { cwd: string; configDir?: string; agentId?: str
   const deny = rules.filter((r) => r.effect === "deny").length;
   const ask = rules.filter((r) => r.effect === "ask").length;
   out.push(`  allow/ask/deny: ${rules.length - deny - ask}/${ask}/${deny}`);
-  out.push(`  external_directory * → ${engine.check("external_directory", "/tmp/ejemplo/*").effect} (spec Vireo: ask por defecto)`);
+  out.push(`  external_directory * → ${engine.check("external_directory", "/tmp/ejemplo/*").effect} (spec Nicotine: ask por defecto)`);
   out.push(`Policies v2 (hard-deny post-reglas): ${policyCount}`);
   out.push(`Auth (/connect): ${Object.keys(readAuth()).length} proveedor(es) — ids libres, claves nunca se muestran`);
-  out.push(`serve: apagado por defecto (${process.env.VIREO_SERVER_PASSWORD ? "VIREO_SERVER_PASSWORD definida" : "falta VIREO_SERVER_PASSWORD"}; arranca con «vireo serve»)`);
+  out.push(`serve: apagado por defecto (${envAlias("SERVER_PASSWORD") ? "NICOTINE_SERVER_PASSWORD definida" : "falta NICOTINE_SERVER_PASSWORD"}; arranca con «nicotine serve»)`);
   const oauthServers = Object.keys(readOauthStore());
-  out.push(`OAuth MCP: ${oauthServers.length ? `${oauthServers.length} servidor(es) autorizado(s) — ${oauthServers.join(", ")} (tokens nunca se muestran)` : "ningún servidor autorizado (vireo mcp auth)"}`);
+  out.push(`OAuth MCP: ${oauthServers.length ? `${oauthServers.length} servidor(es) autorizado(s) — ${oauthServers.join(", ")} (tokens nunca se muestran)` : "ningún servidor autorizado (nicotine mcp auth)"}`);
   const lsp = lspServersFromConfig(config);
   out.push(`lsp: ${lsp.defs.length ? `${lsp.defs.length} servidor(es) — experimental (solo diagnostics): ${lsp.defs.map((d) => d.name).join(", ")}` : "desactivado (sin `lsp` en config)"}`);
   out.push("");
   out.push("Modelo:");
-  const model = opts.modelFlag ?? (config["model"] as string | undefined) ?? process.env.VIREO_MODEL ?? process.env.OPENAI_MODEL ?? "(sin configurar)";
+  const model = opts.modelFlag ?? (config["model"] as string | undefined) ?? envAlias("MODEL") ?? process.env.OPENAI_MODEL ?? "(sin configurar)";
   out.push(`  ${model}`);
   out.push(`  OPENAI_BASE_URL: ${process.env.OPENAI_BASE_URL ?? "(default api.openai.com)"}`);
   out.push(`  OPENAI_API_KEY:  ${process.env.OPENAI_API_KEY ? "definida" : "NO DEFINIDA (los modos que llaman al modelo fallarán con un error claro)"}`);
@@ -85,7 +86,7 @@ export function runDoctor(opts: { cwd: string; configDir?: string; agentId?: str
     for (const st of catalogStatus(catalogUrls)) {
       out.push(st.downloaded
         ? `  ✓ ${st.url} — ${st.skills.length} en caché${st.updatedAt ? ` (actualizado ${st.updatedAt.slice(0, 10)})` : ""}`
-        : `  ! ${st.url} — sin descargar (ejecuta \`vireo skills update\`)`);
+        : `  ! ${st.url} — sin descargar (ejecuta \`nicotine skills update\`)`);
     }
   }
   // MCP: se LISTA, nunca se conecta desde doctor (los servidores de proyecto piden confirmación al arrancar)
@@ -150,7 +151,7 @@ export function runDoctor(opts: { cwd: string; configDir?: string; agentId?: str
   out.push("");
   out.push("Entorno:");
   out.push(`  ripgrep: ${spawnSync("rg", ["--version"], { stdio: "ignore" }).status === 0 ? "sí" : "NO (grep usa fallback JS)"}`);
-  out.push(`  websearch: ${process.env.VIREO_SEARXNG_URL ? "searxng" : process.env.EXA_API_KEY ? "exa" : "sin backend (configura VIREO_SEARXNG_URL o EXA_API_KEY)"}`);
+  out.push(`  websearch: ${envAlias("SEARXNG_URL") ? "searxng" : process.env.EXA_API_KEY ? "exa" : "sin backend (configura NICOTINE_SEARXNG_URL o EXA_API_KEY)"}`);
   out.push(`  sesiones: ${sessionsDir()}`);
   out.push("");
   out.push("Avisos de seguridad: la cookie `ndus` de TeraBox u otras credenciales de terceros nunca deben escribirse en la config ni pegarse en el chat.");

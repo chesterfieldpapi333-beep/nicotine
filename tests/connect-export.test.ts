@@ -13,7 +13,7 @@ import { exportSessionMarkdown } from "../src/modes/export-session.js";
 let tmp: string;
 let savedEnv: Record<string, string | undefined>;
 beforeEach(() => {
-  tmp = mkdtempSync(join(tmpdir(), "vireo-connect-"));
+  tmp = mkdtempSync(join(tmpdir(), "nicotine-connect-"));
   savedEnv = { XDG_DATA_HOME: process.env.XDG_DATA_HOME, OPENAI_API_KEY: process.env.OPENAI_API_KEY, OPENAI_API_KEYS: process.env.OPENAI_API_KEYS, OPENAI_BASE_URL: process.env.OPENAI_BASE_URL };
   process.env.XDG_DATA_HOME = join(tmp, "data");
   delete process.env.OPENAI_API_KEY;
@@ -83,7 +83,7 @@ describe("/export", () => {
     expect(md).toContain("## Asistente");
     expect(md).toContain("tool_call: bash(");
     expect(md).toContain("## Resultado de tool");
-    expect(md).not.toContain("Eres Vireo"); // el system prompt no se filtra a la exportación
+    expect(md).not.toContain("Eres Nicotine"); // el system prompt no se filtra a la exportación
     expect(statSync(path).mode & 0o777).toBe(0o600);
   });
 });

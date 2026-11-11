@@ -9,7 +9,7 @@ import { join } from "node:path";
 export interface EditResult { ok: boolean; detail: string; }
 
 /** Comando del editor: $VISUAL > $EDITOR > vi. Se divide por espacios
- *  (admite «code --wait»; los GUI deben llevar --wait o vireo no reanudará). */
+ *  (admite «code --wait»; los GUI deben llevar --wait o nicotine no reanudará). */
 export function editorCommand(): { cmd: string; args: string[] } {
   const raw = (process.env.VISUAL ?? process.env.EDITOR ?? "vi").trim();
   const parts = raw.split(/\s+/).filter(Boolean);
@@ -38,7 +38,7 @@ export async function editInExternalEditor(initial: string, suspend: (fn: () => 
   let dir: string | null = null;
   let file = "";
   try {
-    dir = mkdtempSync(join(tmpdir(), "vireo-editor-"));
+    dir = mkdtempSync(join(tmpdir(), "nicotine-editor-"));
     file = join(dir, `${hint}.md`);
     writeFileSync(file, initial, "utf8");
     let code = -1;

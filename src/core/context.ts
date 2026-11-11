@@ -14,7 +14,7 @@ export function buildSystemPrompt(opts: { cwd: string; agent: AgentDef; contextB
     ...(opts.agent.systemPrompt
       ? [opts.agent.systemPrompt.trimEnd()]
       : [
-          "Eres Vireo, un agente de ingeniería de software que trabaja en la terminal del usuario.",
+          "Eres Nicotine, un agente de ingeniería de software que trabaja en la terminal del usuario.",
           "Respondes en el idioma del usuario. Eres conciso: nada de preámbulos ni resúmenes innecesarios.",
         ]),
     "",

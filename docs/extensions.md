@@ -1,6 +1,6 @@
-# Extensiones de Vireo
+# Extensiones de Nicotine
 
-Una **extensión** es un módulo `.ts`/`.js` que Vireo carga al arrancar (después de la
+Una **extensión** es un módulo `.ts`/`.js` que Nicotine carga al arrancar (después de la
 config, antes del primer turno) y que recibe una API pequeña para registrar tools,
 comandos, atajos y elementos de UI. Es diseño propio, inspirado en —no compatible con—
 la API de plugins de OpenCode.
@@ -11,8 +11,8 @@ la API de plugins de OpenCode.
 
 | Origen | Ubicación | ¿Confianza? |
 |---|---|---|
-| global | `~/.config/vireo/extensions/<nombre>.ts` | Sí, no pregunta |
-| proyecto | `<raíz o subdir>/.vireo/extensions/<nombre>.ts` | **No** — pide confirmación **antes de importarse** |
+| global | `~/.config/nicotine/extensions/<nombre>.ts` | Sí, no pregunta |
+| proyecto | `<raíz o subdir>/.nicotine/extensions/<nombre>.ts` | **No** — pide confirmación **antes de importarse** |
 | config | `"extensions": ["./ruta/ext.ts", "./carpeta/con/extensiones"]` en `opencode.json(c)` | hereda la capa de la config; descartado → «project» → pregunta |
 
 - El descubrimiento de proyecto recorre de la **raíz → cwd** (hereda directorios padres, igual que los context files).
@@ -40,7 +40,7 @@ muestra qué se ahorraría: rutas y nada más.
 ## API
 
 ```ts
-import type { ExtensionAPI } from "vireo/ext/api";
+import type { ExtensionAPI } from "nicotine/ext/api";
 
 export default function activate(api: ExtensionAPI) { /* ... */ }
 ```
@@ -55,7 +55,7 @@ export default function activate(api: ExtensionAPI) { /* ... */ }
 | `api.registerShortcut(key, handler)` | atajo con modificador, p. ej. `"ctrl+g"`, `"alt+f2"` | **solo TUI** |
 | `api.ui.setSlot(slot, component \| null)` | sustituye un slot renderizable | **solo TUI** |
 | `api.ui.addWidget(component)` | añade un componente al strip de widgets | **solo TUI** |
-| `api.ui.setTheme(theme)` | registra un tema (tokens sobre `vireo-dark`) y lo aplica | **solo TUI** |
+| `api.ui.setTheme(theme)` | registra un tema (tokens sobre `nicotine-dark`) y lo aplica | **solo TUI** |
 | `api.ui.refresh()` | fuerza un render (p. ej. tras cambiar un widget por tiempo) | **solo TUI** |
 
 Fuera de la TUI (`--print`, `--json`, REPL) lo marcado «solo TUI» se ignora con un
@@ -119,7 +119,7 @@ timer.
 
 ### Temas
 
-`api.ui.setTheme({ name, tokens })` — tokens sobre `vireo-dark`; registro parcial OK.
+`api.ui.setTheme({ name, tokens })` — tokens sobre `nicotine-dark`; registro parcial OK.
 Si el registro falla (p. ej. tokens inválidos), no se aplica.
 
 ### Eventos
@@ -132,7 +132,7 @@ se atrapan y se reportan.
 
 Elegir **siempre** en el diálogo de permisos guarda el patrón
 (`<carpeta>/*` para `read`/`edit`/`write`/`list`; el recurso exacto para `bash` y el
-resto) en `$XDG_DATA_HOME/vireo/approvals/<sha1(cwd)>.json` — **fuera del repo**,
+resto) en `$XDG_DATA_HOME/nicotine/approvals/<sha1(cwd)>.json` — **fuera del repo**,
 nunca en git. El motor re-evalúa `deny` **después** de aplicar estos allows: un
 "siempre" jamás pisa un deny configurado. El diálogo muestra qué patrón se guardará.
 
@@ -143,20 +143,20 @@ nunca en git. El motor re-evalúa `deny` **después** de aplicar estos allows: u
 - `splitArgs` de comandos con `:` (p. ej. prompts MCP `/servidor:prompt`) soporta comillas simples/dobles, no escapes `\"`.
 - El diálogo de confianza de proyecto se repite **cada sesión** (no persiste «confiar siempre en esta extensión»).
 - Las extensiones de proyecto no se pueden usar headless sin `--auto` (sin TTY → rechazadas por defecto).
-- No hay recarga en caliente (`/reload`): cambia el archivo y reinicia Vireo.
+- No hay recarga en caliente (`/reload`): cambia el archivo y reinicia Nicotine.
 
 ## Probar la tuya de punta a punta
 
 ```bash
-VIREO_MOCK_SCENARIO=extshout vireo --auto --print "usa la extensión"
-# → el modelo pide ext_shout {text:"vireo"} y recibe "VIREO" sin APIs reales.
+NICOTINE_MOCK_SCENARIO=extshout nicotine --auto --print "usa la extensión"
+# → el modelo pide ext_shout {text:"nicotine"} y recibe "NICOTINE" sin APIs reales.
 ```
 
 Y `doctor` (sin ejecutar nada) lista lo descubierto:
 
 ```
 Extensiones (1, sin ejecutar — doctor no las importa):
-  ! shout  [project] /ruta/absoluta/.vireo/extensions/shout.ts — pide confirmación al arrancar
+  ! shout  [project] /ruta/absoluta/.nicotine/extensions/shout.ts — pide confirmación al arrancar
 ```
 
 ## Referencia

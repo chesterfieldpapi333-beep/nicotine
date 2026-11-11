@@ -21,7 +21,7 @@ describe("editorCommand", () => {
 
 describe("editInExternalEditor", () => {
   test("roundtrip: el contenido editado vuelve al llamador; suspend se ejecuta", async () => {
-    const dir = mkdtempSync(join(tmpdir(), "vireo-edtest-"));
+    const dir = mkdtempSync(join(tmpdir(), "nicotine-edtest-"));
     const probe = join(dir, "probe");
     // editor falso: antepone «EDITADO» al archivo usando la shell
     const fake = join(dir, "fake-editor.sh");
@@ -46,7 +46,7 @@ describe("editInExternalEditor", () => {
 
 describe("openInExternalEditor", () => {
   test("archivo existente se abre (fake editor ok) y se informa", async () => {
-    const dir = mkdtempSync(join(tmpdir(), "vireo-opentest-"));
+    const dir = mkdtempSync(join(tmpdir(), "nicotine-opentest-"));
     const file = join(dir, "out.md");
     writeFileSync(file, "contenido", "utf8");
     const bak = process.env.VISUAL; process.env.VISUAL = "true";

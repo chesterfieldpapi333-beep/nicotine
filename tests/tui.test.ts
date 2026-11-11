@@ -11,7 +11,7 @@ import { stripAnsi } from "../src/ui/ansi-wrap.js";
 
 function makeTuiConfig(): TuiConfig {
   return {
-    theme: "vireo-dark", leaderTimeout: 2000, keybinds: { ...DEFAULT_KEYBINDS },
+    theme: "nicotine-dark", leaderTimeout: 2000, keybinds: { ...DEFAULT_KEYBINDS },
     scrollSpeed: 3, diffStyle: "auto", mouse: false,
     cursor: { style: "block", blinking: false }, layers: [],
   };
@@ -26,7 +26,7 @@ function makeApp() {
     setTheme: () => {},
     tui: makeTuiConfig(),
     cwd: "/tmp/proyecto-test",
-    themes: ["vireo-dark", "vireo-light"],
+    themes: ["nicotine-dark", "nicotine-light"],
     commands: [
       { name: "help", hint: "ayuda", run: (a) => a.openHelp() },
       { name: "exit", hint: "salir", run: () => { exits.push("exit"); } },
@@ -63,7 +63,7 @@ describe("TUI — frame", () => {
     const frame = app.computeFrame(100, 30);
     expect(frame.length).toBe(30);
     const all = frame.map(stripAnsi).join("\n");
-    expect(all).toContain("vireo");
+    expect(all).toContain("nicotine");
     expect(all).toContain("build");
     expect(all).toContain("mock-model");
     expect(all).toContain("ctrl+p");
@@ -243,7 +243,7 @@ describe("TUI — diálogos fase 3", () => {
       setTheme: () => {},
       tui: makeTuiConfig(),
       cwd: "/tmp/proyecto-test",
-      themes: ["vireo-dark"],
+      themes: ["nicotine-dark"],
       commands: [
         { name: "undo", hint: "deshacer", run: () => submitted.push("undo!") },
       ],

@@ -3,6 +3,7 @@
 // La salida se trunca a las últimas líneas; el total queda en un archivo
 // temporal cuya ruta se incluye en el resultado.
 
+import { envAlias } from "../core/env.js";
 import { spawn } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -35,8 +36,8 @@ export const bashTool: AgentTool = {
     const command = String(args.command);
     const workdir = args.workdir ? (isAbsolute(String(args.workdir)) ? String(args.workdir) : resolve(ctx.cwd, String(args.workdir))) : ctx.cwd;
     const timeout = Math.max(1, Number(args.timeout ?? DEFAULT_TIMEOUT_MS) || DEFAULT_TIMEOUT_MS);
-    const shell = process.env.VIREO_SHELL || process.env.SHELL || "/bin/sh";
-    const fullLog = join(tmpdir(), `vireo-bash-${randomUUID().slice(0, 8)}.log`);
+    const shell = envAlias("SHELL") || process.env.SHELL || "/bin/sh";
+    const fullLog = join(tmpdir(), `nicotine-bash-${randomUUID().slice(0, 8)}.log`);
 
     if (args.background) {
       const child = spawn(shell, ["-c", command], { cwd: workdir, env: process.env, stdio: ["ignore", "pipe", "pipe"], detached: true });

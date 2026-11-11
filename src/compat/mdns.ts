@@ -1,7 +1,7 @@
-// mDNS/DNS-SD (Zeroconf) para `vireo serve` — CERO dependencias (node:dgram).
+// mDNS/DNS-SD (Zeroconf) para `nicotine serve` — CERO dependencias (node:dgram).
 //
-// Diseño propio y *best-effort*: anuncia vireo como servicio DNS-SD
-// `_vireo._tcp.<dominio>` (por defecto `vireo.local`). NO es un resolver ni un
+// Diseño propio y *best-effort*: anuncia nicotine como servicio DNS-SD
+// `_nicotine._tcp.<dominio>` (por defecto `nicotine.local`). NO es un resolver ni un
 // stack mDNS completo: sin caché, no responde por otros dominios, no hace goodbye
 // en caídas duras (solo en cierre limpio con stop()). Si 5353 está ocupado, la
 // máquina no tiene multicast o el sandbox lo bloquea → aviso y serve sigue
@@ -11,7 +11,7 @@
 //   _services._dns-sd._udp.local. PTR → <service>.<domain>.
 //   <service>.<domain>.           PTR → <instancia>.<service>.<domain>.
 //   <instancia>.<service>.<domain>. SRV → puerto HTTP, target <host>.<domain>.
-//   <instancia>.<service>.<domain>. TXT → path=... · version=... · api=vireo-serve-1
+//   <instancia>.<service>.<domain>. TXT → path=... · version=... · api=nicotine-serve-1
 //   <host>.<domain>.              A   → IPv4 no-loopback (127.0.0.1 si no hay)
 // Al cerrar: goodbye (mismos registros con TTL 0, RFC 6762 §10.1).
 
@@ -31,9 +31,9 @@ export interface MdnsOptions {
   /** false = sin multicast (tests: solo unicast en bindAddress). Defecto true. */
   multicast?: boolean;
   bindAddress?: string;
-  /** Tipo DNS-SD, con guion bajo inicial. Defecto "_vireo._tcp". */
+  /** Tipo DNS-SD, con guion bajo inicial. Defecto "_nicotine._tcp". */
   serviceType?: string;
-  /** Dominio. Defecto "vireo.local". Se valida (etiquetas ≤ 63 bytes). */
+  /** Dominio. Defecto "nicotine.local". Se valida (etiquetas ≤ 63 bytes). */
   domain?: string;
   /** Etiqueta de la instancia; por defecto el hostname saneado. */
   instanceLabel?: string;
@@ -163,11 +163,11 @@ export class MdnsAnnouncer {
   private readonly hostIPv4: string;
 
   constructor(opts: MdnsOptions) {
-    const domain = validateDomain(opts.domain ?? "vireo.local");
-    const serviceType = (opts.serviceType ?? "_vireo._tcp").replace(/\.$/, "");
+    const domain = validateDomain(opts.domain ?? "nicotine.local");
+    const serviceType = (opts.serviceType ?? "_nicotine._tcp").replace(/\.$/, "");
     if (!/^_[a-zA-Z0-9-]+(\._(tcp|udp))$/.test(serviceType)) throw new Error(`serviceType mDNS inválido: «${serviceType}» (esperado _nombre._tcp | _nombre._udp)`);
-    const hostLabel = sanitizeLabel(opts.hostLabel ?? os.hostname(), "vireo", 40);
-    const instanceLabel = sanitizeLabel(opts.instanceLabel ?? `vireo-${hostLabel}`, "vireo", 40);
+    const hostLabel = sanitizeLabel(opts.hostLabel ?? os.hostname(), "nicotine", 40);
+    const instanceLabel = sanitizeLabel(opts.instanceLabel ?? `nicotine-${hostLabel}`, "nicotine", 40);
     const hostIPv4 = opts.hostIPv4 ?? firstPublicIPv4() ?? "127.0.0.1";
     this.o = {
       multicast: opts.multicast ?? true,
@@ -189,7 +189,7 @@ export class MdnsAnnouncer {
   }
 
   private txtRecord(ttl: number): Rr {
-    return { name: this.names.instanceFqdn, type: TYPE.TXT, cacheFlush: true, ttl, rdata: txtRdata({ path: this.o.path ?? "/", api: "vireo-serve-1", version: "0.1.0" }) };
+    return { name: this.names.instanceFqdn, type: TYPE.TXT, cacheFlush: true, ttl, rdata: txtRdata({ path: this.o.path ?? "/", api: "nicotine-serve-1", version: "0.1.0" }) };
   }
   private srvRecord(ttl: number): Rr {
     return { name: this.names.instanceFqdn, type: TYPE.SRV, cacheFlush: true, ttl, rdata: srvRdata(this.o.httpPort, this.names.targetFqdn) };

@@ -56,7 +56,7 @@ describe("compactación en dos pasos", () => {
     expect(res.compacted).toBe(true);
     expect(llmCalls).toBe(0);
     expect(messages[1].content).toBe("a"); // intacto
-    expect(messages.some((m) => m.role === "tool" && String(m.content).includes("truncado por vireo"))).toBe(true);
+    expect(messages.some((m) => m.role === "tool" && String(m.content).includes("truncado por nicotine"))).toBe(true);
     expect(events[0]).toMatchObject({ type: "compaction", pass: 1 });
   });
 
@@ -92,7 +92,7 @@ describe("compactación en dos pasos", () => {
     const m: ChatMessage[] = [{ role: "assistant", content: null, tool_calls: [{ id: "1", type: "function", function: { name: "bash", arguments: "x".repeat(5000) } }] }];
     const saved = pruneForCompaction(m);
     expect(saved).toBeGreaterThan(4000);
-    expect(JSON.parse(m[0].tool_calls![0].function.arguments)).toEqual({ _vireo_truncated: true });
+    expect(JSON.parse(m[0].tool_calls![0].function.arguments)).toEqual({ _nicotine_truncated: true });
   });
 });
 
@@ -192,23 +192,23 @@ describe("tool-calls en texto (Hermes/Qwen) — solo sin tool_calls nativos", ()
 });
 
 // ————— memoria por proyecto —————
-describe("memoria por proyecto (.vireo/memory.md, solo cwd)", () => {
+describe("memoria por proyecto (.nicotine/memory.md, solo cwd)", () => {
   let root: string;
-  beforeEach(() => { root = mkdtempSync(join(tmpdir(), "vireo-mem-")); });
+  beforeEach(() => { root = mkdtempSync(join(tmpdir(), "nicotine-mem-")); });
   afterEach(() => { rmSync(root, { recursive: true, force: true }); });
 
   test("se carga con kind memory y la nota para el agente", () => {
-    mkdirSync(join(root, ".vireo"), { recursive: true });
-    writeFileSync(join(root, ".vireo", "memory.md"), "# decisiones\n- usar bun siempre\n");
+    mkdirSync(join(root, ".nicotine"), { recursive: true });
+    writeFileSync(join(root, ".nicotine", "memory.md"), "# decisiones\n- usar bun siempre\n");
     const { files, block } = loadContextFiles(root, {});
     const mem = files.find((f) => f.kind === "memory")!;
-    expect(mem.path).toBe(join(root, ".vireo", "memory.md"));
-    expect(block).toContain(".vireo/memory.md (memory)");
+    expect(mem.path).toBe(join(root, ".nicotine", "memory.md"));
+    expect(block).toContain(".nicotine/memory.md (memory)");
     expect(block).toContain("memoria del proyecto");
   });
   test("la memoria de un directorio PADRE no se carga (un proyecto = su cwd)", () => {
-    mkdirSync(join(root, "padre", ".vireo"), { recursive: true });
-    writeFileSync(join(root, "padre", ".vireo", "memory.md"), "no-es-mía\n");
+    mkdirSync(join(root, "padre", ".nicotine"), { recursive: true });
+    writeFileSync(join(root, "padre", ".nicotine", "memory.md"), "no-es-mía\n");
     const sub = join(root, "padre", "sub");
     mkdirSync(sub, { recursive: true });
     const { files } = loadContextFiles(sub, {});
@@ -253,7 +253,7 @@ describe("policies v2 (hard-deny post-reglas) y PermissionDenied", () => {
     expect(policiesFromConfig([{ action: "bash" }, "x", null, { action: "edit", resource: "/etc/*" }])).toEqual([{ action: "edit", resource: "/etc/*" }]);
   });
   test("config: policies de capas se acumulan y las aplica el motor", () => {
-    const root = mkdtempSync(join(tmpdir(), "vireo-pol-"));
+    const root = mkdtempSync(join(tmpdir(), "nicotine-pol-"));
     try {
       writeFileSync(join(root, "opencode.json"), JSON.stringify({ policies: [{ action: "bash", resource: "rm *" }] }));
       const { policies } = loadConfig(root);
@@ -278,7 +278,7 @@ test("estimateTokens > 0 y escala con el contenido", () => {
   expect(estimateTokens([{ role: "user", content: big }])).toBeGreaterThan(1000);
 });
 
-describe("failover de modelos (VIREO_MODEL_FALLBACKS / provider.fallbackModels)", () => {
+describe("failover de modelos (NICOTINE_MODEL_FALLBACKS / provider.fallbackModels)", () => {
   test("todas las claves 429 en modelo A → salta a modelo B y tiene éxito", async () => {
     const calls: { model: string; key: string }[] = [];
     const fetchImpl = (async (_url: string, init: any) => {

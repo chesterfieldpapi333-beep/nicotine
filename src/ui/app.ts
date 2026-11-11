@@ -213,7 +213,7 @@ export class TuiApp {
 
   private headerLine(width: number): string {
     const t = this.deps.theme;
-    const left = fgHex(token(t, "accent")) + bold + "vireo" + reset + dimmed + ` · ${this.deps.currentAgent()} · ${this.deps.currentModel()} · ${this.deps.cwd.split("/").filter(Boolean).pop() ?? "/"}` + reset;
+    const left = fgHex(token(t, "accent")) + bold + "nicotine" + reset + dimmed + ` · ${this.deps.currentAgent()} · ${this.deps.currentModel()} · ${this.deps.cwd.split("/").filter(Boolean).pop() ?? "/"}` + reset;
     const right = dimmed + `sesión ${this.deps.currentSession()}` + reset;
     const gap = Math.max(1, width - visibleWidth(left) - visibleWidth(right));
     return left + " ".repeat(gap) + right;
@@ -386,7 +386,7 @@ export class TuiApp {
     // comandos con ctrl+p
     if (key.ctrl && key.name === "p") { this.openCommandPalette(); return; }
     // paginado
-    const pageStep = Math.max(1, Math.round(this.deps.tui.scrollSpeed * 4)); // vireo-lite: scrollSpeed 3 → 12 líneas
+    const pageStep = Math.max(1, Math.round(this.deps.tui.scrollSpeed * 4)); // nicotine-lite: scrollSpeed 3 → 12 líneas
     if (key.name === "wheelup") { this.scrollLines(this.deps.tui.scrollSpeed); return; }
     if (key.name === "wheeldown") { this.scrollLines(-this.deps.tui.scrollSpeed); return; }
     if (key.name === "pageup") { this.scrollFromBottom = Math.min(this.scrollFromBottom + pageStep, 10000); this.render(); return; }

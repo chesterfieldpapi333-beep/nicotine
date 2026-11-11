@@ -1,15 +1,16 @@
 // websearch: busca en la web. Backends soportados (elige por config `websearch.provider`):
-//   - "searxng": instancia propia vía VIREO_SEARXNG_URL (o config websearch.url), API JSON.
+//   - "searxng": instancia propia vía NICOTINE_SEARXNG_URL (o config websearch.url), API JSON.
 //   - "exa":     Exa (https://api.exa.ai/search) vía EXA_API_KEY.
 // Sin backend configurado, la tool responde con instrucciones (no falla el loop).
 
+import { envAlias } from "../core/env.js";
 import type { AgentTool } from "../core/types.js";
 
 export const websearchTool: AgentTool = {
   name: "websearch",
   description:
     "Busca en la web y devuelve resultados (título, URL, resumen). Requiere backend: " +
-    "VIREO_SEARXNG_URL (searxng) o EXA_API_KEY (exa), o config `websearch: { \"provider\": \"exa|searxng\" }`.",
+    "NICOTINE_SEARXNG_URL (searxng) o EXA_API_KEY (exa), o config `websearch: { \"provider\": \"exa|searxng\" }`.",
   parameters: {
     type: "object",
     properties: {
@@ -22,14 +23,14 @@ export const websearchTool: AgentTool = {
   async run(args, ctx) {
     const query = String(args.query);
     const limit = Math.max(1, Math.min(25, Number(args.limit ?? 8) || 8));
-    const searxng = process.env.VIREO_SEARXNG_URL;
+    const searxng = envAlias("SEARXNG_URL");
     const exaKey = process.env.EXA_API_KEY;
     if (searxng) return searxngSearch(searxng, query, limit, ctx.signal);
     if (exaKey) return exaSearch(exaKey, query, limit, ctx.signal);
     return {
       output:
         "websearch sin backend configurado. Opciones:\n" +
-        "  1. export VIREO_SEARXNG_URL=https://tu-instancia-searxng\n" +
+        "  1. export NICOTINE_SEARXNG_URL=https://tu-instancia-searxng\n" +
         "  2. export EXA_API_KEY=...\n" +
         "y reintenta. La búsqueda con el backend del proveedor llegará en una fase posterior.",
     };

@@ -45,7 +45,7 @@ describe("applyEdit — escalera de estrategias", () => {
 
 describe("tool edit — contrato", () => {
   test("exige lectura previa", async () => {
-    const dir = mkdtempSync(join(tmpdir(), "vireo-edit-"));
+    const dir = mkdtempSync(join(tmpdir(), "nicotine-edit-"));
     const file = join(dir, "f.ts");
     writeFileSync(file, "let a = 1;\n");
     await expect(editTool.run({ path: file, oldString: "1", newString: "2" }, ctxFor(dir))).rejects.toThrow(/lectura previa/);
@@ -55,14 +55,14 @@ describe("tool edit — contrato", () => {
     rmSync(dir, { recursive: true, force: true });
   });
   test("rechaza oldString === newString", async () => {
-    const dir = mkdtempSync(join(tmpdir(), "vireo-edit-"));
+    const dir = mkdtempSync(join(tmpdir(), "nicotine-edit-"));
     const file = join(dir, "f.ts");
     writeFileSync(file, "x\n");
     await expect(editTool.run({ path: file, oldString: "x", newString: "x" }, ctxFor(dir, [file]))).rejects.toThrow(/idénticos/);
     rmSync(dir, { recursive: true, force: true });
   });
   test("preview genera diff sin escribir", async () => {
-    const dir = mkdtempSync(join(tmpdir(), "vireo-edit-"));
+    const dir = mkdtempSync(join(tmpdir(), "nicotine-edit-"));
     const file = join(dir, "f.ts");
     writeFileSync(file, "const a = 1;\n");
     const { diff } = await editTool.preview!({ path: file, oldString: "const a = 1;", newString: "const a = 2;" }, ctxFor(dir, [file]));

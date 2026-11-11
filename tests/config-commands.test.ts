@@ -92,7 +92,7 @@ describe("buildRuntime + commands (integración)", () => {
     const { mkdtempSync, mkdirSync, writeFileSync } = await import("node:fs");
     const { tmpdir } = await import("node:os");
     const { join } = await import("node:path");
-    const tmp = mkdtempSync(join(tmpdir(), "vireo-cmdcfg-"));
+    const tmp = mkdtempSync(join(tmpdir(), "nicotine-cmdcfg-"));
     process.env.XDG_DATA_HOME = join(tmp, "data");
     const project = join(tmp, "proj");
     mkdirSync(project);

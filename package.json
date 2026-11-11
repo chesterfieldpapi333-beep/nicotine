@@ -1,16 +1,17 @@
 {
-  "name": "vireo",
+  "name": "nicotine",
   "version": "0.1.0",
-  "description": "vireo — agente de código CLI ligero, compatible con el formato opencode.json(c)",
+  "description": "nicotine — agente de código CLI ligero, compatible con el formato opencode.json(c)",
   "type": "module",
   "license": "MIT",
   "bin": {
+    "nic": "./bin/nic",
     "vireo": "./bin/vireo"
   },
   "scripts": {
     "test": "bun test",
-    "vireo": "bun run bin/vireo",
-    "doctor": "bun run bin/vireo doctor"
+    "nic": "bun run bin/nic",
+    "doctor": "bun run bin/nic doctor"
   },
   "engines": {
     "bun": ">=1.1"

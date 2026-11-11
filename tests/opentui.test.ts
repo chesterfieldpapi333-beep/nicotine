@@ -8,7 +8,7 @@ import { DEFAULT_KEYBINDS, type TuiConfig } from "../src/ui/tui-config.js";
 import type { KeyEventLike } from "../src/ui/key.js";
 
 const tui: TuiConfig = {
-  theme: "vireo-dark", leaderTimeout: 2000, keybinds: { ...DEFAULT_KEYBINDS },
+  theme: "nicotine-dark", leaderTimeout: 2000, keybinds: { ...DEFAULT_KEYBINDS },
   scrollSpeed: 3, diffStyle: "auto", mouse: false,
   cursor: { style: "block", blinking: false }, layers: [],
 };
@@ -20,7 +20,7 @@ function makeApp() {
     setTheme: () => {},
     tui,
     cwd: "/tmp/proyecto-test",
-    themes: ["vireo-dark"],
+    themes: ["nicotine-dark"],
     commands: [{ name: "exit", hint: "salir", run: () => {} }],
     submit: (p) => submitted.push(p),
     abortTurn: () => {},
@@ -51,7 +51,7 @@ describe("OpenTUI — smoke headless", () => {
       const mount = await mountOpenTui(app, renderer);
       await flush();
       let frame = captureCharFrame();
-      expect(frame).toContain("vireo");
+      expect(frame).toContain("nicotine");
       expect(frame).toContain("mock-model");
       expect(frame).toContain("abc12345");
       expect(frame).toContain("listo");

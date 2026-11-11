@@ -1,11 +1,11 @@
-// API pública de extensiones de Vireo (diseño propio, lite).
+// API pública de extensiones de Nicotine (diseño propio, lite).
 // Una extensión = un módulo .ts/.js con `export default function activate(api)`
 // (o `export function activate(api)` / `export function setup(api)`). Se carga en el arranque, DESPUÉS de la
 // config y ANTES del primer turno. Errores de una extensión no tumban las demás.
 //
 // Confianza (igual que MCP): extensiones de proyecto o de capas de proyecto
 // piden confirmación UNA vez por extensión y sesión; sin TTY → se omiten;
-// --auto → aprueba con aviso. Las globales (~/.config/vireo/extensions) no preguntan.
+// --auto → aprueba con aviso. Las globales (~/.config/nicotine/extensions) no preguntan.
 //
 // Fuera de la TUI, los comandos/atajos/slots/temas son no-op con aviso;
 // tools y `on(...)` funcionan en todos los modos.
@@ -66,7 +66,7 @@ export interface ExtensionAPI {
     setSlot(slot: SlotName, component: Component | null): void;
     /** Añade un componente al strip de widgets (sobre el separador del editor). */
     addWidget(component: Component): void;
-    /** Registra un tema (tokens sobre vireo-dark) y lo aplica. */
+    /** Registra un tema (tokens sobre nicotine-dark) y lo aplica. */
     setTheme(theme: Theme): void;
     /** Fuerza un render (p. ej. tras cambiar un widget por tiempo). */
     refresh(): void;

@@ -1,4 +1,4 @@
-// mDNS/DNS-SD para `vireo serve` (item «mDNS» de «todo»): codec DNS propio +
+// mDNS/DNS-SD para `nicotine serve` (item «mDNS» de «todo»): codec DNS propio +
 // anunciador best-effort. En el sandbox no hay red multicast fiable: los tests
 // usan unicast 127.0.0.1 (QU bit) y verifican el wire format directamente.
 import { test, expect, describe } from "bun:test";
@@ -38,13 +38,13 @@ function parseAnswers(buf: Buffer): { questions: { name: string; type: number }[
 
 describe("mdns — codec y validación (puro)", () => {
   test("encodeName/decodeName round-trip", () => {
-    const buf = encodeName("_vireo._tcp.vireo.local.");
+    const buf = encodeName("_nicotine._tcp.nicotine.local.");
     const { name } = decodeName(buf, 0);
-    expect(name).toBe("_vireo._tcp.vireo.local.");
+    expect(name).toBe("_nicotine._tcp.nicotine.local.");
   });
 
   test("validateDomain acepta dominios correctos y rechaza basura", () => {
-    expect(validateDomain("vireo.local")).toBe("vireo.local");
+    expect(validateDomain("nicotine.local")).toBe("nicotine.local");
     expect(validateDomain("lan.example.com.")).toBe("lan.example.com");
     expect(() => validateDomain("bad domain!")).toThrow();
     expect(() => validateDomain("-bad.local")).toThrow();
@@ -58,7 +58,7 @@ describe("mdns — codec y validación (puro)", () => {
   });
 
   test("constructor rechaza serviceType inválido", () => {
-    expect(() => new MdnsAnnouncer({ httpPort: 4096, serviceType: "vireo" })).toThrow(/serviceType/);
+    expect(() => new MdnsAnnouncer({ httpPort: 4096, serviceType: "nicotine" })).toThrow(/serviceType/);
   });
 });
 
@@ -71,51 +71,51 @@ describe("mdns — anunciador sobre unicast (puerto efímero)", () => {
     client.send(craftQuery(name, qtype, true), ann.port()!, "127.0.0.1");
   });
 
-  test("PTR por _vireo._tcp → instancia; additionals SRV/TXT/A", async () => {
+  test("PTR por _nicotine._tcp → instancia; additionals SRV/TXT/A", async () => {
     const logs: string[] = [];
-    const ann = new MdnsAnnouncer({ httpPort: 4096, port: 0, multicast: false, bindAddress: "127.0.0.1", hostIPv4: "127.0.0.1", instanceLabel: "vireo-test", hostLabel: "teshost", logger: (m) => logs.push(m) });
+    const ann = new MdnsAnnouncer({ httpPort: 4096, port: 0, multicast: false, bindAddress: "127.0.0.1", hostIPv4: "127.0.0.1", instanceLabel: "nicotine-test", hostLabel: "teshost", logger: (m) => logs.push(m) });
     expect(await ann.start()).toBe(true);
     try {
-      const resp = await queryAndCollect(ann, "_vireo._tcp.vireo.local.", 12);
+      const resp = await queryAndCollect(ann, "_nicotine._tcp.nicotine.local.", 12);
       const p = parseDnsMessage(resp);
-      expect(p.questions[0].name).toBe("_vireo._tcp.vireo.local.");
+      expect(p.questions[0].name).toBe("_nicotine._tcp.nicotine.local.");
       const { answers, additionals } = parseAnswers(resp);
       const ptr = answers.find((a) => a.type === 12);
       expect(ptr).toBeDefined();
-      expect(decodeName(ptr!.rdata, 0).name).toBe("vireo-test._vireo._tcp.vireo.local.");
+      expect(decodeName(ptr!.rdata, 0).name).toBe("nicotine-test._nicotine._tcp.nicotine.local.");
       expect(ptr!.ttl).toBe(120);
       const srv = additionals.find((a) => a.type === 33);
       const txt = additionals.find((a) => a.type === 16);
       const a = additionals.find((x) => x.type === 1);
-      expect(srv?.name).toBe("vireo-test._vireo._tcp.vireo.local.");
-      expect(txt?.name).toBe("vireo-test._vireo._tcp.vireo.local.");
-      expect(a?.name).toBe("teshost.vireo.local.");
+      expect(srv?.name).toBe("nicotine-test._nicotine._tcp.nicotine.local.");
+      expect(txt?.name).toBe("nicotine-test._nicotine._tcp.nicotine.local.");
+      expect(a?.name).toBe("teshost.nicotine.local.");
     } finally {
       await ann.stop();
     }
     expect(ann.port()).toBeNull();
   });
 
-  test("PTR _services._dns-sd._udp.local → enumera _vireo._tcp", async () => {
-    const ann = new MdnsAnnouncer({ httpPort: 4199, port: 0, multicast: false, bindAddress: "127.0.0.1", hostIPv4: "127.0.0.1", instanceLabel: "vireo-enum", hostLabel: "enumhost", logger: () => {} });
+  test("PTR _services._dns-sd._udp.local → enumera _nicotine._tcp", async () => {
+    const ann = new MdnsAnnouncer({ httpPort: 4199, port: 0, multicast: false, bindAddress: "127.0.0.1", hostIPv4: "127.0.0.1", instanceLabel: "nicotine-enum", hostLabel: "enumhost", logger: () => {} });
     expect(await ann.start()).toBe(true);
     try {
       const resp = await queryAndCollect(ann, "_services._dns-sd._udp.local.", 12);
       const { answers } = parseAnswers(resp);
       const names = answers.filter((a) => a.type === 12).map((a) => decodeName(a.rdata, 0).name);
-      expect(names).toContain("_vireo._tcp.vireo.local.");
+      expect(names).toContain("_nicotine._tcp.nicotine.local.");
     } finally { await ann.stop(); }
   });
 
   test("SRV por la instancia → puerto y target correctos", async () => {
-    const ann = new MdnsAnnouncer({ httpPort: 4321, port: 0, multicast: false, bindAddress: "127.0.0.1", hostIPv4: "127.0.0.1", instanceLabel: "vireo-srv", hostLabel: "srvhost", logger: () => {} });
+    const ann = new MdnsAnnouncer({ httpPort: 4321, port: 0, multicast: false, bindAddress: "127.0.0.1", hostIPv4: "127.0.0.1", instanceLabel: "nicotine-srv", hostLabel: "srvhost", logger: () => {} });
     expect(await ann.start()).toBe(true);
     try {
-      const resp = await queryAndCollect(ann, "vireo-srv._vireo._tcp.vireo.local.", 33);
+      const resp = await queryAndCollect(ann, "nicotine-srv._nicotine._tcp.nicotine.local.", 33);
       const { answers } = parseAnswers(resp);
       const srv = answers.find((a) => a.type === 33)!;
       expect(srv.rdata.readUInt16BE(4)).toBe(4321);
-      expect(decodeName(srv.rdata, 6).name).toBe("srvhost.vireo.local.");
+      expect(decodeName(srv.rdata, 6).name).toBe("srvhost.nicotine.local.");
     } finally { await ann.stop(); }
   });
 
@@ -123,7 +123,7 @@ describe("mdns — anunciador sobre unicast (puerto efímero)", () => {
     const ann = new MdnsAnnouncer({ httpPort: 4096, port: 0, multicast: false, bindAddress: "127.0.0.1", hostIPv4: "127.0.0.1", logger: () => {} });
     expect(await ann.start()).toBe(true);
     try {
-      await expect(queryAndCollect(ann, "_otro._tcp.vireo.local.", 12)).rejects.toThrow(/timeout/);
+      await expect(queryAndCollect(ann, "_otro._tcp.nicotine.local.", 12)).rejects.toThrow(/timeout/);
     } finally { await ann.stop(); }
   }, 5000);
 

@@ -10,7 +10,7 @@ export interface Theme { name: string; tokens: Record<string, string> }
 
 export const defaultThemes: Theme[] = [
   {
-    name: "vireo-dark",
+    name: "nicotine-dark",
     tokens: {
       fg: "#d3d7cf", dim: "#77767b", bg: "#1a1a1a", accent: "#34e2e2",
       success: "#8ae234", error: "#ef2929", warning: "#fce94f",
@@ -19,7 +19,7 @@ export const defaultThemes: Theme[] = [
     },
   },
   {
-    name: "vireo-light",
+    name: "nicotine-light",
     tokens: {
       fg: "#2e3436", dim: "#888a85", bg: "#f3f3ee", accent: "#0b6a83",
       success: "#2e7d32", error: "#c62828", warning: "#9a6a00",
@@ -31,14 +31,15 @@ export const defaultThemes: Theme[] = [
 
 /** Directorios de temas de usuario/proyecto (plural `themes/`, como OpenCode). */
 export function themeDirs(cwd: string): string[] {
-  const dirs = [join(homedir(), ".config", "opencode", "themes"), join(homedir(), ".config", "vireo", "themes")];
-  // proyecto: raíz → cwd, carpetas themes/ directas y dentro de .opencode/.vireo
+  // legado vireo se lee ANTES que nicotine (lo más cercano gana al final del merge)
+  const dirs = [join(homedir(), ".config", "opencode", "themes"), join(homedir(), ".config", "vireo", "themes"), join(homedir(), ".config", "nicotine", "themes")];
+  // proyecto: raíz → cwd, carpetas themes/ directas y dentro de .opencode/.nicotine
   const trail: string[] = [];
   let cur = cwd;
   for (;;) { trail.push(cur); const parent = join(cur, ".."); if (parent === cur) break; cur = parent; }
   trail.reverse(); // de la raíz hacia cwd: lo más cercano se carga después y gana
   for (const dir of trail) {
-    dirs.push(join(dir, "themes"), join(dir, ".opencode", "themes"), join(dir, ".vireo", "themes"));
+    dirs.push(join(dir, "themes"), join(dir, ".opencode", "themes"), join(dir, ".vireo", "themes"), join(dir, ".nicotine", "themes"));
   }
   return dirs;
 }
@@ -56,13 +57,18 @@ export function loadThemes(cwd: string): Map<string, Theme> {
         const flat: Record<string, unknown> = (raw["tokens"] ?? raw["theme"] ?? raw) as Record<string, unknown>;
         const tokens: Record<string, string> = {};
         for (const [k, v] of Object.entries(flat)) if (typeof v === "string" && k !== "name") tokens[k] = v;
-        // se fusionan tokens sobre vireo-dark para que un tema parcial funcione
+        // se fusionan tokens sobre nicotine-dark para que un tema parcial funcione
         themes.set(name, { name, tokens: { ...defaultThemes[0].tokens, ...tokens } });
       } catch (err) {
-        console.error(`[vireo] tema ignorado ${file}: ${(err as Error).message}`);
+        console.error(`[nicotine] tema ignorado ${file}: ${(err as Error).message}`);
       }
     }
   }
+  // Alias de los nombres anteriores (vireo → nicotine, fase 10f): configs viejas no se rompen
+  const dark = themes.get("nicotine-dark");
+  const light = themes.get("nicotine-light");
+  if (dark && !themes.has("vireo-dark")) themes.set("vireo-dark", dark);
+  if (light && !themes.has("vireo-light")) themes.set("vireo-light", light);
   return themes;
 }
 

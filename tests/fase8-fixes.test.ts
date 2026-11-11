@@ -87,8 +87,8 @@ describe("width — CJK / emoji / combinantes", () => {
 describe("skills — Codex VERIFICADO ($CODEX_HOME/skills, defecto ~/.codex/skills; proyecto .codex/skills)", () => {
   let home: string, root: string;
   beforeEach(() => {
-    home = mkdtempSync(join(tmpdir(), "vireo-fix-home-"));
-    root = mkdtempSync(join(tmpdir(), "vireo-fix-cwd-"));
+    home = mkdtempSync(join(tmpdir(), "nicotine-fix-home-"));
+    root = mkdtempSync(join(tmpdir(), "nicotine-fix-cwd-"));
   });
   afterEach(() => {
     rmSync(home, { recursive: true, force: true });
@@ -111,7 +111,7 @@ describe("skills — Codex VERIFICADO ($CODEX_HOME/skills, defecto ~/.codex/skil
     expect(byId.get("localship")).toBeTruthy();
   });
   test("$CODEX_HOME reemplaza ~/.codex", () => {
-    const alt = mkdtempSync(join(tmpdir(), "vireo-codexhome-"));
+    const alt = mkdtempSync(join(tmpdir(), "nicotine-codexhome-"));
     process.env.CODEX_HOME = alt;
     writeSkill(join(alt, "skills"), "altship", "vive en CODEX_HOME");
     writeSkill(join(home, ".codex", "skills"), "novis", "no debe verse");
@@ -124,8 +124,8 @@ describe("skills — Codex VERIFICADO ($CODEX_HOME/skills, defecto ~/.codex/skil
 describe("plugins — Codex .codex-plugin (VERIFICADO layout) y Gemini TOML commands (VERIFICADO)", () => {
   let home: string, root: string;
   beforeEach(() => {
-    home = mkdtempSync(join(tmpdir(), "vireo-fix-home-"));
-    root = mkdtempSync(join(tmpdir(), "vireo-fix-cwd-"));
+    home = mkdtempSync(join(tmpdir(), "nicotine-fix-home-"));
+    root = mkdtempSync(join(tmpdir(), "nicotine-fix-cwd-"));
   });
   afterEach(() => {
     rmSync(home, { recursive: true, force: true });

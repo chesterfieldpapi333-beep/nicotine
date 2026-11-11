@@ -59,7 +59,7 @@ export function pruneForCompaction(messages: ChatMessage[]): number {
   for (const m of messages) {
     if (m.role === "tool" && typeof m.content === "string" && m.content.length > PRUNE_TOOL_CHARS) {
       const removed = m.content.length - PRUNE_TOOL_HEAD - 80;
-      m.content = m.content.slice(0, PRUNE_TOOL_HEAD) + `\n…[truncado por vireo: ${removed} caracteres omitidos]`;
+      m.content = m.content.slice(0, PRUNE_TOOL_HEAD) + `\n…[truncado por nicotine: ${removed} caracteres omitidos]`;
       saved += removed;
     }
     if (m.role === "assistant" && m.tool_calls) {
@@ -67,7 +67,7 @@ export function pruneForCompaction(messages: ChatMessage[]): number {
         const args = tc.function?.arguments;
         if (typeof args === "string" && args.length > PRUNE_TOOL_ARGS_CHARS) {
           const removed = args.length - 40;
-          tc.function.arguments = '{"_vireo_truncated":true}'; // JSON mínimo válido: el historial sigue siendo parseable
+          tc.function.arguments = '{"_nicotine_truncated":true}'; // JSON mínimo válido: el historial sigue siendo parseable
           saved += removed;
         }
       }
@@ -166,7 +166,7 @@ export async function maybeCompact(opts: MaybeCompactOptions): Promise<CompactRe
 
   const summaryMsg: ChatMessage = {
     role: "system",
-    content: `<vireo:compaction>Resumen del contexto previo (compactado automáticamente):\n${summary}\n</vireo:compaction>`,
+    content: `<nicotine:compaction>Resumen del contexto previo (compactado automáticamente):\n${summary}\n</nicotine:compaction>`,
   };
   working.splice(1, cut - 1, summaryMsg);
   replaceAll(opts.messages, working);

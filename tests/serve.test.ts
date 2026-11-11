@@ -1,4 +1,4 @@
-// vireo serve — auth, endpoints y turno SSE contra un mock de proveedor (ni un byte real).
+// nicotine serve — auth, endpoints y turno SSE contra un mock de proveedor (ni un byte real).
 import { describe, test, expect, beforeAll, afterAll } from "bun:test";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -24,14 +24,18 @@ function mockFetch(): typeof fetch {
 }
 
 function authHeader(): Record<string, string> {
-  return { authorization: "Basic " + Buffer.from(`vireo:${PASSWORD}`).toString("base64") };
+  return { authorization: "Basic " + Buffer.from(`nicotine:${PASSWORD}`).toString("base64") };
 }
 
+let savedXdg: string | undefined;
+
 beforeAll(async () => {
-  dir = mkdtempSync(join(tmpdir(), "vireo-serve-"));
-  process.env.VIREO_SERVER_PASSWORD = PASSWORD;
+  dir = mkdtempSync(join(tmpdir(), "nicotine-serve-"));
+  savedXdg = process.env.XDG_DATA_HOME;
+  process.env.XDG_DATA_HOME = join(dir, "xdg"); // sesiones aisladas del host
+  process.env.NICOTINE_SERVER_PASSWORD = PASSWORD;
   process.env.OPENAI_API_KEY = "sk-mock";
-  process.env.VIREO_MODEL = "openai/mock-model";
+  process.env.NICOTINE_MODEL = "openai/mock-model";
   const cdir = dir;
   let resolveListening!: () => void;
   listening = new Promise<void>((r) => { resolveListening = r; });
@@ -41,19 +45,20 @@ beforeAll(async () => {
 });
 
 afterAll(() => {
-  delete process.env.VIREO_SERVER_PASSWORD;
+  if (savedXdg === undefined) delete process.env.XDG_DATA_HOME; else process.env.XDG_DATA_HOME = savedXdg;
+  delete process.env.NICOTINE_SERVER_PASSWORD;
   delete process.env.OPENAI_API_KEY;
-  delete process.env.VIREO_MODEL;
+  delete process.env.NICOTINE_MODEL;
   try { rmSync(dir, { recursive: true, force: true }); } catch { /* best effort */ }
 });
 
-describe("vireo serve (integración local)", () => {
-  test("sin VIREO_SERVER_PASSWORD → no arranca (código 2)", async () => {
-    const saved = process.env.VIREO_SERVER_PASSWORD;
-    delete process.env.VIREO_SERVER_PASSWORD;
+describe("nicotine serve (integración local)", () => {
+  test("sin NICOTINE_SERVER_PASSWORD → no arranca (código 2)", async () => {
+    const saved = process.env.NICOTINE_SERVER_PASSWORD;
+    delete process.env.NICOTINE_SERVER_PASSWORD;
     const code = await runServe({ cwd: dir, auto: false, port: 0, hostname: "127.0.0.1" });
     expect(code).toBe(2);
-    process.env.VIREO_SERVER_PASSWORD = saved;
+    process.env.NICOTINE_SERVER_PASSWORD = saved;
   });
 
   test("auth requerida: sin header → 401; con header → 200", async () => {
@@ -103,7 +108,7 @@ describe("vireo serve (integración local)", () => {
   test("GET /session/export devuelve Markdown sin escribir archivos", async () => {
     const res = await fetch(`http://127.0.0.1:${port}/session/export`, { headers: authHeader() });
     expect(res.headers.get("content-type")).toContain("text/markdown");
-    expect(await res.text()).toContain("# Sesión vireo");
+    expect(await res.text()).toContain("# Sesión nicotine");
   });
 
   test("POST /session/abort responde ok (sin turno en curso)", async () => {

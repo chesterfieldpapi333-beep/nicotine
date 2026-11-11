@@ -1,12 +1,12 @@
-// vireo serve — servidor HTTP OPCIONAL (apagado por defecto; solo arranca con
-// `vireo serve`). Expone DOS capas:
+// nicotine serve — servidor HTTP OPCIONAL (apagado por defecto; solo arranca con
+// `nicotine serve`). Expone DOS capas:
 //   1. API propia mínima (documentada en docs/parity.md) — para scripting.
 //   2. Subconjunto HONESTO de la API REST clásica de opencode (fase 10e,
 //      src/modes/serve-opencode.ts) — para clientes opencode. NO es paridad:
 //      lo no implementado responde 404 con { error } (ver /doc).
 //
 // Reglas duras de seguridad (lucen la revisión):
-//   - REQUIERE VIREO_SERVER_PASSWORD u OPENCODE_SERVER_PASSWORD (cualquier bind,
+//   - REQUIERE NICOTINE_SERVER_PASSWORD u OPENCODE_SERVER_PASSWORD (cualquier bind,
 //     loopback incluido; la segunda es solo para clientes opencode).
 //     Sin ninguna, se niega a arrancar.
 //   - Sin TLS propio: HTTP en claro. Para exponer fuera de la máquina, pon un
@@ -18,13 +18,14 @@
 //     solo con --auto; deny gana siempre). Un turno a la vez (409 si ocupado).
 //   - Sin ejecución de nada externo; 1 MiB máx. de body. mDNS/DNS-SD OPCIONAL
 //     (--mdns / --mdns-domain): best-effort, el servicio se anuncia como
-//     _vireo._tcp (vireo.local); si 5353 falla, serve arranca igual.
+//     _nicotine._tcp (nicotine.local); si 5353 falla, serve arranca igual.
 //
 //   API propia:  GET  /health · GET /sessions · GET /session/current ·
 //   GET  /session/export · POST /session/prompt (SSE) · POST /session/abort
 //   Subconjunto opencode (ver /doc): GET|POST /session · GET /session/status ·
 //   /session/{id} (GET/PATCH/DELETE) · /session/{id}/message (GET/POST) …
 
+import { envAlias } from "../core/env.js";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { runAgentLoop } from "../core/loop.js";
 import type { TokenUsage } from "../core/events.js";
@@ -44,7 +45,7 @@ export interface ServeOptions extends RuntimeOptions {
   hostname?: string;
   /** Anuncia el servicio por mDNS/DNS-SD tras arrancar (best-effort; nunca rompe serve). */
   mdns?: boolean;
-  /** Dominio mDNS (defecto vireo.local). Implica mdns=true. */
+  /** Dominio mDNS (defecto nicotine.local). Implica mdns=true. */
   mdnsDomain?: string;
   /** Señal del proceso (SIGINT) para apagado limpio. */
   onListening?: (addr: string) => void;
@@ -55,7 +56,7 @@ const TURN_TIMEOUT_MS = 10 * 60 * 1000;
 
 /** Exporta la sesión actual como Markdown (mismo formato que /export, sin archivo). */
 function sessionMarkdown(rt: Runtime): string {
-  const lines = [`# Sesión vireo ${rt.session.id}`, ""];
+  const lines = [`# Sesión nicotine ${rt.session.id}`, ""];
   for (const m of rt.session.messages()) {
     if (m.role === "user") lines.push("## Usuario", "", String(m.content ?? ""), "");
     else if (m.role === "assistant") lines.push("## Asistente", "", String(m.content ?? ""), "");
@@ -99,17 +100,17 @@ async function executeTurn(rt: Runtime, fetchImpl: RuntimeOptions["fetchImpl"], 
 }
 
 export async function runServe(opts: ServeOptions): Promise<number> {
-  // Auth: VIREO_SERVER_PASSWORD (propia) u OPENCODE_SERVER_PASSWORD (compat con clientes opencode)
-  const password = process.env.VIREO_SERVER_PASSWORD ?? process.env.OPENCODE_SERVER_PASSWORD;
+  // Auth: NICOTINE_SERVER_PASSWORD (propia) u OPENCODE_SERVER_PASSWORD (compat con clientes opencode)
+  const password = envAlias("SERVER_PASSWORD") ?? process.env.OPENCODE_SERVER_PASSWORD;
   if (!password) {
-    process.stderr.write("vireo serve: falta VIREO_SERVER_PASSWORD (o OPENCODE_SERVER_PASSWORD para clientes opencode). Por seguridad, serve nunca arranca sin contraseña (auth básica en todos los endpoints).\n");
+    process.stderr.write("nicotine serve: falta NICOTINE_SERVER_PASSWORD (o OPENCODE_SERVER_PASSWORD para clientes opencode). Por seguridad, serve nunca arranca sin contraseña (auth básica en todos los endpoints).\n");
     return 2;
   }
   const hostname = opts.hostname ?? "127.0.0.1";
   const port = opts.port ?? 4096;
   // 0 = puerto efímero (tests/embedding); la CLI exige 1..65535
   if (!Number.isInteger(port) || port < 0 || port > 65535) {
-    process.stderr.write(`vireo serve: puerto inválido: ${port}\n`);
+    process.stderr.write(`nicotine serve: puerto inválido: ${port}\n`);
     return 2;
   }
   const loopback = /^(127\.|::1$|localhost$|::ffff:127\.)/.test(hostname);
@@ -148,7 +149,7 @@ export async function runServe(opts: ServeOptions): Promise<number> {
     const finish = (status: number) => log(`${req.method} ${req.url} → ${status} (${Date.now() - started}ms)`);
     try {
       if (!passOk(req.headers.authorization, password)) {
-        res.writeHead(401, { "www-authenticate": 'Basic realm="vireo"', "cache-control": "no-store" });
+        res.writeHead(401, { "www-authenticate": 'Basic realm="nicotine"', "cache-control": "no-store" });
         res.end("Unauthorized");
         finish(401);
         return;
@@ -156,7 +157,7 @@ export async function runServe(opts: ServeOptions): Promise<number> {
       const url = new URL(req.url ?? "/", "http://localhost");
       const path = url.pathname;
 
-      // ——— API propia (vireo) ———
+      // ——— API propia (nicotine) ———
       if (req.method === "GET" && path === "/health") { send(res, 200, { ok: true, version: VERSION }); finish(200); return; }
       if (req.method === "GET" && path === "/session/current") {
         const list = Session.list();
@@ -209,7 +210,7 @@ export async function runServe(opts: ServeOptions): Promise<number> {
       // ——— Subconjunto opencode (honesto, ver /doc) ———
       if (await handleOpenCodeRequest(ocCtx, req, res, url, finish)) return;
 
-      send(res, 404, { error: "ruta desconocida o no implementada en el subconjunto opencode REST de vireo", method: req.method, path, doc: "/doc" });
+      send(res, 404, { error: "ruta desconocida o no implementada en el subconjunto opencode REST de nicotine", method: req.method, path, doc: "/doc" });
       finish(404);
     } catch (err) {
       try { send(res, 500, { error: String((err as Error)?.message ?? err) }); } catch { /* socket muerto */ }
@@ -228,7 +229,7 @@ export async function runServe(opts: ServeOptions): Promise<number> {
   let mdns: MdnsAnnouncer | null = null;
   if (opts.mdns || opts.mdnsDomain) {
     try {
-      mdns = new MdnsAnnouncer({ httpPort: effectivePort, domain: opts.mdnsDomain ?? "vireo.local", path: "/", logger: (m) => log(m) });
+      mdns = new MdnsAnnouncer({ httpPort: effectivePort, domain: opts.mdnsDomain ?? "nicotine.local", path: "/", logger: (m) => log(m) });
       const ok = await mdns.start();
       if (!ok) mdns = null;
     } catch (err) {

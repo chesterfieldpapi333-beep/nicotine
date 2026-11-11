@@ -1,7 +1,7 @@
 // Aprobaciones persistentes con alcance PROYECTO (opción "always" en el diálogo).
 // Nunca pisan un deny configurado: el motor ya re-evalúa deny tras los allows
 // guardados (ver permissions.ts), así que aquí solo guardamos/cargamos.
-// Ubicación: $XDG_DATA_HOME/vireo/approvals/<sha1(cwd)>.json — fuera del repo,
+// Ubicación: $XDG_DATA_HOME/nicotine/approvals/<sha1(cwd)>.json — fuera del repo,
 // nada que gitignorar ni ensuciar el proyecto del usuario.
 
 import { createHash } from "node:crypto";

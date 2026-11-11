@@ -1,7 +1,7 @@
 // Motor opcional «vercel-ai» (item «Vercel AI SDK adapter» de «todo»): OFF por
 // defecto, import dinámico, cero deps en el núcleo. Estos tests cubren la
 // conversión OpenAI→AI SDK y todo el flujo con módulos inyectados (sin instalar
-// nada). VIREO_LIVE_VERCEL_AI=1 ejecuta además una integración real contra un
+// nada). NICOTINE_LIVE_VERCEL_AI=1 ejecuta además una integración real contra un
 // mock SSE local si los paquetes están instalados.
 import { test, expect, describe } from "bun:test";
 import { createServer, type Server } from "node:http";
@@ -185,28 +185,28 @@ describe("vercel-ai — selección de motor y paquetes ausentes", () => {
       .rejects.toMatchObject({ name: "ProviderError" });
   });
 
-  test("resolveProvider: engine por defecto fetch; VIREO_PROVIDER_ENGINE respetado; valor inválido rechaza", () => {
-    const saved = process.env.VIREO_PROVIDER_ENGINE;
+  test("resolveProvider: engine por defecto fetch; NICOTINE_PROVIDER_ENGINE respetado; valor inválido rechaza", () => {
+    const saved = process.env.NICOTINE_PROVIDER_ENGINE;
     try {
-      delete process.env.VIREO_PROVIDER_ENGINE;
+      delete process.env.NICOTINE_PROVIDER_ENGINE;
       const a = resolveProvider({ model: "openai/x", provider: { baseURL: "http://127.0.0.1:9/v1", apiKey: "k" } });
       expect(a.engine).toBe("fetch");
       const b = resolveProvider({ model: "openai/x", provider: { baseURL: "http://127.0.0.1:9/v1", apiKey: "k", engine: "vercel-ai" } });
       expect(b.engine).toBe("vercel-ai");
-      process.env.VIREO_PROVIDER_ENGINE = "vercel-ai";
+      process.env.NICOTINE_PROVIDER_ENGINE = "vercel-ai";
       const c = resolveProvider({ model: "openai/x", provider: { baseURL: "http://127.0.0.1:9/v1", apiKey: "k" } });
       expect(c.engine).toBe("vercel-ai");
       expect(() => resolveProvider({ model: "openai/x", provider: { baseURL: "http://127.0.0.1:9/v1", apiKey: "k", engine: "otro" } })).toThrow(/engine/);
     } finally {
-      if (saved === undefined) delete process.env.VIREO_PROVIDER_ENGINE; else process.env.VIREO_PROVIDER_ENGINE = saved;
+      if (saved === undefined) delete process.env.NICOTINE_PROVIDER_ENGINE; else process.env.NICOTINE_PROVIDER_ENGINE = saved;
     }
   });
 });
 
 // Integración opcional con los paquetes REALES (no forman parte del núcleo):
-// VIREO_LIVE_VERCEL_AI=1 bun test tests/vercel.test.ts
-const live = process.env.VIREO_LIVE_VERCEL_AI === "1";
-(live ? describe : describe.skip)("vercel-ai — integración real (VIREO_LIVE_VERCEL_AI=1)", () => {
+// NICOTINE_LIVE_VERCEL_AI=1 bun test tests/vercel.test.ts
+const live = process.env.NICOTINE_LIVE_VERCEL_AI === "1";
+(live ? describe : describe.skip)("vercel-ai — integración real (NICOTINE_LIVE_VERCEL_AI=1)", () => {
   test("mock SSE local: streamText real → texto, usage y tool-call", async () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let ai: any, opc: any;

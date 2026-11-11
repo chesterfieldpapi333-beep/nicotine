@@ -29,7 +29,7 @@ describe("languageIdFor / findRoot", () => {
     expect(languageIdFor("a.xyz")).toBe("plaintext");
   });
   test("findRoot localiza rootMarker hacia arriba", () => {
-    const dir = mkdtempSync(join(tmpdir(), "vireo-lsp-root-"));
+    const dir = mkdtempSync(join(tmpdir(), "nicotine-lsp-root-"));
     writeFileSync(join(dir, "tsconfig.json"), "{}");
     const { mkdirSync } = require("node:fs");
     const sub = join(dir, "src", "deep");
@@ -40,7 +40,7 @@ describe("languageIdFor / findRoot", () => {
 
 describe("diagnosticsFor contra mock-lsp", () => {
   test("initialize → didOpen → publica diagnósticos; el cliente los normaliza", async () => {
-    const dir = mkdtempSync(join(tmpdir(), "vireo-lsp-"));
+    const dir = mkdtempSync(join(tmpdir(), "nicotine-lsp-"));
     const file = join(dir, "sample.ts");
     writeFileSync(file, "const x: number = 'nope';\nconst y = 1;\n", "utf8");
     const res = await diagnosticsFor(def, file, dir, 5000);
@@ -51,7 +51,7 @@ describe("diagnosticsFor contra mock-lsp", () => {
   });
 
   test("la tool formatea la salida con file:line:col", async () => {
-    const dir = mkdtempSync(join(tmpdir(), "vireo-lsp-tool-"));
+    const dir = mkdtempSync(join(tmpdir(), "nicotine-lsp-tool-"));
     const file = join(dir, "sample.ts");
     writeFileSync(file, "const x = 1;\n", "utf8");
     const tool = makeLspTool([def]);

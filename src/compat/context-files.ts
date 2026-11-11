@@ -8,8 +8,8 @@
 //   fuera del recorrido: entradas de `instructions` (paths o globs; las URLs se
 //   recogen en `urls` — las descarga prepareUrlContext ANTES del primer turno,
 //   con timeout 10s y tope 32 KiB por archivo).
-//   solo cwd:        .vireo/memory.md — MEMORIA DEL PROYECTO (kind "memory"), la
-//   escribe el propio agente con write/edit (con permisos normales); vireo la
+//   solo cwd:        .nicotine/memory.md — MEMORIA DEL PROYECTO (kind "memory"), la
+//   escribe el propio agente con write/edit (con permisos normales); nicotine la
 //   carga automáticamente al arrancar. Carga SOLO desde el cwd (un proyecto =
 //   un cwd), no desde cada nivel del recorrido.
 // Se concatena todo bajo un encabezado común para que el system prompt lo incluya.
@@ -116,9 +116,12 @@ export function loadContextFiles(cwd: string, config: Record<string, unknown>): 
     }
   }
 
-  // memoria por proyecto: <cwd>/.vireo/memory.md (solo cwd; el agente la mantiene)
-  const memoryPath = join(cwd, ".vireo", "memory.md");
-  if (isFile(memoryPath)) files.push(mk(memoryPath, "memory"));
+  // memoria por proyecto: <cwd>/.nicotine/memory.md (solo cwd; el agente la mantiene)
+  // legado: <cwd>/.vireo/memory.md se lee como compat si no existe la nueva (fase 10f)
+  const memoryPath = join(cwd, ".nicotine", "memory.md");
+  const legacyMemory = join(cwd, ".vireo", "memory.md");
+  const effectiveMemory = isFile(memoryPath) ? memoryPath : (isFile(legacyMemory) ? legacyMemory : null);
+  if (effectiveMemory) files.push(mk(effectiveMemory, "memory"));
 
   for (const f of files) if (!readCapped(f.path)) warnings.push(`no se pudo leer ${f.path}`);
 

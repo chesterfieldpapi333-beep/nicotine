@@ -1,5 +1,5 @@
 // /export — exporta la sesión actual a Markdown en
-// $XDG_DATA_HOME/vireo/exports/<id>-<timestamp>.md (spec tui#export).
+// $XDG_DATA_HOME/nicotine/exports/<id>-<timestamp>.md (spec tui#export).
 // Lite: no abre $EDITOR todavía (la TUI no suspende su engine para editores
 // externos en v1); imprime la ruta. Nunca ejecuta nada.
 
@@ -18,7 +18,7 @@ export function exportSessionMarkdown(rt: { session: Session; provider: { model:
   let title = "(sin título)";
   try { title = SessionList.list().find((x) => x.id === rt.session.id)?.title ?? title; } catch { /* informativo */ }
   const lines: string[] = [
-    `# Sesión vireo ${rt.session.id}`,
+    `# Sesión nicotine ${rt.session.id}`,
     "",
     `**Título:** ${title}`,
     `**Fecha:** ${new Date().toISOString().slice(0, 19).replace("T", " ")} · **Modelo:** ${rt.provider.model} · **CWD:** ${rt.ctx.cwd}`,

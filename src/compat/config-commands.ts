@@ -47,7 +47,7 @@ export function parseConfigCommands(raw: unknown): { commands: ConfigCommand[]; 
     for (const k of Object.keys(def)) if (!KNOWN.has(k)) warnings.push(`commands «${name}»: clave desconocida (ignorada): ${k}`);
     // alias deprecado: `subtask`; `subagent` gana si ambos
     const subagentField = def["subagent"] !== undefined ? def["subagent"] : def["subtask"];
-    if (subagentField !== undefined) warnings.push(`commands «${name}»: «subagent»/«subtask» no se honra en vireo-lite (sin sesiones en background); se ignora`);
+    if (subagentField !== undefined) warnings.push(`commands «${name}»: «subagent»/«subtask» no se honra en nicotine-lite (sin sesiones en background); se ignora`);
     const template = typeof def["template"] === "string" ? def["template"] : "";
     if (!template.trim()) { warnings.push(`commands «${name}»: falta «template» (requerido en JSON); se ignora`); continue; }
     if (/(^|\n)\s*!`[^`]*`/.test(template)) warnings.push(`commands «${name}»: bloques shell (! + backtick) no se expanden en lite (quedan literales)`);

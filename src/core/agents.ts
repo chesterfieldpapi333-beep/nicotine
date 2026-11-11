@@ -27,7 +27,7 @@ export interface AgentDef {
   systemPrompt?: string;
   /** Reglas EXTRA que se ANEXAN tras las globales (spec: rules append). */
   permissionRules: Rule[];
-  /** Allowlist de tools (vireo) — agentes de archivo con `tools:` en frontmatter. Ausente = todas. */
+  /** Allowlist de tools (nicotine) — agentes de archivo con `tools:` en frontmatter. Ausente = todas. */
   toolAllow?: string[];
   /** Modelo propio (subagentes lo usan; la sesión de un primario NO cambia al seleccionarlo). */
   model?: string;

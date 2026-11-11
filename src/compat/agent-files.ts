@@ -1,9 +1,9 @@
 // Agentes de archivo (.claude/agents/**/*.md, .opencode/agents/**/*.md, .pi/agents/**/*.md,
-// <plugin>/agents/*.md) → AgentDef de vireo. Markdown + frontmatter (spec agents#markdown):
+// <plugin>/agents/*.md) → AgentDef de nicotine. Markdown + frontmatter (spec agents#markdown):
 //   name?        (def: ruta relativa con "/" — team/reviewer; plugins <plugin>:<dir>/<name>)
 //   description  (REQUERIDA — define cuándo usarlo; sin ella se descarta)
 //   mode?        primary | subagent | all   (def: subagent)
-//   tools?       "Read, Grep" o lista YAML — mapeadas a tools de vireo
+//   tools?       "Read, Grep" o lista YAML — mapeadas a tools de nicotine
 //   model?       honrado por subagentes (vendor/ y #variant se descartan al aplicarlo)
 //   permissions? lista de {action, resource, effect} — reglas anexadas tras las globales
 //   hidden? / disabled?  booleanos
@@ -20,7 +20,7 @@ import type { AgentDef } from "../core/agents.js";
 
 const MAX_AGENTS = 100;
 
-// claude → vireo
+// claude → nicotine
 const TOOL_MAP: Record<string, string> = {
   read: "read", edit: "edit", write: "write", bash: "bash", glob: "glob", grep: "grep",
   ls: "list", list: "list", todowrite: "todowrite", skill: "skill",

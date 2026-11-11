@@ -27,7 +27,7 @@ export const webfetchTool: AgentTool = {
     if (!/^https?:\/\//i.test(url)) throw new Error("solo URLs http(s)");
     const timeout = Math.min(MAX_TIMEOUT, Math.max(1000, Number(args.timeout ?? 30_000) || 30_000));
     const res = await fetch(url, {
-      headers: { "user-agent": "vireo/0.1 (+https://localhost)", accept: "text/html,application/xhtml+xml,application/json,text/plain,*/*;q=0.5" },
+      headers: { "user-agent": "nicotine/0.1 (+https://localhost)", accept: "text/html,application/xhtml+xml,application/json,text/plain,*/*;q=0.5" },
       signal: AbortSignal.any([AbortSignal.timeout(timeout), ctx.signal]),
       redirect: "follow",
     });

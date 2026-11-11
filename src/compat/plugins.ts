@@ -13,7 +13,7 @@
 //   project (raíz→cwd): .claude/..., .opencode/..., .pi/..., .gemini/...,
 //                   .mcp.json, .codex/config.toml
 //
-// Precedencia MCP (primera gana, aviso si hay colisión): config nativa de vireo
+// Precedencia MCP (primera gana, aviso si hay colisión): config nativa de nicotine
 // (la resuelve manager.ts, siempre gana) > proyecto (de DENTRO hacia FUERA) >
 // global. Reglas de datos (skills/commands/themes/agents): primera fuente gana
 // con aviso; el orden exacto lo decide cada escáner (global → proyecto → plugins).
@@ -162,7 +162,7 @@ export function discoverPlugins(cwd: string, opts: { home?: string } = {}): Plug
     const ocPlugins = join(dir, ".opencode", "plugins");
     if (isDir(ocPlugins)) {
       for (const f of readdirSync(ocPlugins).filter((f) => /\.(ts|mts|js|mjs)$/.test(f))) {
-        unsupported.push(`opencode: plugin ejecutable .opencode/plugins/${f} — no se ejecuta (migra a una extensión vireo)`);
+        unsupported.push(`opencode: plugin ejecutable .opencode/plugins/${f} — no se ejecuta (migra a una extensión nicotine)`);
       }
     }
   }
@@ -299,10 +299,10 @@ function codexPlugin(
   }
   // hooks y apps: sin verificar → reporte, nunca ejecución
   if (isFile(join(root, "hooks", "hooks.json")) || typeof manifest["hooks"] === "string") {
-    unsupported.push(`codex: ${name} trae hooks — no se ejecutan (sin verificar en vireo)`);
+    unsupported.push(`codex: ${name} trae hooks — no se ejecutan (sin verificar en nicotine)`);
   }
   if (isFile(join(root, ".app.json")) || manifest["apps"]) {
-    unsupported.push(`codex: ${name} trae apps (.app.json) — no soportado en vireo lite`);
+    unsupported.push(`codex: ${name} trae apps (.app.json) — no soportado en nicotine lite`);
   }
 }
 

@@ -1,8 +1,9 @@
+import { envAlias } from "../src/core/env.js";
 // Provider OpenAI-compatible falso para probar el bucle end-to-end sin APIs.
 // Uso:  bun run scripts/mock-provider.ts   (escucha en 127.0.0.1:8799)
 // Comportamiento: si la conversación aún no contiene una tool result, pide la
-// tool `bash` con `echo vireo-funciona`; si ya la contiene, responde texto final.
-// Escenarios extra vía VIREO_MOCK_SCENARIO:
+// tool `bash` con `echo nicotine-funciona`; si ya la contiene, responde texto final.
+// Escenarios extra vía NICOTINE_MOCK_SCENARIO:
 //   fileedit  → pide la tool `write` con demo-output.txt (para probar /undo)
 //   skillload → pide la tool `skill` con la skill `revisar-prs` (para probar skills)
 //   extshout → pide la tool `ext_shout` de la extensión de referencia
@@ -20,18 +21,18 @@ Bun.serve({
     const hasToolResult = body.messages?.some((m: any) => m.role === "tool");
     const hasTools = Array.isArray(body.tools) && body.tools.length > 0;
 
-    const scenario = process.env.VIREO_MOCK_SCENARIO ?? "";
+    const scenario = envAlias("MOCK_SCENARIO") ?? "";
     let payload: string[];
     if (hasTools && !hasToolResult && scenario === "extshout") {
       payload = [
         sse({ choices: [{ delta: { content: "Uso la extensión. " } }] }),
-        sse({ choices: [{ delta: { tool_calls: [{ index: 0, id: "call_mock_ext", type: "function", function: { name: "ext_shout", arguments: '{"text":"vireo"}' } }] } }] }),
+        sse({ choices: [{ delta: { tool_calls: [{ index: 0, id: "call_mock_ext", type: "function", function: { name: "ext_shout", arguments: '{"text":"nicotine"}' } }] } }] }),
         "data: [DONE]\n\n",
       ];
     } else if (hasTools && !hasToolResult && scenario === "mcpecho") {
       payload = [
         sse({ choices: [{ delta: { content: "Uso la herramienta demo. " } }] }),
-        sse({ choices: [{ delta: { tool_calls: [{ index: 0, id: "call_mock_mcp", type: "function", function: { name: "demo_echo", arguments: '{"text":"vireo"}' } }] } }] }),
+        sse({ choices: [{ delta: { tool_calls: [{ index: 0, id: "call_mock_mcp", type: "function", function: { name: "demo_echo", arguments: '{"text":"nicotine"}' } }] } }] }),
         "data: [DONE]\n\n",
       ];
     } else if (hasTools && !hasToolResult && scenario === "skillload") {
@@ -43,13 +44,13 @@ Bun.serve({
     } else if (hasTools && !hasToolResult && scenario === "fileedit") {
       payload = [
         sse({ choices: [{ delta: { content: "Voy a crear el archivo demo. " } }] }),
-        sse({ choices: [{ delta: { tool_calls: [{ index: 0, id: "call_mock_1", type: "function", function: { name: "write", arguments: '{"path":"demo-output.txt","content":"creado por vireo-mock\\n"}' } }] } }] }),
+        sse({ choices: [{ delta: { tool_calls: [{ index: 0, id: "call_mock_1", type: "function", function: { name: "write", arguments: '{"path":"demo-output.txt","content":"creado por nicotine-mock\\n"}' } }] } }] }),
         "data: [DONE]\n\n",
       ];
     } else if (hasTools && !hasToolResult) {
       payload = [
         sse({ choices: [{ delta: { content: "Voy a comprobar el entorno. " } }] }),
-        sse({ choices: [{ delta: { tool_calls: [{ index: 0, id: "call_mock_1", type: "function", function: { name: "bash", arguments: '{"command":"echo vireo-funciona"}' } }] } }] }),
+        sse({ choices: [{ delta: { tool_calls: [{ index: 0, id: "call_mock_1", type: "function", function: { name: "bash", arguments: '{"command":"echo nicotine-funciona"}' } }] } }] }),
         "data: [DONE]\n\n",
       ];
     } else {

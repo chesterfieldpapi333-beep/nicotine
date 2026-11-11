@@ -1,8 +1,9 @@
 // tui.json(c): configuración SOLO de la TUI (separada de opencode.json).
-// Precedencia: $VIREO_TUI_CONFIG > ~/.config/opencode/tui.json(c) > .opencode/tui.json(c) (cwd→raíz).
+// Precedencia: $NICOTINE_TUI_CONFIG > ~/.config/opencode/tui.json(c) > .opencode/tui.json(c) (cwd→raíz).
 // Los keybinds se fusionan sobre los defaults; "none" desactiva una acción.
 // En v1 solo se honran las opciones listadas (resto se ignora con aviso en stderr).
 
+import { envAlias } from "../core/env.js";
 import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, dirname, resolve } from "node:path";
@@ -53,9 +54,10 @@ function readLayer(path: string): Record<string, unknown> | null {
 
 export function loadTuiConfig(cwd: string): TuiConfig {
   const layers: { path: string; data: Record<string, unknown> }[] = [];
-  if (process.env.VIREO_TUI_CONFIG) {
-    const data = readLayer(process.env.VIREO_TUI_CONFIG);
-    if (data) layers.push({ path: process.env.VIREO_TUI_CONFIG, data });
+  const tuiCfg = envAlias("TUI_CONFIG");
+  if (tuiCfg) {
+    const data = readLayer(tuiCfg);
+    if (data) layers.push({ path: tuiCfg, data });
   }
   for (const p of [join(homedir(), ".config", "opencode", "tui.json"), join(homedir(), ".config", "opencode", "tui.jsonc")]) {
     const data = readLayer(p);
@@ -77,7 +79,7 @@ export function loadTuiConfig(cwd: string): TuiConfig {
   // avisos de claves desconocidas (no fatales)
   for (const layer of layers) {
     for (const key of Object.keys(layer.data)) {
-      if (!KNOWN_KEYS.has(key)) console.error(`[vireo] tui.json: clave ignorada "${key}" en ${layer.path}`);
+      if (!KNOWN_KEYS.has(key)) console.error(`[nicotine] tui.json: clave ignorada "${key}" en ${layer.path}`);
     }
   }
 
@@ -90,7 +92,7 @@ export function loadTuiConfig(cwd: string): TuiConfig {
 
   const cursor = (merged["cursor"] ?? {}) as { style?: string; blinking?: boolean };
   return {
-    theme: typeof merged["theme"] === "string" ? merged["theme"] : "vireo-dark",
+    theme: typeof merged["theme"] === "string" ? merged["theme"] : "nicotine-dark",
     leaderTimeout: Number(merged["leader_timeout"] ?? 2000) || 2000,
     keybinds,
     scrollSpeed: Number(merged["scroll_speed"] ?? 3) || 3,

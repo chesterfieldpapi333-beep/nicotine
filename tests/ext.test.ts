@@ -13,9 +13,9 @@ let root: string;
 let data: string;
 let home: string;
 beforeEach(() => {
-  root = mkdtempSync(join(tmpdir(), "vireo-ext-proj-"));
-  data = mkdtempSync(join(tmpdir(), "vireo-ext-data-"));
-  home = mkdtempSync(join(tmpdir(), "vireo-ext-home-"));
+  root = mkdtempSync(join(tmpdir(), "nicotine-ext-proj-"));
+  data = mkdtempSync(join(tmpdir(), "nicotine-ext-data-"));
+  home = mkdtempSync(join(tmpdir(), "nicotine-ext-home-"));
   process.env.XDG_DATA_HOME = data;
 });
 afterEach(() => {
@@ -93,8 +93,8 @@ const fakeRuntime = () => {
 
 describe("discoverExtensions", () => {
   test("global confiable + proyecto no confiable; id único (config pisa convención)", () => {
-    writeExt(join(home, ".config", "vireo", "extensions"), "g1", toolExt);
-    writeExt(join(root, ".vireo", "extensions"), "p1", toolExt);
+    writeExt(join(home, ".config", "nicotine", "extensions"), "g1", toolExt);
+    writeExt(join(root, ".nicotine", "extensions"), "p1", toolExt);
     const { candidates } = discoverExtensions(root, {}, {}, );
     // sin HOME inyectable aquí (usa homedir real) — solo comprobamos proyecto
     expect(candidates.some((c) => c.id === "p1" && c.origin === "project")).toBe(true);
@@ -112,7 +112,7 @@ describe("discoverExtensions", () => {
 describe("prepareExtensions — compuerta y robustez", () => {
   test("proyecto + rechazo → untrusted y el código NO se importa", async () => {
     const marker = join(root, "marker.txt");
-    writeExt(join(root, ".vireo", "extensions"), "evil", markerExt(marker));
+    writeExt(join(root, ".nicotine", "extensions"), "evil", markerExt(marker));
     const rt = fakeRuntime();
     const reports = await prepareExtensions(rt as never, { ui: ui("reject") });
     expect(reports).toHaveLength(1);
@@ -121,7 +121,7 @@ describe("prepareExtensions — compuerta y robustez", () => {
   });
 
   test("proyecto + aceptación → loaded; tool registrada en el runtime", async () => {
-    writeExt(join(root, ".vireo", "extensions"), "demo", toolExt);
+    writeExt(join(root, ".nicotine", "extensions"), "demo", toolExt);
     const rt = fakeRuntime() as { tools: { name: string; run: (a: Record<string, unknown>, c: never) => Promise<{ output: string }> }[] };
     const reports = await prepareExtensions(rt as never, { ui: ui("once") });
     expect(reports[0].status).toBe("loaded");
@@ -132,8 +132,8 @@ describe("prepareExtensions — compuerta y robustez", () => {
   });
 
   test("activate roto → failed, no tumba a las demás", async () => {
-    writeExt(join(root, ".vireo", "extensions"), "roto", failingExt);
-    writeExt(join(root, ".vireo", "extensions"), "buena", toolExt);
+    writeExt(join(root, ".nicotine", "extensions"), "roto", failingExt);
+    writeExt(join(root, ".nicotine", "extensions"), "buena", toolExt);
     const rt = fakeRuntime() as { tools: { name: string }[] };
     const reports = await prepareExtensions(rt as never, { ui: ui("once") });
     const byId = Object.fromEntries(reports.map((r) => [r.id, r.status]));
@@ -143,7 +143,7 @@ describe("prepareExtensions — compuerta y robustez", () => {
   });
 
   test("módulo sin activate → failed con mensaje claro", async () => {
-    writeExt(join(root, ".vireo", "extensions"), "sinexport", noExportExt);
+    writeExt(join(root, ".nicotine", "extensions"), "sinexport", noExportExt);
     const rt = fakeRuntime();
     const reports = await prepareExtensions(rt as never, { ui: ui("once") });
     expect(reports[0].status).toBe("failed");
@@ -151,7 +151,7 @@ describe("prepareExtensions — compuerta y robustez", () => {
   });
 
   test("comandos/atajos/slots llegan al bridge de la TUI", async () => {
-    writeExt(join(root, ".vireo", "extensions"), "ui", uiExt);
+    writeExt(join(root, ".nicotine", "extensions"), "ui", uiExt);
     const bridge = fakeBridge();
     const rt = fakeRuntime();
     const reports = await prepareExtensions(rt as never, { bridge, ui: ui("once") });
@@ -163,7 +163,7 @@ describe("prepareExtensions — compuerta y robustez", () => {
   });
 
   test("sin bridge (print/json/repl): tools sí, UI no, nada explota", async () => {
-    writeExt(join(root, ".vireo", "extensions"), "ui2", uiExt);
+    writeExt(join(root, ".nicotine", "extensions"), "ui2", uiExt);
     const rt = fakeRuntime();
     const reports = await prepareExtensions(rt as never, { ui: ui("once") });
     expect(reports[0].status).toBe("loaded");
@@ -200,7 +200,7 @@ describe("approvals persistentes (proyecto, XDG)", () => {
 
   test("cwd distinta = almacén distinto; archivo corrupto no rompe", async () => {
     saveProjectApproval(root, "bash", "ls *");
-    const other = mkdtempSync(join(tmpdir(), "vireo-ext-other-"));
+    const other = mkdtempSync(join(tmpdir(), "nicotine-ext-other-"));
     expect(loadProjectApprovals(other)).toHaveLength(0);
     rmSync(other, { recursive: true, force: true });
   });
