@@ -22,6 +22,16 @@ describe("heredocs (cuerpo NO es comando; el resto sí — G2)", () => {
     expect(analyzeBashCommand("echo start <<EOF\nnot a command: rm -rf /\nEOF\necho end").isDangerous).toBe(false);
     expect(analyzeBashCommand("x=1; cat <<'E'\nrm -rf /\nE\nrm -rf /tmp/x2").isDangerous).toBe(true);
   });
+  test("heredoc sin cierre → cuerpo se segmenta (caracterización: NO es el comportamiento previo de un solo segmento)", () => {
+    // G2: sin delimitador encontrado, stripHeredocs devuelve el input y el splitter
+    // (ya sin guard «<<») segmenta el cuerpo: el rm del cuerpo → ask. Dirección
+    // fail-closed (más ask, nunca más allow); CHANGELOG dice «fallback al comportamiento
+    // anterior» — imprecisión verificada, reporte en el PR.
+    expect(analyzeBashCommand("cat <<EOF\nrm -rf /x\nEO").isDangerous).toBe(true);
+  });
+  test("delimitador con espacio final → sin cierre (caracterización; mismo fallback)", () => {
+    expect(analyzeBashCommand("cat <<EOF\nrm -rf /x\nEOF  \nrm -rf /y").isDangerous).toBe(true);
+  });
 });
 
 describe("destructivos con flags peligrosos", () => {
@@ -51,6 +61,15 @@ describe("destructivos con flags peligrosos", () => {
   test("find -delete → detectado (G3a)", () => {
     expect(analyzeBashCommand("find . -name '*.o' -delete").isDangerous).toBe(true);
   });
+  test("find -exec rmdir → hueco conocido (caracterización: solo coincide exacto «rm»)", () => {
+    expect(analyzeBashCommand("find . -exec rmdir {} \\;").isDangerous).toBe(false);
+  });
+  test("find -exec unlink → hueco conocido (caracterización: unlink borra archivos)", () => {
+    expect(analyzeBashCommand("find . -exec unlink {} \\;").isDangerous).toBe(false);
+  });
+  test("find -exec 'rm' entre comillas → hueco conocido (caracterización: token 'rm' ≠ «rm»)", () => {
+    expect(analyzeBashCommand("find . -exec 'rm' -rf {} \\;").isDangerous).toBe(false);
+  });
   test("git clean -fdx → detectado (G3b)", () => {
     expect(analyzeBashCommand("git clean -fdx").isDangerous).toBe(true);
   });
@@ -59,6 +78,28 @@ describe("destructivos con flags peligrosos", () => {
   });
   test("git clean -fdn → simulación, sigue seguro (G3b)", () => {
     expect(analyzeBashCommand("git clean -fdn").isDangerous).toBe(false);
+  });
+  test("git clean -fdxn → simulación, sigue seguro (G3b; spec: -n nunca forzado)", () => {
+    expect(analyzeBashCommand("git clean -fdxn").isDangerous).toBe(false);
+  });
+  test("git clean --force --dry-run → simulación, sigue seguro (G3b)", () => {
+    expect(analyzeBashCommand("git clean --force --dry-run").isDangerous).toBe(false);
+  });
+  test("git clean -F (mayúscula) → hueco conocido (caracterización: -F fuerza doble)", () => {
+    expect(analyzeBashCommand("git clean -F").isDangerous).toBe(false);
+  });
+  test("git -C repo clean -fdx → hueco conocido (caracterización: flags antes del subcomando)", () => {
+    expect(analyzeBashCommand("git -C repo clean -fdx").isDangerous).toBe(false);
+  });
+  test("sudo git clean -fdx → wrapper + G3b detectado", () => {
+    const r = analyzeBashCommand("sudo git clean -fdx");
+    expect(r.isDangerous).toBe(true);
+    expect(r.reason).toMatch(/git clean/i);
+  });
+  test("exec git clean -fdx → wrapper G4 + G3b detectado", () => {
+    const r = analyzeBashCommand("exec git clean -fdx");
+    expect(r.isDangerous).toBe(true);
+    expect(r.reason).toMatch(/git clean/i);
   });
 });
 
@@ -103,6 +144,9 @@ describe("redirecciones a rutas sensibles", () => {
   });
   test("> ./.git/config → detectado (G1)", () => {
     expect(analyzeBashCommand("echo x > ./.git/config").isDangerous).toBe(true);
+  });
+  test("git status > normal.txt → seguro (spec G1: sin redir a .git)", () => {
+    expect(analyzeBashCommand("git status > normal.txt").isDangerous).toBe(false);
   });
 });
 
