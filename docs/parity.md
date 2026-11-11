@@ -1,6 +1,7 @@
 # Nicotine — Paridad con OpenCode y CLIs compatibles
 
 > **Linaje:** por qué nicotine es así (spec Shchiy → crítica → Pi → nicotine) y panorama de CLIs evaluadas → [`linaje.md`](./linaje.md).
+> **Plan de implementación:** orden y alcance de todo lo pendiente (publicación A, hardening B, research C, tokens D) → [`plan-implementacion.md`](./plan-implementacion.md).
 
 
 > **Nombre del proyecto:** `nicotine` (binario `nic`; antes `vireo`, shim deprecado `vireo`). Nombre neutro, sin marca ni
