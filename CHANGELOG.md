@@ -4,10 +4,15 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 Versionado: el proyecto aún no sigue semver estricto; cada fase cerrada sube minor.
 
 ## [Sin publicar]
+
+## [0.2.4] — 2026-11-12
 - Precisión D2 (sin ensanchar): `find -exec[dir]` detecta el comando como PRIMER token tras `-exec` con basename (`-exec echo rm` ya no dispara; `-exec /bin/rm` sí; `-execdir` igual). `.git` en redirecciones exige `/` o fin de ruta (`.git-ok/…` ya no dispara). Mismas asks, menos falsos positivos; ninguna validación se relaja.
 - D2 G1-ter: redirecciones ABSOLUTAS multi-segmento a rutas sensibles ahora detectan (`/home/u/.ssh/…`, `/root/.gnupg/…`, `/srv/app/.git/hooks/…`, `tee /etc/…`); `myfile.ssh/x` absoluto y relativo sigue limpio; `/usr/bin/tee` y `/home/u/.cache` limpios. Solo-ensancha-ask, jamás deny. Queda cubierto el último límite reportado de D2.
 - Refuerzo (arena/467143bf, PR #4): tests de borde + caracterización de huecos confirmados por probe (G2 fallback sin cierre · G3a `rmdir`/`unlink`/`rm` entre comillas · G3b `-F` mayúscula y `git -C … clean`) — congelar ≠ bendecir; src sin tocar, specs propuestas en el reporte del PR.
 - Refuerzo (docs, PR #4): equipos viejos marcados «(superado)»; errata G2 («fallback al comportamiento anterior» → cuerpo segmentado, más ask); doctor sin `--security` = informativo (gate `--security`); nota de hashes en `arranque-workers.md` (solo verifican en clon completo).
+- Refuerzo PR #4 fusionado vía `refuerzo-467` (rebase); errata G2 incorporada a las entradas previas.
+- Como v0.2.0–v0.2.3: sin binarios, sin firmas; la publicación es el código fuente — quien clona, verifica (`docs/release.md`).
+
 - Higiene de claims (refuerzo detrás): README sin conteo fijo de tests; CHANGELOG sin conteo fijo de sumas; `plan-implementacion.md` — tabla de estado viva archivada como registro histórico (hechos vivos → README/CHANGELOG/sumas); `cea7ade4` (hash fantasma) eliminado.
 - D2 G2: `shell-scan` extrae cuerpos de heredoc ANTES de segmentar — el `rm` dentro del heredoc ya no lo oculta (ni lo inventa); comandos tras el heredoc sí se detectan; ante cierre no encontrado, el cuerpo queda a la vista del splitter (más ask, nunca más allow; el comportamiento previo era un solo segmento — errata verificada por refuerzo, PR #4). Falso negativo estructural de D1 corregido.
 - D2 (parcial): detección de `find … -delete`, `find … -exec[dir] rm`, y `git clean` con fuerza sin `-n` (simula) → ask; ambos aprobados por el dueño (OK «sí a todo», 2026-11-11).
