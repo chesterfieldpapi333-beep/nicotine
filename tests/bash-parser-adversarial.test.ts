@@ -213,4 +213,18 @@ describe("D2 — wrappers anidados y bordes find/git-clean/heredoc-mismo-segment
   test(".git-ok/… → detectado por «.git» + frontera de palabra (sobre-aproximación documentada)", () => {
     expect(analyzeBashCommand("echo x > .git-ok/hooks/pre-commit").isDangerous).toBe(true);
   });
+  test("redirección ABSOLUTA multi-segmento a ruta sensible → detectado (G1-ter)", () => {
+    expect(analyzeBashCommand("echo x > /home/user/.ssh/authorized_keys").isDangerous).toBe(true);
+    expect(analyzeBashCommand("echo x > /root/.gnupg/x").isDangerous).toBe(true);
+    expect(analyzeBashCommand("echo x > /var/lib/.aws/credentials").isDangerous).toBe(true);
+    expect(analyzeBashCommand("echo x > /srv/app/.git/hooks/pre-commit").isDangerous).toBe(true);
+    expect(analyzeBashCommand("ls -a | tee /etc/something").isDangerous).toBe(true);
+  });
+  test("absolutas inofensivas → NO detectado (G1-ter sin falsos positivos)", () => {
+    expect(analyzeBashCommand("echo x > /tmp/normal.txt").isDangerous).toBe(false);
+    expect(analyzeBashCommand("echo x > /usr/bin/tee").isDangerous).toBe(false);
+    expect(analyzeBashCommand("echo x > /home/u/.cache/x").isDangerous).toBe(false);
+    expect(analyzeBashCommand("echo x > /myfile.ssh/x").isDangerous).toBe(false);
+    expect(analyzeBashCommand("echo x > myfile.ssh/x").isDangerous).toBe(false);
+  });
 });

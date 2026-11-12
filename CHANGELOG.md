@@ -4,6 +4,7 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 Versionado: el proyecto aún no sigue semver estricto; cada fase cerrada sube minor.
 
 ## [Sin publicar]
+- D2 G1-ter: redirecciones ABSOLUTAS multi-segmento a rutas sensibles ahora detectan (`/home/u/.ssh/…`, `/root/.gnupg/…`, `/srv/app/.git/hooks/…`, `tee /etc/…`); `myfile.ssh/x` absoluto y relativo sigue limpio; `/usr/bin/tee` y `/home/u/.cache` limpios. Solo-ensancha-ask, jamás deny. Queda cubierto el último límite reportado de D2.
 
 ## [0.2.3] — 2026-11-12
 - Fix post-release (2026-11-12): `VERSION` se deriva de `package.json` en runtime (`src/util/version.ts`); eliminadas 6 astillas hardcodeadas de `0.2.1` (`index.ts`, `serve.ts`, `tui.ts`, `lsp.ts`, `mcp/client.ts`, `mdns.ts`) + `tests/version.test.ts` (coincide con package.json). El tag `v0.2.2` quedó con las cadenas viejas (regla del repo: nadie mueve el tag); el fix sale en el siguiente corte.
