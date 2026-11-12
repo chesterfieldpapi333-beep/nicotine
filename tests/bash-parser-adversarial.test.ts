@@ -159,10 +159,11 @@ describe("D2 — wrappers anidados y bordes find/git-clean/heredoc-mismo-segment
     expect(analyzeBashCommand("nohup exec rm -rf /").isDangerous).toBe(true);
     expect(analyzeBashCommand("command exec rm -rf /").isDangerous).toBe(true);
   });
-  test("find … -exec echo rm — sobre-aproximación documentada (ask, no deny)", () => {
-    // «rm» como argumento de echo, no como comando: la regla es tosca a propósito
-    // (mejor pedir ask de más que dejar pasar el -exec rm real).
-    expect(analyzeBashCommand("find . -exec echo rm {} ';'").isDangerous).toBe(true);
+  test("find … -exec echo rm → NO detectado (regla precisa: echo no es rm)", () => {
+    expect(analyzeBashCommand("find . -exec echo rm {} ';'").isDangerous).toBe(false);
+  });
+  test("find … -exec /bin/rm → detectado (basename del comando tras -exec)", () => {
+    expect(analyzeBashCommand("find . -exec /bin/rm -rf {} +").isDangerous).toBe(true);
   });
   test("find -delete tras otro segmento / con -iname", () => {
     expect(analyzeBashCommand("find . -mtime +30 -delete | xargs echo").isDangerous).toBe(true);
@@ -210,8 +211,8 @@ describe("D2 — wrappers anidados y bordes find/git-clean/heredoc-mismo-segment
     expect(analyzeBashCommand("echo x > sub/normal.txt").isDangerous).toBe(false);
     expect(analyzeBashCommand("echo x > myfile.ssh/x").isDangerous).toBe(false);
   });
-  test(".git-ok/… → detectado por «.git» + frontera de palabra (sobre-aproximación documentada)", () => {
-    expect(analyzeBashCommand("echo x > .git-ok/hooks/pre-commit").isDangerous).toBe(true);
+  test(".git-ok/… → NO detectado (regla precisa: .git exige «/» o fin de ruta)", () => {
+    expect(analyzeBashCommand("echo x > .git-ok/hooks/pre-commit").isDangerous).toBe(false);
   });
   test("redirección ABSOLUTA multi-segmento a ruta sensible → detectado (G1-ter)", () => {
     expect(analyzeBashCommand("echo x > /home/user/.ssh/authorized_keys").isDangerous).toBe(true);

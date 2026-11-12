@@ -14,7 +14,7 @@ const DESTRUCTIVE = new Set([
 const SHELLS = new Set(["sh", "bash", "zsh", "dash", "ksh"]);
 const DOWNLOADERS = new Set(["curl", "wget"]);
 const WRAPPERS = new Set(["sudo", "doas", "command", "builtin", "env", "xargs", "nice", "ionice", "nohup", "time", "exec"]);
-const REDIRECT_SENSITIVE = /(^|\s)(>>|>|&>|\|\s*(sudo\s+)?tee)\s*["']?(?:~?\/|\$HOME\/|\/)?(?:(?:\.\.|[A-Za-z0-9_.-]+)(?:\/(?:\.\.|[A-Za-z0-9_.-]+))*\/)?(\.ssh\b|\.aws\b|\.gnupg\b|\.git\b|etc\b|dev\/(sd|nvme|hd|mmcblk)|boot\b)/i;
+const REDIRECT_SENSITIVE = /(^|\s)(>>|>|&>|\|\s*(sudo\s+)?tee)\s*["']?(?:~?\/|\$HOME\/|\/)?(?:(?:\.\.|[A-Za-z0-9_.-]+)(?:\/(?:\.\.|[A-Za-z0-9_.-]+))*\/)?(\.ssh\b|\.aws\b|\.gnupg\b|\.git(?=\/|$)|etc\b|dev\/(sd|nvme|hd|mmcblk)|boot\b)/i;
 
 /** Quita wrappers iniciales (sudo, env A=B, nice, …) y devuelve el comando real. */
 function unwrap(tokens: string[]): { cmd: string; rest: string[] } {
@@ -70,8 +70,13 @@ export function analyzeBashCommand(command: string): BashAnalysis {
     if (cmd === "find") {
       if (rest.includes("-delete")) return { isDangerous: true, reason: "«find» con -delete" };
       const execIdx = rest.findIndex((t) => t === "-exec" || t === "-execdir");
-      if (execIdx >= 0 && rest.slice(execIdx + 1).some((t) => t === "rm")) {
-        return { isDangerous: true, reason: "«find» con -exec rm" };
+      if (execIdx >= 0) {
+        // El comando ejecutado es el PRIMER token tras -exec[dir] (termina en {} o ;):
+        // «-exec echo rm {}» ejecuta echo (seguro); «-exec rm -rf {}» ejecuta rm.
+        const target = rest[execIdx + 1];
+        if (target && basename(target) === "rm") {
+          return { isDangerous: true, reason: "«find» con -exec rm" };
+        }
       }
     }
     if (cmd === "git" && rest[0] === "clean") {

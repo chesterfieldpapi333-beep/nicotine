@@ -4,6 +4,7 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 Versionado: el proyecto aún no sigue semver estricto; cada fase cerrada sube minor.
 
 ## [Sin publicar]
+- Precisión D2 (sin ensanchar): `find -exec[dir]` detecta el comando como PRIMER token tras `-exec` con basename (`-exec echo rm` ya no dispara; `-exec /bin/rm` sí; `-execdir` igual). `.git` en redirecciones exige `/` o fin de ruta (`.git-ok/…` ya no dispara). Mismas asks, menos falsos positivos; ninguna validación se relaja.
 - D2 G1-ter: redirecciones ABSOLUTAS multi-segmento a rutas sensibles ahora detectan (`/home/u/.ssh/…`, `/root/.gnupg/…`, `/srv/app/.git/hooks/…`, `tee /etc/…`); `myfile.ssh/x` absoluto y relativo sigue limpio; `/usr/bin/tee` y `/home/u/.cache` limpios. Solo-ensancha-ask, jamás deny. Queda cubierto el último límite reportado de D2.
 
 ## [0.2.3] — 2026-11-12
