@@ -196,9 +196,21 @@ describe("D2 — wrappers anidados y bordes find/git-clean/heredoc-mismo-segment
   test("redirección a .git con target entrecomillado → detectado (G1)", () => {
     expect(analyzeBashCommand('git add . && echo x > ".git/hooks/pre-commit"').isDangerous).toBe(true);
   });
-  test("redirección a subdir/.git/… → NO detectado (hueco conocido) — caracterización", () => {
-    // el regex solo admite un prefijo (~/, $HOME/, ./): «sub/.git/…» se escapa.
-    // Candidato a G1-bis en el próximo tramo de D2; ensancharlo requiere OK del dueño.
-    expect(analyzeBashCommand("echo x > sub/.git/hooks/pre-commit").isDangerous).toBe(false);
+  test("redirección a subdir/.git/… → detectado (G1-bis)", () => {
+    expect(analyzeBashCommand("echo x > sub/.git/hooks/pre-commit").isDangerous).toBe(true);
+  });
+  test("redirección a subdir profundo / «..»/ → detectado (G1-bis)", () => {
+    expect(analyzeBashCommand("echo x > a/b/.aws/credentials").isDangerous).toBe(true);
+    expect(analyzeBashCommand("echo x > ../repo/.git/config").isDangerous).toBe(true);
+    expect(analyzeBashCommand("echo x > sub/.ssh/authorized_keys").isDangerous).toBe(true);
+  });
+  test(".github / .gitignore / no sensible → NO detectado (G1-bis sin falsos positivos)", () => {
+    expect(analyzeBashCommand("echo x > docs/.github/workflows/ci.yml").isDangerous).toBe(false);
+    expect(analyzeBashCommand("echo x > docs/.gitignore").isDangerous).toBe(false);
+    expect(analyzeBashCommand("echo x > sub/normal.txt").isDangerous).toBe(false);
+    expect(analyzeBashCommand("echo x > myfile.ssh/x").isDangerous).toBe(false);
+  });
+  test(".git-ok/… → detectado por «.git» + frontera de palabra (sobre-aproximación documentada)", () => {
+    expect(analyzeBashCommand("echo x > .git-ok/hooks/pre-commit").isDangerous).toBe(true);
   });
 });

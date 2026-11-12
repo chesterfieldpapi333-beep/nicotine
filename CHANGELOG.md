@@ -4,6 +4,7 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 Versionado: el proyecto aún no sigue semver estricto; cada fase cerrada sube minor.
 
 ## [Sin publicar] — 2026-11-11
+- D2 G1-bis: el prefijo opcional delante de rutas sensibles en redirecciones admite cadenas de segmentos relativos (`sub/.git/…`, `../repo/.git/…`, `a/b/.aws/…`, `tee a/b/.git/…`); `.github`/`.gitignore` no disparan; `.git-ok` sí (frontera de palabra, sobre-aproximación aceptada). Ensanchar preguntar, jamás deny.
 - Higiene de prompts/docs: arrancadores (claude/workers/refuerzo) sin conteos fijos ni hashes congelados; D1/D2 listados como fusionados; `review-d1` y `plan-implementacion` sin conteos congelados.
 - Mantenedor amplió `tests/bash-parser-adversarial.test.ts` con bordes D2 ejecutados (wrappers anidados `sudo|env|nohup|command exec`, `find` con `-delete`/`-exec echo rm` sobre-aprox. declarada, `git clean -n` en cualquier formato, destructivos en la línea del heredoc-inicio y doble heredoc, `tee`/target entrecomillado a `.git`) + caracterización `sub/.git/**` (hueco G1-bis pendiente de OK).
 - Higiene de claims (refuerzo detrás): README sin conteo fijo de tests; CHANGELOG sin conteo fijo de sumas; `plan-implementacion.md` — tabla de estado viva archivada como registro histórico (hechos vivos → README/CHANGELOG/sumas); `cea7ade4` (hash fantasma) eliminado.
