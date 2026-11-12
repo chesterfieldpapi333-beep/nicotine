@@ -4,7 +4,10 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 Versionado: el proyecto aún no sigue semver estricto; cada fase cerrada sube minor.
 
 ## [Sin publicar]
+
+## [0.2.3] — 2026-11-12
 - Fix post-release (2026-11-12): `VERSION` se deriva de `package.json` en runtime (`src/util/version.ts`); eliminadas 6 astillas hardcodeadas de `0.2.1` (`index.ts`, `serve.ts`, `tui.ts`, `lsp.ts`, `mcp/client.ts`, `mdns.ts`) + `tests/version.test.ts` (coincide con package.json). El tag `v0.2.2` quedó con las cadenas viejas (regla del repo: nadie mueve el tag); el fix sale en el siguiente corte.
+- Como v0.2.0–v0.2.2: sin binarios, sin firmas; la publicación es el código fuente — quien clona, verifica (`docs/release.md`).
 
 ## [0.2.2] — 2026-11-12
 - D2 G1-bis: el prefijo opcional delante de rutas sensibles en redirecciones admite cadenas de segmentos relativos (`sub/.git/…`, `../repo/.git/…`, `a/b/.aws/…`, `tee a/b/.git/…`); `.github`/`.gitignore` no disparan; `.git-ok` sí (frontera de palabra, sobre-aproximación aceptada). Ensanchar preguntar, jamás deny.
