@@ -11,6 +11,10 @@ const DESTRUCTIVE = new Set([
   "rm", "dd", "mkfs", "shred", "wipe", "fdisk", "parted", "mkswap", "chmod", "chown",
   "mkfs.ext4", "mkfs.xfs", "mkfs.btrfs", "sfdisk",
 ]);
+// Verbos destructivos tras «-exec»/«-execdir» de find (borrado de archivos vía find).
+const FIND_EXEC_DESTRUCTIVE = new Set([
+  "rm", "rmdir", "unlink", "shred", "wipe", "truncate", "dd",
+]);
 const SHELLS = new Set(["sh", "bash", "zsh", "dash", "ksh"]);
 const DOWNLOADERS = new Set(["curl", "wget"]);
 const WRAPPERS = new Set(["sudo", "doas", "command", "builtin", "env", "xargs", "nice", "ionice", "nohup", "time", "exec"]);
@@ -73,9 +77,11 @@ export function analyzeBashCommand(command: string): BashAnalysis {
       if (execIdx >= 0) {
         // El comando ejecutado es el PRIMER token tras -exec[dir] (termina en {} o ;):
         // «-exec echo rm {}» ejecuta echo (seguro); «-exec rm -rf {}» ejecuta rm.
+        // Se desenvuelven comillas simples/dobles («-exec 'rm'» es rm).
         const target = rest[execIdx + 1];
-        if (target && basename(target) === "rm") {
-          return { isDangerous: true, reason: "«find» con -exec rm" };
+        const verb = target?.replace(/^['"]+|['"]+$/g, "");
+        if (verb && FIND_EXEC_DESTRUCTIVE.has(basename(verb))) {
+          return { isDangerous: true, reason: `«find» con -exec ${basename(verb)}` };
         }
       }
     }
