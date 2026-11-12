@@ -10,7 +10,7 @@ Fecha: 2026-11-11 · Commit verificado: `a30fd7e` (master) · Tag: `v0.2.0` = `2
 | Typecheck | `bun x tsc --noEmit` | limpio |
 | Estilo | `bun scripts/check-style.ts` | OK (LF, sin trailing, newline final) |
 | Smoke versión | `./bin/nic --version` | `nicotine 0.2.0` |
-| Doctor | `./bin/nic doctor` | OK (config defaults; serve apagado; auth 0 proveedores) |
+| Doctor | `./bin/nic doctor` | OK (config defaults; serve apagado; auth 0 proveedores; informativo: siempre exit 0, el gate de seguridad es `--security`) |
 | Doctor seguridad | `./bin/nic doctor --security` | exit 0 · 0 hallazgos (umask 0022; sin secretos en sesiones/config; deny-wins sonda OK) |
 | Policy export | `./bin/nic policy export` | 8 reglas + sources; serialización JSON correcta |
 | Policy explain readonly | `./bin/nic policy explain bash "rm -rf …" --readonly` | **deny** por `cli:--readonly` |

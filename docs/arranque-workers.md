@@ -1,5 +1,7 @@
 > **Nota de honesto naming (2026-11-11):** «Claude» en estos docs es el **nombre del rol del mantenedor** (el asistente que estructura y revisa), no una afirmación sobre qué modelo corre detrás en un momento dado — Arena.ai Agent Mode usa varios modelos (entre ellos familias Claude, ChatGPT, Gemini, Grok, Qwen y Kimi). La función es lo que importa: dirección, specs, revisión y release. Cuando quieras fijar un modelo en particular, se nombra el modelo explícitamente en la spec.
 
+> **Nota de hashes (2026-11-11):** los hashes citados en los docs solo se resuelven con un **clon completo**. En un clone shallow (`--depth`) fallan todos — y eso no demuestra que los hashes sean falsos. Para verificar: `git fetch --unshallow origin` (o clonar sin `--depth`) y luego `git cat-file -e <hash>`. Ejemplo verificado: `cea7ade4` (citado en `docs/plan-implementacion.md`) no resuelve ni en clon completo → archivado como histórico.
+
 # Arranque para DeepSeek (único worker activo) — pegar en su sesión
 
 Repo público: https://github.com/chesterfieldpapi333-beep/nicotine
