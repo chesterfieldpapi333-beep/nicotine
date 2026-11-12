@@ -1,6 +1,7 @@
 # D2 (propuesta, L1) — Cerrar los huecos de `bash-parser` encontrados por D1
 
 - **Estado**: ✅ IMPLEMENTADO por el mantenedor 2026-11-11 (OK «sí a todo» del dueño): G4 (`exec` wrapper), G1 (`.git` en redirecciones), G3 (`find -delete`/`-exec rm`/`-execdir rm`, `git clean` con `-f` sin `-n` → ask), G2 (heredoc: cuerpos extraídos antes de segmentar; ante delimitador no encontrado → fallback conservador previo; D1 heredoc tests invertidos a verificación; fuzz ampliado).
+- **Ampliación 2026-11-12**: G1-bis (cadenas relativas `sub/…/.git/…`, `../repo/…`) y G1-ter (absolutas multi-segmento `/home/u/.ssh/…`) fusionadas. Precisión 2026-11-12: `-exec` detecta el PRIMER token tras él con basename (`-exec echo rm` NO dispara; antes sobre-preguntaba); `.git` exige `/` o fin de ruta (`.git-ok` no dispara). Suite verde en master.
 - **Relación**: tests adversariales ya congelan el estado actual en
   `tests/bash-parser-adversarial.test.ts` («congelar ≠ bendecir»). D2 los invierte.
 - **Riesgo**: ALTO por diseño — toca dos piezas del camino de seguridad. Spec antes que

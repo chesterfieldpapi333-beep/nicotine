@@ -1,5 +1,13 @@
 # D1 — Tests adversariales para `analyzeBashCommand` (spec L1)
 
+- **Addendum 2026-11-12 (D2 fusionado)**: los veredictos `false` de esta spec quedaron
+  **invertidos** para sus casos con D2 (y precisión 2026-11-12): `find -exec[dir] rm`,
+  `find … -delete`, `git clean -f(dx)`, `exec rm`, redirecciones a `.git/**` con cualquier
+  prefijo de ruta (relativo G1-bis, absoluto G1-ter), `tee … | .git` — todos **true**.
+  `.git-ok/…` y `find -exec echo rm` quedaron **false** por la regla precisa del 2026-11-12.
+  Heredocs: el cuerpo sigue sin ejecutarse (false, correcto); los comandos tras el heredoc
+  sí se analizan (true donde hay destructivo). La tabla de veredictos de abajo describe el
+  estado AL IMPLEMENTAR D1 (histórico); para el comportamiento vigente manda la suite.
 - **Estado**: ✅ implementada por el mantenedor 2026-11-11 (`tests/bash-parser-adversarial.test.ts`, +46 casos). El dueño aprobó el reparto inverso: el mantenedor construye; la sesión de refuerzo revisa/mejora detrás.
 - **Bloqueante**: nada; tarea independiente del resto.
 
