@@ -48,6 +48,8 @@ Q1–Q4 mergeados (PR #2 `93ba8ce` + PR #3 `2ab5ba8`): discovery en `nic doctor`
 coherencia documental, tests de áreas flacas, `sanitizeForTUI` (`d31c05e`). Marcados ✅
 en `docs/qwen-tasks.md`. Qwen ya no está en el equipo activo.
 
-> **Pipeline vigente (dueño, 2026-11-11):** el mantenedor **construye** las piezas spec'd;
-> la otra sesión (combinada Claude+DeepSeek) trabaja **un paso detrás** arreglando,
-> reforzando y mejorando lo fusionado. DeepSeek queda como rol dentro de esa sesión.
+> **Pipeline vigente (dueño, 2026-11-12):** el experimento de dos sesiones se cerró —
+> «no hay más clon; vos nomás estás… acepto todo… trabajas solo devuelta». El mantenedor
+> construye, refuerza y mejora solo; toda la suite verde pasa por su revisión. La sesión
+> de refuerzo no llegó a aterrizar nada (ver «Riesgo de colisión» en `docs/arranque-refuerzo.md`); su valor quedó absorbido: D1/D2 los fusionó el mantenedor y su trasfondo
+> (hallazgos de claims, conteos, hashes) se aplicó en el pase de higiene.

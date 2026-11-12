@@ -3,7 +3,9 @@
 Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 Versionado: el proyecto aún no sigue semver estricto; cada fase cerrada sube minor.
 
-## [Sin publicar] — 2026-11-11
+## [Sin publicar]
+
+## [0.2.2] — 2026-11-12
 - D2 G1-bis: el prefijo opcional delante de rutas sensibles en redirecciones admite cadenas de segmentos relativos (`sub/.git/…`, `../repo/.git/…`, `a/b/.aws/…`, `tee a/b/.git/…`); `.github`/`.gitignore` no disparan; `.git-ok` sí (frontera de palabra, sobre-aproximación aceptada). Ensanchar preguntar, jamás deny.
 - Higiene de prompts/docs: arrancadores (claude/workers/refuerzo) sin conteos fijos ni hashes congelados; D1/D2 listados como fusionados; `review-d1` y `plan-implementacion` sin conteos congelados.
 - Mantenedor amplió `tests/bash-parser-adversarial.test.ts` con bordes D2 ejecutados (wrappers anidados `sudo|env|nohup|command exec`, `find` con `-delete`/`-exec echo rm` sobre-aprox. declarada, `git clean -n` en cualquier formato, destructivos en la línea del heredoc-inicio y doble heredoc, `tee`/target entrecomillado a `.git`) + caracterización `sub/.git/**` (hueco G1, cerrado como G1-bis).
@@ -28,6 +30,8 @@ Versionado: el proyecto aún no sigue semver estricto; cada fase cerrada sube mi
   portapapeles—, DCS/SOS/PM/APC y controles C0/C1; solo sobrevive SGR básico).
 - `undo`: el manifest se poda **antes** de escribirse y la escritura es atómica (`manifest.json.tmp` +
   `renameSync`), así nunca cita imágenes ya borradas ni se pierde por un corte a mitad de escritura.
+- Pipeline unificado (dueño, 2026-11-12): la sesión de refuerzo se cerró sin entregas; «no hay más clon; vos nomás estás… trabajas solo devuelta». El mantenedor construye y refuerza solo. Docs del reparto actualizados (`docs/equipo.md`, `docs/equipo-capas.md`, `docs/arranque-workers.md`, `docs/arranque-refuerzo.md`, `docs/review-d1.md`).
+- Como v0.2.0/v0.2.1: sin binarios, sin firmas; la publicación es el código fuente — quien clona, verifica (`docs/release.md`).
 
 ## [0.2.1] — 2026-11-11
 

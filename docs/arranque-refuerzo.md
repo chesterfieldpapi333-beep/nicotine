@@ -1,4 +1,9 @@
-# Prompt de arranque — sesión de REFUERZO (va detrás del mantenedor)
+# Prompt de arranque — sesión de REFUERZO (CERRADA 2026-11-12)
+
+> **Estado: sesión cancelada** (dueño, 2026-11-12: «no hay más clon; vos nomás estás, es
+> todo un quilombo… trabajas solo devuelta»). El prompt queda como registro. Antes de
+> cancelarse, la sesión llegó a marcar una clase de hallazgos útiles (claims sin verificar,
+> conteos congelados, hashes fantasma) — ya aplicados por el mantenedor en master.
 
 Repo público: https://github.com/chesterfieldpapi333-beep/nicotine
 Idioma de trabajo: español. El dueño supervisa; el mantenedor (la sesión principal) construye.
