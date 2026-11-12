@@ -147,3 +147,58 @@ describe("robustez de entrada", () => {
     if (r.reason) expect(r.reason.length).toBeLessThan(200);
   });
 });
+
+describe("D2 — wrappers anidados y bordes find/git-clean/heredoc-mismo-segmento (2026-11-11)", () => {
+  test("sudo exec rm → wrappers anidados (sudo→exec→rm)", () => {
+    expect(analyzeBashCommand("sudo exec rm -rf /").isDangerous).toBe(true);
+  });
+  test("env A=B exec rm → assignment + exec anidados", () => {
+    expect(analyzeBashCommand("env A=B exec rm -rf /").isDangerous).toBe(true);
+  });
+  test("nohup exec rm / command exec rm", () => {
+    expect(analyzeBashCommand("nohup exec rm -rf /").isDangerous).toBe(true);
+    expect(analyzeBashCommand("command exec rm -rf /").isDangerous).toBe(true);
+  });
+  test("find … -exec echo rm — sobre-aproximación documentada (ask, no deny)", () => {
+    // «rm» como argumento de echo, no como comando: la regla es tosca a propósito
+    // (mejor pedir ask de más que dejar pasar el -exec rm real).
+    expect(analyzeBashCommand("find . -exec echo rm {} ';'").isDangerous).toBe(true);
+  });
+  test("find -delete tras otro segmento / con -iname", () => {
+    expect(analyzeBashCommand("find . -mtime +30 -delete | xargs echo").isDangerous).toBe(true);
+    expect(analyzeBashCommand("find . -iname '*.LOG' -delete").isDangerous).toBe(true);
+  });
+  test("git clean con -n (cualquier orden/formato) → simulación, seguro", () => {
+    expect(analyzeBashCommand("git clean -n -f -d").isDangerous).toBe(false);
+    expect(analyzeBashCommand("git clean -f -n").isDangerous).toBe(false);
+    expect(analyzeBashCommand("git clean --force --dry-run").isDangerous).toBe(false);
+    expect(analyzeBashCommand("git clean --dry-run -fdx").isDangerous).toBe(false);
+    expect(analyzeBashCommand("git clean -fdxn").isDangerous).toBe(false);
+    expect(analyzeBashCommand("git clean -ffd").isDangerous).toBe(true);
+  });
+  test("destructivo EN la línea del heredoc (<<EOF && rm …) → detectado (G2)", () => {
+    expect(analyzeBashCommand("cat <<EOF && rm -rf /tmp/x\nbody\nEOF").isDangerous).toBe(true);
+  });
+  test("doble heredoc en una línea + destructivo tras delimitadores → detectado (G2)", () => {
+    expect(analyzeBashCommand("cat <<A <<B && rm -rf /tmp/qq\n1\nA\n2\nB").isDangerous).toBe(true);
+  });
+  test("doble heredoc sin destructivos → seguro (G2)", () => {
+    expect(analyzeBashCommand("cat <<A <<B\nx\nA\ny\nB").isDangerous).toBe(false);
+  });
+  test("find -exec rm con terminador + → detectado", () => {
+    expect(analyzeBashCommand("find . -exec rm {} +").isDangerous).toBe(true);
+    expect(analyzeBashCommand("find . -exec rm -f {} ';'").isDangerous).toBe(true);
+  });
+  test("redirección a .git vía pipe tee → detectado (G1)", () => {
+    expect(analyzeBashCommand("echo x | tee .git/hooks/pre-commit").isDangerous).toBe(true);
+    expect(analyzeBashCommand("ls | tee .git/config").isDangerous).toBe(true);
+  });
+  test("redirección a .git con target entrecomillado → detectado (G1)", () => {
+    expect(analyzeBashCommand('git add . && echo x > ".git/hooks/pre-commit"').isDangerous).toBe(true);
+  });
+  test("redirección a subdir/.git/… → NO detectado (hueco conocido) — caracterización", () => {
+    // el regex solo admite un prefijo (~/, $HOME/, ./): «sub/.git/…» se escapa.
+    // Candidato a G1-bis en el próximo tramo de D2; ensancharlo requiere OK del dueño.
+    expect(analyzeBashCommand("echo x > sub/.git/hooks/pre-commit").isDangerous).toBe(false);
+  });
+});

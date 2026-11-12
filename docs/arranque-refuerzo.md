@@ -8,7 +8,7 @@ es que lo que el mantenedor fusiona quede bien hecho, reforzado y mejorado — u
 por detrás de él. El mantenedor commitea en master; vos trabajás detrás de cada fusión
 y tu salida siempre pasa por su revisión antes de dominar.
 
-**Punto de partida**: master con D1 (`fa7e960`); suite ~517 tests pass / 0 fail.
+**Punto de partida**: master con D1+D2+higiene fusionados (verificar `git log --oneline -3 origin/master`; el conteo lo reporta `bun test`).
 
 **Tu lazo de trabajo (siempre el mismo)**:
 1. `git fetch origin master` y mirás qué fusionó el mantenedor desde tu último paso

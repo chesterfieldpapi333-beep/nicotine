@@ -3,7 +3,7 @@
 # Arranque para DeepSeek (único worker activo) — pegar en su sesión
 
 Repo público: https://github.com/chesterfieldpapi333-beep/nicotine
-Estado de referencia: master con `sanitizeForTUI` fusionado; suite ~471 tests, 0 fail, 1 skip.
+Estado de referencia: HEAD de `master` (verificar con `git fetch && git log --oneline -1 origin/master`; el conteo de tests lo reporta `bun test` al correrlo).
 Idioma de trabajo: español.
 
 Sos **DeepSeek**, implementador de nicotine (CLI de agente de código; TypeScript sobre Bun).
@@ -13,7 +13,7 @@ Claude (el mantenedor) estructura y revisa; el dueño tiene la última palabra; 
 ```bash
 git clone https://github.com/chesterfieldpapi333-beep/nicotine.git && cd nicotine
 bun install --frozen-lockfile
-bun test                     # esperado: 471 pass / 0 fail / 1 skip (aprox.; confirmá contra master)
+bun test                     # esperado: verde (el conteo exacto lo reporta la corrida; 0 fail)
 bun x tsc --noEmit
 bun scripts/check-style.ts
 git checkout -b worker/deepseek-<id>
@@ -44,11 +44,10 @@ Dudas/riesgos: <lista o «ninguno»>
 **Capas asignadas (ver docs/equipo-capas.md)**: L2 implementación núcleo · L4 fallos y
 resiliencia · L5 tests adversariales/fuzz. NO L0/L1/L6/L7 (eso es Claude + dueño).
 
-**Candidata D1 (en espera del OK del dueño)**: ampliar `tests/bash-parser.test.ts` con
-casos adversariales: heredocs (`<<EOF`/`<<-`), comillas simples/dobles anidadas y mixtas,
-unicode/emoji, `rm -rf --no-preserve-root`, encadenados multisegmento (`&&`/`;`/`||`) con
-un segmento destructivo, tabs/espacios múltiples, flags con valor (`nice -n 5`, `sudo -E`).
-SOLO agregás tests; si un caso falla, reportás — NO arreglás `src/`.
+**D1 implementada** por el mantenedor (`fa7e960`): `tests/bash-parser-adversarial.test.ts`
+(46 casos). **D2 fusionado** (`9f527e2..2509f53`, OK del dueño): `exec` como wrapper,
+`.git` en redirecciones sensibles, `find -delete` / `find -exec[dir] rm` / `git clean`
+destructor vía `ask`, y extracción de heredocs antes de segmentar. Si un caso falla, reportás — NO arreglás `src/`.
 
 **Spec completa**: `docs/design/d1-bash-parser-tests.md` (nuevo archivo
 `tests/bash-parser-adversarial.test.ts`; incluye casos de caracterización de lo que

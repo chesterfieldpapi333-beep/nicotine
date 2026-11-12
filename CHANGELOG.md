@@ -4,6 +4,8 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 Versionado: el proyecto aún no sigue semver estricto; cada fase cerrada sube minor.
 
 ## [Sin publicar] — 2026-11-11
+- Higiene de prompts/docs: arrancadores (claude/workers/refuerzo) sin conteos fijos ni hashes congelados; D1/D2 listados como fusionados; `review-d1` y `plan-implementacion` sin conteos congelados.
+- Mantenedor amplió `tests/bash-parser-adversarial.test.ts` con bordes D2 ejecutados (wrappers anidados `sudo|env|nohup|command exec`, `find` con `-delete`/`-exec echo rm` sobre-aprox. declarada, `git clean -n` en cualquier formato, destructivos en la línea del heredoc-inicio y doble heredoc, `tee`/target entrecomillado a `.git`) + caracterización `sub/.git/**` (hueco G1-bis pendiente de OK).
 - Higiene de claims (refuerzo detrás): README sin conteo fijo de tests; CHANGELOG sin conteo fijo de sumas; `plan-implementacion.md` — tabla de estado viva archivada como registro histórico (hechos vivos → README/CHANGELOG/sumas); `cea7ade4` (hash fantasma) eliminado.
 - D2 G2: `shell-scan` extrae cuerpos de heredoc ANTES de segmentar — el `rm` dentro del heredoc ya no lo oculta (ni lo inventa); comandos tras el heredoc sí se detectan; ante cierre no encontrado, fallback al comportamiento anterior. Falso negativo estructural de D1 corregido.
 - D2 (parcial): detección de `find … -delete`, `find … -exec[dir] rm`, y `git clean` con fuerza sin `-n` (simula) → ask; ambos aprobados por el dueño (OK «sí a todo», 2026-11-11).

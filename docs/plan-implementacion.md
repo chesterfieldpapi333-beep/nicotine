@@ -140,7 +140,7 @@ Dependencias duras: A1 antes de cualquier release/etiquetado; H5 antes de H8; H2
 
 ## 9. Criterios de salida globales
 
-1. `git clone` limpio + `bun install --frozen-lockfile` + `bun test` → verde (344+ tests, con los nuevos de H0/H3/H5/H7/C*).
+1. `git clone` limpio + `bun install --frozen-lockfile` + `bun test` → verde (con los tests de H0/H3/H5/H7/C*).
 2. `nic doctor --security` detecta fixtures y no imprime secretos; exit codes honestos.
 3. `--readonly` y deny-wins verificados por tests adversariales.
 4. README + LICENSE + CHANGELOG presentes; `parity.md`/`informe-fases.md` reflejan el estado real.
