@@ -17,6 +17,7 @@
 
 import dgram from "node:dgram";
 import os from "node:os";
+import { VERSION } from "../util/version.js";
 
 const TYPE = { A: 1, PTR: 12, TXT: 16, SRV: 33, ANY: 255 } as const;
 const CLASS_IN = 1;
@@ -189,7 +190,7 @@ export class MdnsAnnouncer {
   }
 
   private txtRecord(ttl: number): Rr {
-    return { name: this.names.instanceFqdn, type: TYPE.TXT, cacheFlush: true, ttl, rdata: txtRdata({ path: this.o.path ?? "/", api: "nicotine-serve-1", version: "0.2.1" }) };
+    return { name: this.names.instanceFqdn, type: TYPE.TXT, cacheFlush: true, ttl, rdata: txtRdata({ path: this.o.path ?? "/", api: "nicotine-serve-1", version: VERSION }) };
   }
   private srvRecord(ttl: number): Rr {
     return { name: this.names.instanceFqdn, type: TYPE.SRV, cacheFlush: true, ttl, rdata: srvRdata(this.o.httpPort, this.names.targetFqdn) };

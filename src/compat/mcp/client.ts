@@ -23,6 +23,7 @@ import { spawn, type ChildProcess } from "node:child_process";
 import type { McpServerDef } from "./types.js";
 import { getValidAccessToken } from "./oauth.js";
 import type { ToolParameters } from "../../core/types.js";
+import { VERSION } from "../../util/version.js";
 
 export interface McpToolInfo {
   name: string;
@@ -36,7 +37,7 @@ export interface McpPromptInfo {
   arguments?: { name: string; description?: string; required?: boolean }[];
 }
 
-const CLIENT_INFO = { name: "nicotine", version: "0.2.1" };
+const CLIENT_INFO = { name: "nicotine", version: VERSION };
 const PROTOCOL_2026 = "2026-07-28";
 const LEGACY_LADDER = ["2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05"];
 

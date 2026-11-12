@@ -25,6 +25,7 @@ import { editInExternalEditor, openInExternalEditor } from "../ui/external-edito
 import type { UiBridge, ExtAppLike } from "../ext/api.js";
 import { splitArgs } from "../compat/util.js";
 import { sanitizeForTUI } from "../security/sanitize.js";
+import { VERSION } from "../util/version.js";
 
 export interface TuiOptions extends RuntimeOptions {
   /** Fuerza el motor: "opentui" (defecto) | "ansi". */
@@ -382,7 +383,7 @@ export async function runTui(opts: TuiOptions): Promise<number> {
 
   // ————— arranque de la UI —————
   if (opts.sessionId || opts.continueLatest) app.setHistory(displayHistory(rt.messages.slice(1)));
-  app.info(`nicotine 0.2.1 — sesión ${rt.session.id} · ${rt.provider.model} · esc aborta · ctrl+p comandos`);
+  app.info(`nicotine ${VERSION} — sesión ${rt.session.id} · ${rt.provider.model} · esc aborta · ctrl+p comandos`);
 
   const engineName = (opts.engine ?? envAlias("UI_ENGINE") ?? "opentui").toLowerCase();
   let engine: UiEngine;

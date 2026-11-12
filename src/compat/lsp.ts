@@ -23,6 +23,7 @@ import { readFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 import { extname, join } from "node:path";
 import { existsSync } from "node:fs";
+import { VERSION } from "../util/version.js";
 
 export interface LspServerDef {
   name: string;
@@ -222,7 +223,7 @@ export async function diagnosticsFor(def: LspServerDef, absPath: string, cwd: st
       processId: process.pid,
       rootUri: pathToFileURL(findRoot(def, cwd)).href,
       capabilities: { textDocument: { publishDiagnostics: {} } },
-      clientInfo: { name: "nicotine", version: "0.2.1" },
+      clientInfo: { name: "nicotine", version: VERSION },
     }, Math.min(timeoutMs, 8000));
     session.send("initialized", {});
     const text = readFileSync(absPath, "utf8");

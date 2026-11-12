@@ -51,7 +51,7 @@ export interface ServeOptions extends RuntimeOptions {
   onListening?: (addr: string) => void;
 }
 
-const VERSION = "0.2.1";
+import { VERSION } from "../util/version.js";
 const TURN_TIMEOUT_MS = 10 * 60 * 1000;
 
 /** Exporta la sesión actual como Markdown (mismo formato que /export, sin archivo). */
