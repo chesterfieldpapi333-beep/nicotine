@@ -13,6 +13,11 @@ const DESTRUCTIVE = new Set([
 ]);
 const SHELLS = new Set(["sh", "bash", "zsh", "dash", "ksh"]);
 const DOWNLOADERS = new Set(["curl", "wget"]);
+// Comandos que leen un archivo completo y lo flushean a stdout: si ese stdout
+// va a un shell («cat script | sh»), es ejecución remota de código disfrazada.
+// Filtradores legítimos (grep, sed, awk, head, …) NO se incluyen: no son
+// fuentes de código, y flushearlos a un shell es un pipe normal.
+const CAT_READERS = new Set(["cat", "cp", "cpio", "less", "more"]);
 const WRAPPERS = new Set(["sudo", "doas", "command", "builtin", "env", "xargs", "nice", "ionice", "nohup", "time", "exec"]);
 const REDIRECT_SENSITIVE = /(^|\s)(>>|>|&>|\|\s*(sudo\s+)?tee)\s*["']?(?:~?\/|\$HOME\/|\/)?(?:(?:\.\.|[A-Za-z0-9_.-]+)(?:\/(?:\.\.|[A-Za-z0-9_.-]+))*\/)?(\.ssh\b|\.aws\b|\.gnupg\b|\.git(?=\/|$)|etc\b|dev\/(sd|nvme|hd|mmcblk)|boot\b)/i;
 
@@ -52,9 +57,15 @@ export function analyzeBashCommand(command: string): BashAnalysis {
   const cmds = segments.map((seg) => unwrap(seg.trim().split(/\s+/)).cmd);
 
   // 2a) Descargar + ejecutar shell: «curl … | sh», «wget … | sudo bash»
+  //     y lectura de archivo flusheada a shell: «cat script | sh» (hueco DeepSeek).
+  //     Solo el pipe entre segmentos adyacentos cuenta: «cat a && cat b | sh»
+  //     no es un pipe, y «echo x | sh» no es cat de archivo.
   for (let i = 0; i < segments.length - 1; i++) {
     if (DOWNLOADERS.has(cmds[i]) && SHELLS.has(cmds[i + 1])) {
       return { isDangerous: true, reason: `descarga directa a shell «${cmds[i]} | ${cmds[i + 1]}»` };
+    }
+    if (CAT_READERS.has(cmds[i]) && SHELLS.has(cmds[i + 1])) {
+      return { isDangerous: true, reason: `lectura de archivo a shell «${cmds[i]} | ${cmds[i + 1]}»` };
     }
   }
   // 2b) Shell interpretando sustitución de red: «bash -c "$(curl …)"», backticks
