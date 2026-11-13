@@ -61,14 +61,19 @@ describe("destructivos con flags peligrosos", () => {
   test("find -delete → detectado (G3a)", () => {
     expect(analyzeBashCommand("find . -name '*.o' -delete").isDangerous).toBe(true);
   });
-  test("find -exec rmdir → hueco conocido (caracterización: solo coincide exacto «rm»)", () => {
-    expect(analyzeBashCommand("find . -exec rmdir {} \\;").isDangerous).toBe(false);
+  test("find -exec rmdir → ask forzado (G3a: verbos destructivos directorio)", () => {
+    expect(analyzeBashCommand("find . -exec rmdir {} \\;").isDangerous).toBe(true);
   });
-  test("find -exec unlink → hueco conocido (caracterización: unlink borra archivos)", () => {
-    expect(analyzeBashCommand("find . -exec unlink {} \\;").isDangerous).toBe(false);
+  test("find -exec unlink → ask forzado (G3a: unlink borra archivos)", () => {
+    expect(analyzeBashCommand("find . -exec unlink {} \\;").isDangerous).toBe(true);
   });
-  test("find -exec 'rm' entre comillas → hueco conocido (caracterización: token 'rm' ≠ «rm»)", () => {
-    expect(analyzeBashCommand("find . -exec 'rm' -rf {} \\;").isDangerous).toBe(false);
+  test("find -exec 'rm' entre comillas → ask forzado (se desenvuelven comillas)", () => {
+    expect(analyzeBashCommand("find . -exec 'rm' -rf {} \\;").isDangerous).toBe(true);
+  });
+  test("find -exec shred/truncate y -execdir dd → ask forzado (G3a ampliada)", () => {
+    expect(analyzeBashCommand("find . -exec shred {} \\;").isDangerous).toBe(true);
+    expect(analyzeBashCommand("find . -exec truncate -s 0 {} \\;").isDangerous).toBe(true);
+    expect(analyzeBashCommand("find . -execdir dd if=/dev/null of={} \\;").isDangerous).toBe(true);
   });
   test("git clean -fdx → detectado (G3b)", () => {
     expect(analyzeBashCommand("git clean -fdx").isDangerous).toBe(true);

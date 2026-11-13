@@ -1,8 +1,8 @@
 # nicotine
 
 **nicotine** (`nic`) es un agente de código CLI *lite*: un bucle agéntico completo en
-TypeScript sobre Bun, cero dependencias de runtime (solo `@opentui/core` opcional para la
-TUI), compatible con el formato `opencode.json(c)`, que lee skills, comandos, temas y
+TypeScript sobre Bun, cero dependencias de runtime (solo `@opentui/core`, en
+`optionalDependencies`, para la TUI), compatible con el formato `opencode.json(c)`, que lee skills, comandos, temas y
 servidores MCP de **Claude Code, Codex CLI, Gemini CLI, OpenCode y Pi**.
 
 - Español en la UI; internamente TypeScript estricto.

@@ -4,6 +4,9 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 Versionado: el proyecto aún no sigue semver estricto; cada fase cerrada sube minor.
 
 ## [Sin publicar]
+- G3a cerrado: `find -exec`/`-execdir` detecta además `rmdir`, `unlink`, `shred`, `wipe`, `truncate` y `dd` (además de `rm`) y desenvuelve comillas simples/dobles del verbo (`-exec 'rm'` dispara ask). Los tests de caracterización del PR #4 que congelaban estos huecos se convirtieron en asertos de ask forzado (+ casos nuevos). Solo-ask: ninguna regla de deny se amplía ni relaja.
+- Empaquetado honesto: `@opentui/core` pasa de `dependencies` a `optionalDependencies` (era la única dep de runtime; ya se cargaba con `import()` dinámico solo para la TUI — el modo headless queda sin deps). README alineado.
+- Origen: revisión externa de la base de código, verificada hallazgo por hallazgo contra el código; solo se aplicaron los dos con causa real (el resto: ver informe — la mayoría era diseño o ya estaba mitigado). Sin tags, sin bump, sin tocar release/.
 
 ## [0.2.4] — 2026-11-12
 - Precisión D2 (sin ensanchar): `find -exec[dir]` detecta el comando como PRIMER token tras `-exec` con basename (`-exec echo rm` ya no dispara; `-exec /bin/rm` sí; `-execdir` igual). `.git` en redirecciones exige `/` o fin de ruta (`.git-ok/…` ya no dispara). Mismas asks, menos falsos positivos; ninguna validación se relaja.
