@@ -1,6 +1,6 @@
 {
   "name": "nicotine",
-  "version": "0.2.4",
+  "version": "0.2.5",
   "description": "nicotine — agente de código CLI ligero, compatible con el formato opencode.json(c)",
   "type": "module",
   "license": "MIT",

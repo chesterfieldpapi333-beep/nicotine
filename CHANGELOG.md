@@ -3,6 +3,12 @@
 Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 Versionado: el proyecto aún no sigue semver estricto; cada fase cerrada sube minor.
 
+## [0.2.5] — 2026-11-12
+- Cierre hueco DeepSeek: `cat script | sh` detectado como peligroso (`CAT_READERS` en `bash-parser.ts` con `cat`, `cp`, `cpio`, `less`, `more`). Tests adversariales actualizados (87 pass). Limitación documentada: `echo/printf/head/tail/sed/awk/base64 -d | sh` no cubiertos por diseño (no lectores de archivo completo).
+- Merge ordenado: `review/deepseek-2026-11-12-fixes` (G3a + empaquetado) → `master`; luego `deepseek/bash-parser-huecos` → `master`. Gates verificados en Linux (560/560 tests, tsc, check-style).
+- CI: workflow `bun.yml` añadido (install/test/tsc/check-style).
+- SHA256SUMS regenerado tras merge.
+
 ## [Sin publicar]
 - G3a cerrado: `find -exec`/`-execdir` detecta además `rmdir`, `unlink`, `shred`, `wipe`, `truncate` y `dd` (además de `rm`) y desenvuelve comillas simples/dobles del verbo (`-exec 'rm'` dispara ask). Los tests de caracterización del PR #4 que congelaban estos huecos se convirtieron en asertos de ask forzado (+ casos nuevos). Solo-ask: ninguna regla de deny se amplía ni relaja.
 - Empaquetado honesto: `@opentui/core` pasa de `dependencies` a `optionalDependencies` (era la única dep de runtime; ya se cargaba con `import()` dinámico solo para la TUI — el modo headless queda sin deps). README alineado.
