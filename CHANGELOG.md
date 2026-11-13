@@ -3,16 +3,23 @@
 Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 Versionado: el proyecto aún no sigue semver estricto; cada fase cerrada sube minor.
 
+## [0.2.6] — 2026-11-12
+- Enmienda de artefactos de v0.2.5 (v0.2.5 NO se mueve; este tag lo supersede). En v0.2.5, `release/SHA256SUMS` y `release/SBOM.json` se publicaron en UTF-16LE con BOM (flujo manual en Windows), y SHA256SUMS traía además 1 de 205 sumas desincronizada (`docs/proposals/bash-parser-huecos-deepseek.md`, editada tras generar las sumas) → `sha256sum -c release/SHA256SUMS` no verifica en un clon limpio. En v0.2.6 ambos artefactos se regeneran con `scripts/verify-release.sh` en clon Linux limpio: SHA256SUMS UTF-8/LF, `sha256sum -c` 206/206 OK; SBOM.json UTF-8 sin BOM, JSON válido.
+- `docs/proposals/bash-parser-huecos-deepseek-implementado.md`: newline final + trailing whitespace línea 34 corregidos; check-style vuelve a pasar en clon limpio.
+- CI: el pin `bun-version: 1.4.4` (antes `latest`) NO forma parte de este release: el token con que se preparó esta rama carece de scope `workflow`. Es un cambio de una línea para aplicar en un entorno con credenciales de workflow (o al re-emitir el token); queda documentado como pendiente.
+- CHANGELOG: bullets de `[Sin publicar]` que ya se publicaron en v0.2.5 (G3a, `@opentui/core` opcional) se mueven a la sección `[0.2.5]`.
+- Sin cambios en código ni dependencias respecto a v0.2.5; los tests del tag pasan igual (561/561 en clon Linux limpio).
+
 ## [0.2.5] — 2026-11-12
 - Cierre hueco DeepSeek: `cat script | sh` detectado como peligroso (`CAT_READERS` en `bash-parser.ts` con `cat`, `cp`, `cpio`, `less`, `more`). Tests adversariales actualizados (87 pass). Limitación documentada: `echo/printf/head/tail/sed/awk/base64 -d | sh` no cubiertos por diseño (no lectores de archivo completo).
 - Merge ordenado: `review/deepseek-2026-11-12-fixes` (G3a + empaquetado) → `master`; luego `deepseek/bash-parser-huecos` → `master`. Gates verificados en Linux (560/560 tests, tsc, check-style).
 - CI: workflow `bun.yml` añadido (install/test/tsc/check-style).
 - SHA256SUMS regenerado tras merge.
-
-## [Sin publicar]
 - G3a cerrado: `find -exec`/`-execdir` detecta además `rmdir`, `unlink`, `shred`, `wipe`, `truncate` y `dd` (además de `rm`) y desenvuelve comillas simples/dobles del verbo (`-exec 'rm'` dispara ask). Los tests de caracterización del PR #4 que congelaban estos huecos se convirtieron en asertos de ask forzado (+ casos nuevos). Solo-ask: ninguna regla de deny se amplía ni relaja.
 - Empaquetado honesto: `@opentui/core` pasa de `dependencies` a `optionalDependencies` (era la única dep de runtime; ya se cargaba con `import()` dinámico solo para la TUI — el modo headless queda sin deps). README alineado.
 - Origen: revisión externa de la base de código, verificada hallazgo por hallazgo contra el código; solo se aplicaron los dos con causa real (el resto: ver informe — la mayoría era diseño o ya estaba mitigado). Sin tags, sin bump, sin tocar release/.
+
+## [Sin publicar]
 
 ## [0.2.4] — 2026-11-12
 - Precisión D2 (sin ensanchar): `find -exec[dir]` detecta el comando como PRIMER token tras `-exec` con basename (`-exec echo rm` ya no dispara; `-exec /bin/rm` sí; `-execdir` igual). `.git` en redirecciones exige `/` o fin de ruta (`.git-ok/…` ya no dispara). Mismas asks, menos falsos positivos; ninguna validación se relaja.

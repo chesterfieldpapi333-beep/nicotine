@@ -31,7 +31,7 @@
 - `echo/printf/head/tail/sed/awk/base64 -d | sh` siguen sin detectarse por diseño (no son lectores de archivo completo).
 - `cp/cpio` en `CAT_READERS` pueden flushear a stdout contenido no-archivo (inofensivo, solo ensancha ask).
 
-**Estado:** El fix está **aplicado y mergeado a master** (tras `review/deepseek-2026-11-12-fixes`). 
+**Estado:** El fix está **aplicado y mergeado a master** (tras `review/deepseek-2026-11-12-fixes`).
 
 ---
 
