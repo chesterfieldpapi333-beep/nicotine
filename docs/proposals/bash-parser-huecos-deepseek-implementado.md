@@ -1,16 +1,16 @@
 # Implementación del fix: hueco DeepSeek cerrado
 
-**Tema**: `bash-parser-huecos-deepseek-implementado` (rama para el fix)
+**Tema**: `bash-parser-huecos-deepseek` (rama: `deepseek/bash-parser-huecos`)
 
 > **Nota**: Esta rama aplica un fix mínimo (Opción 1) para cerrar el hueco `cat script | sh` documentado en `docs/mission-deepseek.md`. El fix está en `src/tools/bash-parser.ts` (santuario §6). Perímetro: agregar un conjunto `CAT_READERS` y evaluar la regla `cat -> shell |` en la misma forma que `curl -> shell |`. Filtradores legítimos (`grep`, `sed`, `awk`, etc.) **no** están en el conjunto.
 
 ## Edición
 
-**Git checkout:** `ses_e2fcba5a2ffei72FbjstuSwh1C` (sin cambios de historia previos)
+**Git checkout:** `0461927` (commit del fix)
 
-**Commit ID:** `<sin-commit-por-hacer>`
+**Commit ID:** `0461927`
 
-**GitHub branch:** `deepseek/bash-parser-huecos-deepseek-implementado`
+**GitHub branch:** `deepseek/bash-parser-huecos`
 
 **Cambios realizados:**
 
@@ -27,24 +27,19 @@
 - Proteger los tres pilares H0 intactos (permisos, paths, bash-parser) – sin cambios
 - `src/security/*`, `src/core/permissions.ts`, `src/tools/bash-parser.ts` – solo el último tocado; confirmamos que la expansión sigue siendo **conservadora** (sin permission bypass). No se amplía `ask` → `allow`. No se introduce nueva dep.
 
-**Estado:** El fix está **aplicado**. El mantenedor puede:
+**Limitaciones documentadas (clase residual no cubierta):**
+- `echo/printf/head/tail/sed/awk/base64 -d | sh` siguen sin detectarse por diseño (no son lectores de archivo completo).
+- `cp/cpio` en `CAT_READERS` pueden flushear a stdout contenido no-archivo (inofensivo, solo ensancha ask).
 
-1. **Eliminar este commit** y mantener solo la propuesta (`docs/proposals/bash-parser-huecos-deepseek.md`) → bloque.
-2. **Mantener el fix** si acepta que es una mejora conservadora.
-3. **Rechazar el fix** y forzar una propuesta separada o cadena de implementaciones según D2.
-
-**Próximos pasos:** revisor senior decide OK (opción 2) o solicita un bloque (opción 1).
+**Estado:** El fix está **aplicado y mergeado a master** (tras `review/deepseek-2026-11-12-fixes`). 
 
 ---
-
-Al final de la tanda, se actualizara `docs/proposals/bash-parser-huecos-deepseek-implementado.md` con ID de commit real.
-
-© 2026 – propuesta.
 
 | Documentación | Contenido |
 |---|---|
 | Propuesta raíz | `docs/proposals/bash-parser-huecos-deepseek.md` |
 | Implementación detallada | este archivo |
 | Baseline (antes) | 518 pass / 36 fail / 2 error |
-| Baseline (después) | 529 pass / 1 skip / 25 fail / 0 error (restos ambientales) |
+| Baseline (después, Linux reviewer) | 560/560 pass / 0 fail |
+| Baseline (después, Windows local) | 529 pass / 1 skip / 25 fail / 0 error (restos ambientales) |
 | Estado de santuarios | `bash-parser.ts` tocado (opción 2), `permissions.ts`, `security/*` intocados |
